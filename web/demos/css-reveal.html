@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day / Night — a reveal with no canvas</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; }
+
+  .hero { position: relative; height: 100vh; min-height: 380px; overflow: hidden; cursor: crosshair; }
+
+  /* two complete versions of the same layout, stacked exactly on top of each other */
+  .layer { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 6vw; }
+  .layer h1 { font-size: clamp(3rem, 13vw, 11rem); line-height: 0.9; margin: 0; letter-spacing: -0.03em; }
+  .layer p { font-size: clamp(1rem, 2vw, 1.4rem); margin: 1.2rem 0 0; }
+
+  /* design one: day. patterns made of nothing but CSS gradients */
+  .day {
+    color: #1d3557;
+    background:
+      radial-gradient(circle at 78% 24%, #ffd166 0 7vmin, transparent 7.2vmin),
+      repeating-linear-gradient(0deg, transparent 0 22px, rgba(29, 53, 87, 0.08) 22px 23px),
+      linear-gradient(#cfe8f5, #f6efe0);
+  }
+  .day h1 { font-family: Georgia, serif; font-weight: 600; }
+
+  /* design two: night. same words, same positions, a different world */
+  .night {
+    color: #f1faee;
+    background:
+      radial-gradient(circle at 78% 24%, #f1faee 0 5vmin, transparent 5.2vmin),
+      radial-gradient(circle, rgba(241, 250, 238, 0.9) 1px, transparent 1.5px) 0 0 / 46px 46px,
+      radial-gradient(circle, rgba(241, 250, 238, 0.5) 1px, transparent 1.5px) 23px 31px / 74px 74px,
+      linear-gradient(#0b132b, #1c2541);
+    /* the reveal: only a circle of this layer is visible, and the circle is placed by three CSS variables */
+    clip-path: circle(var(--r, 0px) at var(--x, 50%) var(--y, 50%));
+  }
+  .night h1 { font-family: Arial, sans-serif; font-weight: 900; text-transform: uppercase; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .night { clip-path: inset(0 0 0 50%); }      /* no motion: simply show half of each */
+  }
+</style>
+</head>
+<body>
+
+<section class="hero" id="hero">
+  <div class="layer day">
+    <h1>Day</h1>
+    <p>Move the pointer to see the other half of the story.</p>
+  </div>
+  <div class="layer night" aria-hidden="true">
+    <h1>Night</h1>
+    <p>Move the pointer to see the other half of the story.</p>
+  </div>
+</section>
+
+<script>
+// JavaScript's only job is to copy the pointer position into CSS variables. CSS does the drawing.
+const hero = document.getElementById('hero');
+let x = innerWidth / 2, y = innerHeight / 2, r = 0;
+let tx = x, ty = y, tr = 0, active = false;
+
+hero.addEventListener('pointermove', (e) => {
+  const box = hero.getBoundingClientRect();
+  tx = e.clientX - box.left;
+  ty = e.clientY - box.top;
+  active = true;
+});
+hero.addEventListener('pointerleave', () => { active = false; });
+
+function frame(ms) {
+  const t = ms / 1000, w = hero.clientWidth, h = hero.clientHeight;
+  if (!active) {                                   // idle: drift, so there is something to notice
+    tx = w * 0.5 + Math.cos(t * 0.6) * w * 0.25;
+    ty = h * 0.5 + Math.sin(t * 0.9) * h * 0.2;
+  }
+  tr = Math.min(w, h) * (active ? 0.26 : 0.16);
+  x += (tx - x) * 0.12;                            // smoothing, as everywhere in the course
+  y += (ty - y) * 0.12;
+  r += (tr - r) * 0.08;
+  hero.style.setProperty('--x', x + 'px');
+  hero.style.setProperty('--y', y + 'px');
+  hero.style.setProperty('--r', r + 'px');
+  requestAnimationFrame(frame);
+}
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(frame);
+</script>
+</body>
+</html>

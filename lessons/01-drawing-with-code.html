@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1 · Drawing with Code</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Lesson 1 of 19</span><a href="02-controlled-randomness.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 1</p>
+  <h1>Drawing with Code</h1>
+  <p class="lede">Procedural art starts with one change of habit: you stop placing marks by hand and start describing where marks should go. This lesson gives you the vocabulary for that description.</p>
+</header>
+
+<h2>What procedural art is</h2>
+<p>A procedural artwork is made by a <strong>procedure</strong>, a set of rules you write, and not by placing each mark yourself. You design the system and the system produces the image. Change one number in the rules and the whole picture changes with it.</p>
+<p>That gives the medium three properties that hand drawing does not have:</p>
+<ul>
+  <li><strong>Repetition is free.</strong> Drawing ten thousand circles costs the same effort as drawing one.</li>
+  <li><strong>Every value is a dial.</strong> Size, spacing, colour and count are numbers, and numbers can be driven by other numbers.</li>
+  <li><strong>One program is many pictures.</strong> A sketch describes a family of images. Much of the craft is designing that family so every member is good.</li>
+</ul>
+<p>In this lesson everything is deterministic: the same code always draws the same picture. Randomness arrives in Lesson 2.</p>
+
+<h2>The canvas and its coordinates</h2>
+<p>The canvas is a grid of pixels. A position is a pair <code>(x, y)</code>. The origin <code>(0, 0)</code> is the <strong>top-left</strong> corner, <code>x</code> grows to the right and <code>y</code> grows <strong>downward</strong>. That last point is the opposite of school graphs and it catches everyone at least once.</p>
+<p>You draw through a context object, <code>ctx</code>. The pattern is always: choose a style, describe a shape, then fill or stroke it.</p>
+
+<div class="example" data-title="1.1 First marks">
+<script type="text/plain">
+// background
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+// rectangle: x, y, width, height
+ctx.fillStyle = '#e4572e';
+ctx.fillRect(80, 80, 200, 140);
+
+// circle: centre x, centre y, radius, start angle, end angle
+ctx.beginPath();
+ctx.arc(400, 300, 110, 0, Math.PI * 2);
+ctx.fillStyle = '#17bebb';
+ctx.fill();
+
+// a path made of straight lines
+ctx.beginPath();
+ctx.moveTo(80, 520);
+ctx.lineTo(300, 340);
+ctx.lineTo(520, 520);
+ctx.strokeStyle = '#2e282a';
+ctx.lineWidth = 6;
+ctx.stroke();
+</script>
+</div>
+
+<p>Try it: move the circle, make the rectangle taller, change <code>stroke()</code> to <code>fill()</code>. Notice that later shapes cover earlier ones. Drawing order is your only layering tool, and you will use it deliberately.</p>
+
+<h3>Colour</h3>
+<p>Colours are strings. Hex (<code>'#e4572e'</code>) is good for palettes you picked by eye. For colours you want to <em>compute</em>, HSL is far easier: hue is an angle on the colour wheel (0–360), saturation and lightness are percentages. <code>PA.hsl(200, 80, 60)</code> builds the string for you, and an optional fourth value sets transparency.</p>
+
+<h2>Loops: one rule, many marks</h2>
+<p>A loop repeats an instruction while a counter changes. The useful trick is to turn the counter into a fraction <code>t</code> that runs from 0 to 1, then use <code>t</code> to drive everything else. <code>PA.lerp(a, b, t)</code> gives the value that is <code>t</code> of the way from <code>a</code> to <code>b</code>.</p>
+
+<div class="example" data-title="1.2 One loop, three properties">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+const count = 14;
+for (let i = 0; i < count; i++) {
+  const t = i / (count - 1);            // 0 at the first circle, 1 at the last
+
+  const x = PA.lerp(60, W - 60, t);     // position follows t
+  const r = PA.lerp(4, 46, t);          // so does size
+  const hue = PA.lerp(190, 340, t);     // and colour
+
+  ctx.beginPath();
+  ctx.arc(x, H / 2, r, 0, PA.TAU);
+  ctx.fillStyle = PA.hsl(hue, 80, 60, 0.8);
+  ctx.fill();
+}
+</script>
+</div>
+
+<p>This pattern, <em>index → fraction → property</em>, is the single most reused idea in the course. Whenever a picture looks flat, ask which property could follow <code>t</code>.</p>
+
+<h2>Grids: a loop inside a loop</h2>
+<p>Put one loop inside another and you get a grid: the outer loop walks down the rows, the inner loop walks along each row. Every cell knows its column <code>i</code> and row <code>j</code>, and from those you can compute anything: its centre, its distance from the middle, whether it is on a diagonal.</p>
+
+<div class="example" data-title="1.3 A grid that knows where it is">
+<script type="text/plain">
+ctx.fillStyle = '#0d1b2a';
+ctx.fillRect(0, 0, W, H);
+
+const cols = 20, rows = 20;
+const cell = W / cols;
+
+for (let j = 0; j < rows; j++) {
+  for (let i = 0; i < cols; i++) {
+    const x = (i + 0.5) * cell;                 // centre of this cell
+    const y = (j + 0.5) * cell;
+
+    const d = PA.dist(x, y, W / 2, H / 2);      // distance to the canvas centre
+    const t = PA.clamp(d / (W * 0.7), 0, 1);    // 0 in the middle, 1 far away
+
+    ctx.beginPath();
+    ctx.arc(x, y, PA.lerp(cell * 0.48, 1, t), 0, PA.TAU);
+    ctx.fillStyle = PA.hsl(PA.lerp(40, 330, t), 85, 60);
+    ctx.fill();
+  }
+}
+</script>
+</div>
+
+<p>Try it: replace the distance to the centre with the distance to a corner, or with <code>i / cols</code>, or with <code>Math.abs(i - j) / cols</code>. Each one is a different <strong>field</strong>: a rule that assigns a number to every point in space. Fields come back in every lesson from here on.</p>
+
+<h2>Transforms: moving the paper instead of the pen</h2>
+<p>To draw a rotated square you do not calculate four rotated corners. You move and rotate the coordinate system, draw an ordinary square at the origin, then put the coordinate system back.</p>
+<ul>
+  <li><code>ctx.translate(x, y)</code> moves the origin.</li>
+  <li><code>ctx.rotate(angle)</code> rotates around the current origin. Angles are in radians: a full turn is <code>PA.TAU</code> (about 6.283).</li>
+  <li><code>ctx.scale(sx, sy)</code> stretches.</li>
+  <li><code>ctx.save()</code> and <code>ctx.restore()</code> remember and bring back the previous state. Always use them as a pair.</li>
+</ul>
+
+<div class="example" data-title="1.4 Rotation as a function of position">
+<script type="text/plain">
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#1d1d1b';
+ctx.lineWidth = 1.5;
+
+const n = 14, cell = W / n;
+for (let j = 0; j < n; j++) {
+  for (let i = 0; i < n; i++) {
+    ctx.save();
+    ctx.translate((i + 0.5) * cell, (j + 0.5) * cell);   // origin = cell centre
+    ctx.rotate((i + j) * 0.06);                          // more turn further along
+    const s = cell * 0.7;
+    ctx.strokeRect(-s / 2, -s / 2, s, s);                // square centred on the origin
+    ctx.restore();
+  }
+}
+</script>
+</div>
+
+<h2>Parity, modulo and time</h2>
+<p>The remainder operator <code>%</code> makes repeating patterns: <code>(i + j) % 2</code> alternates 0 and 1 like a chessboard, <code>i % 3</code> cycles through three values. It is how you switch between a small set of options in a regular way.</p>
+<p>Time is just one more number to feed into the rules. In these examples <code>loop(fn)</code> calls your function about 60 times a second and passes the elapsed seconds. Redraw everything each frame with slightly different values and the picture moves.</p>
+
+<div class="example" data-title="1.5 A chessboard that breathes">
+<script type="text/plain">
+const n = 24, cell = W / n;
+
+loop((t) => {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const x = (i + 0.5) * cell, y = (j + 0.5) * cell;
+      const d = PA.dist(x, y, W / 2, H / 2);
+
+      const wave = Math.sin(d * 0.04 - t * 2);          // swings between -1 and 1
+      const r = PA.map(wave, -1, 1, 1, cell * 0.5);     // rescale to a radius
+
+      ctx.fillStyle = (i + j) % 2 === 0 ? '#ffd166' : '#ef476f';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, PA.TAU);
+      ctx.fill();
+    }
+  }
+});
+</script>
+</div>
+
+<p><code>PA.map(v, a, b, c, d)</code> rescales a value from one range to another. You will use it constantly, because rules produce numbers in one range (here −1 to 1) and drawing needs them in another (here a radius in pixels).</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>The origin is top-left and <code>y</code> points down.</li>
+  <li>Turn a loop counter into a 0–1 fraction, then drive properties from it with <code>lerp</code> and <code>map</code>.</li>
+  <li>A nested loop makes a grid, and every cell can compute its own properties from its position.</li>
+  <li>A field is a rule that gives a number for every point. Distance to a point is the simplest one.</li>
+  <li>Use <code>save</code>, <code>translate</code>, <code>rotate</code>, <code>restore</code> to draw simple shapes in complicated places.</li>
+  <li>Time is another input. Animation is the same rules evaluated with a changing number.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Forgetting <code>ctx.beginPath()</code>, so every new shape also redraws all the old ones.</li>
+  <li>Forgetting <code>ctx.restore()</code>, so transforms pile up and shapes fly off the canvas.</li>
+  <li>Passing degrees to <code>rotate</code>. Multiply degrees by <code>Math.PI / 180</code> first.</li>
+  <li>Hard-coding pixel positions. Write sizes as fractions of <code>W</code> and <code>H</code> so the piece survives a change of resolution.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 1</p>
+  <h2>The Rule Poster</h2>
+  <p>Make a 1000 × 1000 poster built from a grid, in which no two cells look quite alike, using no randomness at all. Everything must follow from each cell's position.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A grid of at least 12 × 12 cells with a margin around it.</li>
+    <li>At least <strong>three</strong> properties of each cell's shape (for example size, rotation, colour, line weight, shape type) are computed from the cell's position.</li>
+    <li>Those properties use at least <strong>two different fields</strong>, for example distance from a point and the diagonal <code>i + j</code>.</li>
+    <li>At least one property switches with <code>%</code>.</li>
+    <li>No <code>Math.random()</code> and no <code>PA.rng</code>. Reloading the page must give the identical image.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start with example 1.4 and change one thing at a time.</li>
+    <li>Two fields multiplied or added together give far richer results than either alone.</li>
+    <li>Limit yourself to a background and two or three colours. Restraint usually looks better than a rainbow.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add a second, offset grid on top with a different rule and some transparency.</li>
+    <li>Animate one of the fields with time so the poster loops smoothly.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You can point at any cell and explain exactly why it looks the way it does.</li>
+    <li>Changing the grid size from 12 to 30 still gives a good picture without touching any other number.</li>
+  </ul>
+  <a class="start" href="../challenges/01-rule-poster.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-controlled-randomness.html">Lesson 2: Controlled Randomness →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 4 · A Piece for Eyes and Ears</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 92vmin; max-height: 86vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); touch-action: none; }
+  #report { margin: 0; padding: 10px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="1000" height="1000"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 4 — A PIECE FOR EYES AND EARS
+   Full brief: ../special/04-sound-and-music.html
+
+   Checklist
+   [ ] Silent until clicked, and quiet: master volume no higher than 0.3
+   [ ] One simulation or rule system produces events; each event makes a sound AND leaves a mark
+   [ ] At least two voices with different envelopes and wave shapes
+   [ ] Pitches from a scale; rhythm with a pulse
+   [ ] Slow change over a minute or more, driven by noise
+   [ ] Seeded: the same seed plays the same piece
+   [ ] Keys to stop, restart and change seed
+   [ ] Eyes shut it sounds like music; sound off it looks like a piece
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const report = document.getElementById('report');
+
+let seed = 1;
+let R = PA.rng(seed), N = PA.noise(seed);
+
+const SCALE = [0, 2, 4, 7, 9];          // pentatonic. change it
+const ROOT = 57;
+const noteToFrequency = (note) => 440 * 2 ** ((note - 69) / 12);
+
+let audio = null, master = null;
+
+canvas.addEventListener('click', () => {
+  if (audio) return;
+  audio = new AudioContext();
+  master = audio.createGain();
+  master.gain.value = 0.25;             // keep it quiet
+  master.connect(audio.destination);
+});
+
+// Play one note. Give each of your voices its own version of this.
+function voice(note, when, length) {
+  // ---- oscillator, gain envelope, connect to master ----
+}
+
+// One event: something happened in the system. Make a sound and leave a mark.
+function strike(what, x, y) {
+  // ---- your mark ----
+  if (!audio) return;
+  // ---- your sound: voice(..., audio.currentTime, ...) ----
+}
+
+function reset() {
+  R = PA.rng(seed); N = PA.noise(seed);
+  // ---- set up your system ----
+}
+
+function frame(ms) {
+  const t = ms / 1000;
+  ctx.fillStyle = '#12151c';
+  ctx.fillRect(0, 0, W, H);
+
+  // ---- update the system. call strike() whenever an event happens ----
+  // ---- draw ----
+
+  report.textContent = audio ? 'seed ' + seed : 'click the picture to start the sound (quiet)';
+  requestAnimationFrame(frame);
+}
+
+reset();
+requestAnimationFrame(frame);
+
+// TODO: keys to stop, restart and change seed
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 5 · A Piece for a Place</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 92vmin; max-height: 86vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); touch-action: none; }
+  #report { margin: 0; padding: 10px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="1000" height="700"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 5 — A PIECE FOR A PLACE
+   Full brief: ../special/05-live-hardware.html
+
+   Checklist
+   [ ] A written description of the place (below)
+   [ ] A simulator at the true resolution and layout of the hardware
+   [ ] Colours as whole numbers 0 to 255; for LEDs, a current estimate with a software limit
+   [ ] At least three patterns, with smooth transitions between them
+   [ ] Reacts to one live input (camera motion, sound level, time of day, or the pointer as a stand-in)
+   [ ] Could run unattended: no state that grows for ever
+   [ ] No full-field flashing faster than three times a second
+   [ ] The pattern function could be handed to someone with the hardware
+
+   THE PLACE
+     Where it is:                 ...
+     How far away people stand:   ...
+     Surrounding light:           ...
+     The hardware:                ...
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const report = document.getElementById('report');
+
+const mouse = { x: W / 2, y: H / 2, down: false, active: false };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * W;
+  mouse.y = (e.clientY - r.top) / r.height * H;
+  mouse.active = true;
+});
+canvas.addEventListener('pointerdown', () => { mouse.down = true; });
+addEventListener('pointerup', () => { mouse.down = false; });
+
+// ---- the hardware ----
+const LED_COUNT = 120;                  // the true number
+const MAX_AMPS = 3.0;                   // what the power supply can give
+const AMPS_PER_CHANNEL = 0.02;          // each of red, green and blue, at full
+
+const N = PA.noise('place');
+
+// Where LED number i sits, in canvas pixels. This is your layout: a line, a spiral, a zigzag panel...
+function ledPosition(i) {
+  return [40 + (i / (LED_COUNT - 1)) * (W - 80), H / 2];
+}
+
+// THE PATTERN. This function is what you would port to the microcontroller.
+// Returns [r, g, b], whole numbers from 0 to 255, for LED number i at time t (seconds).
+function pattern(i, t, input) {
+  // ---- your patterns and the transitions between them ----
+  return [0, 0, 0];
+}
+
+function frame(ms) {
+  const t = ms / 1000;
+  const input = mouse.active ? mouse.x / W : 0;       // a stand-in for your live input
+
+  let colours = [];
+  for (let i = 0; i < LED_COUNT; i++) colours.push(pattern(i, t, input));
+
+  // ---- estimate the current, and scale all colours down if it exceeds MAX_AMPS ----
+  let amps = 0;
+
+  ctx.fillStyle = '#050506';
+  ctx.fillRect(0, 0, W, H);
+  colours.forEach(([r, g, b], i) => {
+    const [x, y] = ledPosition(i);
+    ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, PA.TAU); ctx.fill();
+  });
+  report.textContent = LED_COUNT + ' LEDs · estimated ' + amps.toFixed(2) + ' A of ' + MAX_AMPS + ' A available';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

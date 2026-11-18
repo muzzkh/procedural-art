@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 3 · Imaginary Topography</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 3 — IMAGINARY TOPOGRAPHY
+   Full brief: ../lessons/03-noise.html
+
+   A map of a place that does not exist.
+
+   Checklist
+   [ ] Height comes from seeded fBm noise, tuned by eye
+   [ ] At least five elevation bands, including water, in a palette you chose
+   [ ] Contour lines at regular height intervals
+   [ ] A second, independent noise changes something visible
+   [ ] Five different seeds give five convincing maps
+
+   Reminders
+   - Pixel i of the image starts at index (y * W + x) * 4 in img.data: red, green, blue, alpha.
+   - Noise values cluster round 0.5. Print a few with console.log before choosing thresholds. */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const seed = 'atlas-1';
+const N = PA.noise(seed);
+
+const img = ctx.createImageData(W, H);
+
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const k = (y * W + x) * 4;
+
+    // ---- your code here: compute a colour for this pixel ----
+    img.data[k] = 0;        // red   0-255
+    img.data[k + 1] = 0;    // green
+    img.data[k + 2] = 0;    // blue
+    img.data[k + 3] = 255;  // opaque
+  }
+}
+
+ctx.putImageData(img, 0, 0);
+
+</script>
+</body>
+</html>

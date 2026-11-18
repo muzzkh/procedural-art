@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 15 · The Perfect Loop</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1080" height="1080"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 15 — THE PERFECT LOOP
+   Full brief: ../lessons/15-animation-and-looping.html
+
+   Checklist
+   [ ] The whole picture is drawFrame(phase), phase from 0 to 1; the same phase always draws the same thing
+   [ ] Seamless: drawFrame(0) and drawFrame(1) are identical, and so is the motion either side of the join
+   [ ] At least forty moving elements, staggered by a field
+   [ ] At least two different easings, and at least one hold
+   [ ] Organic variation from noise sampled on a circle
+   [ ] A key that scrubs: while held, the mouse position sets the phase
+   [ ] Exported as video
+   [ ] Watched twenty times without spotting the restart */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const LOOP_SECONDS = 4;
+const N = PA.noise('loop-1');
+
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((2 - 2 * t) ** 3) / 2);
+
+// Everything visible must be computed from phase alone. No variables that change between frames.
+function drawFrame(phase) {
+  const a = phase * PA.TAU;
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  // ---- your loop here ----
+
+}
+
+let scrub = null;       // when not null, the phase to show instead of the clock
+
+function frame(ms) {
+  const phase = scrub !== null ? scrub : ((ms / 1000) % LOOP_SECONDS) / LOOP_SECONDS;
+  drawFrame(phase);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// TODO: a scrub key, and export
+</script>
+</body>
+</html>

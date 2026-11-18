@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>three.js 2 · Geometry from Code</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  window.THREE = THREE;
+  window.OrbitControls = OrbitControls;
+  window.dispatchEvent(new Event('three-ready'));
+</script>
+</head>
+<body>
+<nav class="top"><a href="01-scenes-and-objects.html">← three.js 1</a><span>three.js 2 of 3</span><a href="03-shaders-interaction-export.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">three.js 2</p>
+  <h1>Geometry from Code</h1>
+  <p class="lede">The built-in boxes and spheres only go so far. Procedural 3D means making your own geometry: surfaces from functions, thousands of copies placed by rule, and clouds of points. This lesson covers the four ways to put generated data on the graphics card.</p>
+</header>
+
+<h2>What a geometry is</h2>
+<p>A <code>BufferGeometry</code> is a set of flat arrays of numbers, called <strong>attributes</strong>, with one entry per vertex:</p>
+<dl class="vocab">
+  <dt>position</dt><dd>Three numbers per vertex: x, y, z. The only attribute that is required.</dd>
+  <dt>normal</dt><dd>The direction the surface faces at that vertex, used for lighting. three.js can compute it for you.</dd>
+  <dt>color</dt><dd>Optional red, green, blue per vertex. The colours blend across each triangle.</dd>
+  <dt>uv</dt><dd>Optional texture coordinates.</dd>
+</dl>
+<p>Triangles are then described by an <strong>index</strong>: a list of vertex numbers, three per triangle. Sharing vertices between triangles this way keeps the data small and makes the surface smooth. As in the 3D printing lessons, the three corners of a triangle run anticlockwise when seen from its front.</p>
+
+<h2>A surface from a height function</h2>
+<p>The most useful hand-built geometry is the grid: rows and columns of vertices, with two triangles per square. Give each vertex a height from a field and it is a terrain. Give it a colour by height and it is a map. This is Lesson 3's noise terrain, now a real surface that light falls across.</p>
+
+<div class="example" data-mode="three" data-title="T2.1 A terrain built vertex by vertex">
+<script type="text/plain">
+const N = PA.noise('terrain-3d');
+const SEG = 140, SIZE = 22;
+
+const positions = [], colours = [], index = [];
+const colour = new THREE.Color();
+
+for (let j = 0; j <= SEG; j++) {
+  for (let i = 0; i <= SEG; i++) {
+    const x = (i / SEG - 0.5) * SIZE, z = (j / SEG - 0.5) * SIZE;
+    const n = N.fbm(x * 0.16 + 9, z * 0.16 + 9, { octaves: 5 });
+    const y = Math.max(0, n - 0.44) * 11;                    // sea level, then land
+    positions.push(x, y, z);
+
+    if (y === 0) colour.set(0x2c6e9b);                       // water
+    else if (y < 0.25) colour.set(0xdcc98f);                 // sand
+    else if (y < 1.4) colour.set(0x5d9950);                  // grass
+    else if (y < 2.3) colour.set(0x7b7468);                  // rock
+    else colour.set(0xf2f2f2);                               // snow
+    colours.push(colour.r, colour.g, colour.b);
+  }
+}
+for (let j = 0; j < SEG; j++) {
+  for (let i = 0; i < SEG; i++) {
+    const a = j * (SEG + 1) + i, b = a + 1, c = a + SEG + 1, d = c + 1;
+    index.push(a, c, b,  b, c, d);                           // two triangles per grid square
+  }
+}
+
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+geometry.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+geometry.setIndex(index);
+geometry.computeVertexNormals();                             // work out the lighting directions
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbfd6e6);
+scene.fog = new THREE.Fog(0xbfd6e6, 18, 40);
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(12, 9, 14);
+orbit(camera);
+
+const land = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true }));
+scene.add(land);
+const sun = new THREE.DirectionalLight(0xfff2dd, 3.2);
+sun.position.set(-5, 8, 3);
+scene.add(sun, new THREE.HemisphereLight(0xcfe3ff, 0x4a4030, 1.2));
+
+loop((t) => {
+  land.rotation.y = t * 0.06;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<p>Try it: remove <code>flatShading: true</code> for a smooth surface. Lower <code>SEG</code> to 30 for a deliberately faceted look.</p>
+
+<h2>Parametric surfaces</h2>
+<p>The grid does not have to stay flat. A <strong>parametric surface</strong> takes the two grid coordinates, <code>u</code> and <code>v</code>, each from 0 to 1, and maps them through a formula to a point in space. The grid indexing is identical; only the position function changes. Spheres, tori, shells, knots and vases are all one function each.</p>
+<p>The seashell below combines two ideas from the maths section: a tube swept round an axis (polar coordinates), growing by a constant ratio as it goes (the exponential of Maths 1).</p>
+
+<div class="example" data-mode="three" data-title="T2.2 A seashell from one function">
+<script type="text/plain">
+// the surface: (u, v) in 0..1 goes in, a point in space comes out
+function shell(u, v) {
+  const turn = u * PA.TAU * 3.5;                           // three and a half turns round the axis
+  const grow = 0.16 * Math.exp(u * 2.1);                   // every turn is larger by a constant ratio
+  const b = v * PA.TAU;                                    // round the tube
+  const tube = grow * (1 + 0.12 * Math.sin(b * 9));        // the tube's radius, with nine ridges
+  const out = grow * 1.6 + tube * Math.cos(b);             // distance from the axis
+  return [out * Math.cos(turn), tube * Math.sin(b) - grow * 2.6 + 2.2, out * Math.sin(turn)];
+}
+
+// any (u, v) function becomes a geometry the same way
+function surfaceGeometry(fn, nu, nv) {
+  const positions = [], colours = [], index = [], c = new THREE.Color();
+  for (let j = 0; j <= nv; j++) {
+    for (let i = 0; i <= nu; i++) {
+      positions.push(...fn(i / nu, j / nv));
+      c.setHSL(0.06 + (i / nu) * 0.08, 0.6, 0.45 + 0.3 * (i / nu));
+      colours.push(c.r, c.g, c.b);
+    }
+  }
+  for (let j = 0; j < nv; j++) {
+    for (let i = 0; i < nu; i++) {
+      const a = j * (nu + 1) + i, b = a + 1, d = a + nu + 1, e = d + 1;
+      index.push(a, d, b,  b, d, e);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2233);
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(5, 3, 7);
+orbit(camera);
+
+const mesh = new THREE.Mesh(
+  surfaceGeometry(shell, 400, 48),
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, side: THREE.DoubleSide })   // visible from inside too
+);
+scene.add(mesh);
+const key = new THREE.DirectionalLight(0xffffff, 3);
+key.position.set(4, 6, 5);
+scene.add(key, new THREE.HemisphereLight(0x99bbff, 0x332211, 1.2));
+
+loop((t) => {
+  mesh.rotation.y = t * 0.25;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<h2>Instancing: one shape, thousands of times</h2>
+<p>Lesson 1's advice to share a geometry between meshes still leaves the graphics card drawing each mesh separately, which becomes slow beyond a few thousand. <strong>Instancing</strong> draws all the copies in one call. An <code>InstancedMesh</code> has a single geometry and material and a list of <em>transforms</em>, one per copy, each a position, rotation and scale. A hundred thousand objects is realistic.</p>
+<p>The routine is always the same: move a throwaway helper object to where a copy should be, then store its transform. Here five thousand spikes sit on a sphere, placed by the golden angle from Lesson 4 so that they are evenly spread, and each one's length follows animated 3D noise.</p>
+
+<div class="example" data-mode="three" data-title="T2.3 Five thousand instances">
+<script type="text/plain">
+const N = PA.noise('urchin');
+const COUNT = 5000;
+
+const spike = new THREE.ConeGeometry(0.035, 1, 5);
+spike.translate(0, 0.5, 0);                    // put the base at the origin...
+spike.rotateX(Math.PI / 2);                    // ...and point it along +z, the direction lookAt aims
+
+const mesh = new THREE.InstancedMesh(spike, new THREE.MeshStandardMaterial({ roughness: 0.5 }), COUNT);
+
+// evenly spread directions on a sphere: the golden angle, with height stepping evenly from top to bottom
+const directions = [], golden = Math.PI * (3 - Math.sqrt(5)), colour = new THREE.Color();
+for (let i = 0; i < COUNT; i++) {
+  const y = 1 - 2 * (i + 0.5) / COUNT, r = Math.sqrt(1 - y * y), a = i * golden;
+  directions.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+  mesh.setColorAt(i, colour.setHSL(0.52 + y * 0.12, 0.7, 0.55));
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1320);
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(0, 2, 8);
+orbit(camera);
+scene.add(mesh);
+const key = new THREE.DirectionalLight(0xffffff, 3);
+key.position.set(5, 6, 4);
+scene.add(key, new THREE.HemisphereLight(0x88aaff, 0x221133, 1.5));
+
+const helper = new THREE.Object3D();
+const target = new THREE.Vector3();
+
+loop((t) => {
+  for (let i = 0; i < COUNT; i++) {
+    const d = directions[i];
+    const n = N.get(d.x * 1.4 + 5, d.y * 1.4 + 5, d.z * 1.4 + t * 0.35);
+    helper.position.copy(d).multiplyScalar(1.6);          // on a sphere of radius 1.6
+    helper.lookAt(target.copy(d).multiplyScalar(4));      // facing straight outward
+    helper.scale.set(1, 1, 0.15 + n * n * 5);             // length from noise
+    helper.updateMatrix();
+    mesh.setMatrixAt(i, helper.matrix);                   // store this copy's transform
+  }
+  mesh.instanceMatrix.needsUpdate = true;                 // tell three.js the list changed
+  mesh.rotation.y = t * 0.1;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<h2>Points</h2>
+<p>For particle systems and density images, skip triangles altogether. A <code>Points</code> object draws one dot per vertex. Hundreds of thousands are cheap. With additive blending, where overlapping dots add their brightness, a cloud of points glows where it is dense, exactly like the density plot in Maths 4.</p>
+<p>The example runs the Lorenz system from Maths 4 and keeps every position it visits, so the strange attractor can finally be seen as the three-dimensional object it is.</p>
+
+<div class="example" data-mode="three" data-title="T2.4 The Lorenz attractor in three dimensions">
+<script type="text/plain">
+const COUNT = 60000;
+const positions = new Float32Array(COUNT * 3), colours = new Float32Array(COUNT * 3);
+const colour = new THREE.Color();
+
+let x = 1, y = 1, z = 1;
+const dt = 0.004;
+for (let i = 0; i < COUNT; i++) {
+  const dx = 10 * (y - x), dy = x * (28 - z) - y, dz = x * y - (8 / 3) * z;     // the Lorenz equations
+  x += dx * dt; y += dy * dt; z += dz * dt;
+  positions[i * 3] = x * 0.12;
+  positions[i * 3 + 1] = (z - 25) * 0.12;                 // the system's z is our vertical axis
+  positions[i * 3 + 2] = y * 0.12;
+  const speed = Math.hypot(dx, dy, dz);
+  colour.setHSL(0.6 - Math.min(speed / 300, 0.55), 0.9, 0.5);      // colour by speed: blue slow, orange fast
+  colours[i * 3] = colour.r; colours[i * 3 + 1] = colour.g; colours[i * 3 + 2] = colour.b;
+}
+
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+
+const cloud = new THREE.Points(geometry, new THREE.PointsMaterial({
+  size: 0.035, vertexColors: true,
+  blending: THREE.AdditiveBlending, transparent: true, opacity: 0.6, depthWrite: false,    // overlapping points add up
+}));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070c);
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(0, 1, 9);
+orbit(camera);
+scene.add(cloud);
+
+loop((t) => {
+  cloud.rotation.y = t * 0.2;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<h2>Choosing a representation</h2>
+<table>
+  <thead><tr><th>You have…</th><th>Use…</th><th>Scale</th></tr></thead>
+  <tbody>
+    <tr><td>A few distinct objects</td><td>Separate <code>Mesh</code> objects, sharing geometry</td><td>Hundreds</td></tr>
+    <tr><td>One continuous surface</td><td>A custom <code>BufferGeometry</code></td><td>Millions of triangles</td></tr>
+    <tr><td>Many copies of one shape</td><td><code>InstancedMesh</code></td><td>Hundreds of thousands</td></tr>
+    <tr><td>Particles, dust, stars</td><td><code>Points</code></td><td>Millions</td></tr>
+    <tr><td>Curves, wireframes, flow lines</td><td><code>Line</code> or <code>LineSegments</code></td><td>Hundreds of thousands of segments</td></tr>
+    <tr><td>A profile to spin, or an outline to thicken</td><td><code>LatheGeometry</code>, <code>ExtrudeGeometry</code>, <code>TubeGeometry</code></td><td>Built in: see the next lesson</td></tr>
+  </tbody>
+</table>
+<p>To animate a custom geometry, change the numbers in its position attribute and set <code>geometry.attributes.position.needsUpdate = true</code>. For anything heavy, move the animation into a shader instead, which is the subject of the next lesson.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A geometry is arrays of per-vertex numbers plus an index listing the triangles.</li>
+  <li>A grid of vertices with a height function is a terrain. With a position function it is any parametric surface.</li>
+  <li><code>computeVertexNormals</code> supplies lighting directions. <code>flatShading</code> gives facets.</li>
+  <li>Instancing draws thousands of copies in one call: set a transform per copy.</li>
+  <li>Points with additive blending make glowing density clouds.</li>
+  <li>Tell three.js when you change data: <code>needsUpdate = true</code>.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <ul>
+    <li><strong>Your own surface.</strong> Write a new <code>(u, v)</code> function for T2.2: a torus knot, a vase with a wavy rim, or a Möbius band. Colour it by curvature or by height.</li>
+    <li><strong>Grass.</strong> Scatter twenty thousand instanced blades over the terrain of T2.1, only where the ground is grass, leaning with a noise-driven wind.</li>
+    <li><strong>Flow in 3D.</strong> Turn Lesson 5's flow field into three dimensions: trace a few hundred streamlines through a 3D noise field and draw them as <code>Line</code> objects.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="01-scenes-and-objects.html">← three.js 1</a><a href="03-shaders-interaction-export.html">three.js 3: Shaders, Interaction and Export →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

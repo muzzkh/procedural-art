@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blender 1 · Scripting Blender</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Blender 1 of 4</span><a href="02-meshes-and-modifiers.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Blender 1</p>
+  <h1>Scripting Blender</h1>
+  <p class="lede">Blender is a complete 3D studio with a Python interpreter inside it. Anything you can do with the mouse, a script can do, and a script can do it ten thousand times with a different seed each time. This section brings the course's methods into Blender: scripts, procedural meshes, Geometry Nodes, and your own add-ons.</p>
+</header>
+
+<div class="note"><p><strong>How this section differs.</strong> Blender code cannot run in a web page, so these four lessons have code listings and rendered pictures instead of live examples. Every script is a real file in the course's <code>blender/scripts</code> folder, and each was run in <strong>Blender 5.3</strong> before the lesson was written. Blender's Python interface changes between versions. Where I know of a difference from 4.x it is noted, but the scripts were not run on 4.x.</p></div>
+
+<h2>Where Python lives in Blender</h2>
+<p>Open the <strong>Scripting</strong> workspace from the tabs along the top. It gathers what you need:</p>
+<dl class="vocab">
+  <dt>Text Editor</dt><dd>Write or open a script, then press <em>Run Script</em>. This is where you will work.</dd>
+  <dt>Python Console</dt><dd>Type one line at a time and see the result. Ideal for exploring: type <code>bpy.data.</code> and press Tab to see what exists.</dd>
+  <dt>Info editor</dt><dd>Shows, as Python, every action you perform with the mouse. Do something by hand, and copy the line it prints.</dd>
+</dl>
+<p>Two settings help a great deal. In Preferences, Interface, turn on <em>Python Tooltips</em>: hovering over any button then shows the Python name of the value behind it. And on Windows, <em>Window, Toggle System Console</em> opens the window where <code>print</code> output and error messages appear.</p>
+
+<h2>The four parts of the Python interface</h2>
+<table>
+  <thead><tr><th>Module</th><th>What it is</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><code>bpy.data</code></td><td>Everything that exists in the file: objects, meshes, materials, collections, node trees</td><td><code>bpy.data.objects["Cube"]</code></td></tr>
+    <tr><td><code>bpy.context</code></td><td>The current situation: the active object, the selection, the scene</td><td><code>bpy.context.active_object</code></td></tr>
+    <tr><td><code>bpy.ops</code></td><td>Operators: the same commands the menus and buttons run</td><td><code>bpy.ops.mesh.primitive_cube_add()</code></td></tr>
+    <tr><td><code>mathutils</code></td><td>Vectors, matrices, rotations, and noise functions</td><td><code>Vector((1, 0, 0))</code></td></tr>
+  </tbody>
+</table>
+<p>There is a choice to make whenever you write a script. Operators (<code>bpy.ops</code>) are easy to find, because the Info editor prints them, but they depend on what is selected and which editor the mouse is over, and they are slow in loops. Working on the data directly (<code>bpy.data</code>) is faster and always behaves the same. <strong>For generating things, prefer data.</strong> Use operators for one-off actions such as exporting a file.</p>
+
+<h2>Objects, meshes and collections</h2>
+<p>Blender separates <em>what a thing is</em> from <em>where it is</em>, and this matters for procedural work.</p>
+<ul>
+  <li>A <strong>mesh</strong> is geometry: vertices and faces.</li>
+  <li>An <strong>object</strong> is a placement of some data in the scene: a position, rotation and scale, plus a reference to a mesh.</li>
+  <li>Many objects can <strong>share one mesh</strong>. A thousand objects using the same mesh cost little more memory than one. This is Blender's version of sharing a geometry in three.js.</li>
+  <li>An object appears in the scene only when it is linked into a <strong>collection</strong>, which is a folder of objects.</li>
+</ul>
+<p>Blender uses <strong>Z up</strong>, like the 3D printing lessons. Its default unit is the metre. Rotations in Python are in radians.</p>
+
+<h2>A first procedural script</h2>
+<p>This is Lesson 1 of the main course, in Blender: a grid, and properties that follow from position. A noise field sets each column's height and picks its colour from a small palette. Read it top to bottom. The numbered comments are the steps you will repeat in nearly every generating script.</p>
+
+<figure class="shot">
+  <img src="img/01-columns.png" alt="A grid of square columns of varying height in three colours, rendered in Blender">
+  <figcaption>The result, rendered. File: <a href="scripts/01_first_script.py">blender/scripts/01_first_script.py</a></figcaption>
+</figure>
+
+<pre class="listing"><code>import math
+import random
+
+import bpy
+from mathutils import Vector, noise
+
+SEED = 7
+SIZE = 16               # columns along each side
+SPACING = 0.6           # metres between columns
+
+# ---- 1. start from an empty scene ----
+for obj in list(bpy.data.objects):
+    bpy.data.objects.remove(obj, do_unlink=True)
+
+rng = random.Random(SEED)
+offset = Vector((rng.uniform(-100, 100), rng.uniform(-100, 100), 0.0))     # a different patch of noise per seed
+
+# ---- 2. one mesh, shared by every column ----
+bpy.ops.mesh.primitive_cube_add(size=1.0)
+template = bpy.context.active_object
+cube_mesh = template.data
+bpy.data.objects.remove(template, do_unlink=True)        # keep the mesh, discard the object
+
+# ---- 3. a few materials to choose from ----
+palette = [(0.11, 0.21, 0.34), (0.16, 0.62, 0.56), (0.91, 0.77, 0.42), (0.91, 0.44, 0.32)]
+materials = []
+for i, colour in enumerate(palette):
+    mat = bpy.data.materials.new(f"Column {i}")
+    mat.use_nodes = True
+    mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*colour, 1.0)
+    mat.diffuse_color = (*colour, 1.0)
+    materials.append(mat)
+cube_mesh.materials.append(materials[0])                 # gives the mesh one material slot
+
+# ---- 4. the loop: position, height and colour all follow from the grid position ----
+collection = bpy.data.collections.new("Columns")
+bpy.context.scene.collection.children.link(collection)
+
+for j in range(SIZE):
+    for i in range(SIZE):
+        x = (i - SIZE / 2 + 0.5) * SPACING
+        y = (j - SIZE / 2 + 0.5) * SPACING
+        n = 0.5 + 0.5 * noise.noise(Vector((x * 0.35, y * 0.35, 0.0)) + offset)      # 0..1
+        height = 0.2 + 4.0 * n * n
+
+        column = bpy.data.objects.new(f"Column {i}-{j}", cube_mesh)       # a new object using the shared mesh
+        column.location = (x, y, height / 2)                                # a cube is centred, so lift it by half
+        column.scale = (SPACING * 0.85, SPACING * 0.85, height)
+        collection.objects.link(column)
+
+        # objects that share a mesh can still have their own material, set "on the object"
+        slot = column.material_slots[0]
+        slot.link = "OBJECT"
+        slot.material = materials[min(len(materials) - 1, int(n * len(materials)))]</code></pre>
+<p>The file continues by adding a camera and a sun so that the scene can be rendered.</p>
+
+<h3>What to notice</h3>
+<ul>
+  <li><strong>The seed.</strong> Python's <code>random.Random(SEED)</code> is a seeded generator, as in Lesson 2. Blender's noise function has no seed of its own, so the script samples it at a seeded <em>offset</em>, which is the standard trick.</li>
+  <li><strong>The shared mesh.</strong> One cube mesh, 256 objects. Scale and position belong to the object, so each can differ.</li>
+  <li><strong>The cleared scene.</strong> A generating script should give the same result however many times it is run. Deleting what the last run made is the simplest way.</li>
+  <li><strong>No selection.</strong> After step 2 the script never selects anything or calls an operator. It would work from the command line with no window at all.</li>
+</ul>
+
+<h2>Running scripts</h2>
+<table>
+  <thead><tr><th>How</th><th>Command</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td>In the Text Editor</td><td>Open the file, press <em>Run Script</em> (or Alt+P)</td><td>While developing</td></tr>
+    <tr><td>From a terminal, with the window</td><td><code>blender --python script.py</code></td><td>To open Blender on a generated scene</td></tr>
+    <tr><td>From a terminal, no window</td><td><code>blender --background --python script.py</code></td><td>Batch generation and rendering (Lesson 4)</td></tr>
+    <tr><td>One line</td><td>Type it in the Python Console</td><td>Exploring</td></tr>
+  </tbody>
+</table>
+<p>On Windows the program is <code>blender.exe</code> inside the installation folder, for example <code>C:\Program Files\Blender Foundation\Blender 5.3</code>. Put the whole path in quotes.</p>
+
+<h3>Habits that save time</h3>
+<ul>
+  <li><strong>Save before running.</strong> A script can freeze Blender with an endless loop or a million objects.</li>
+  <li><strong>Start small.</strong> Test with a grid of 8 before 200.</li>
+  <li><strong>Read the error.</strong> The system console names the line. Most errors are a misspelt name or an operator run in the wrong context.</li>
+  <li><strong>Explore in the console.</strong> <code>dir(obj)</code> lists what an object has. Tab completes names.</li>
+  <li><strong>Undo works.</strong> Ctrl+Z after a script removes what it made.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li><code>bpy.data</code> is everything that exists, <code>bpy.context</code> is the current situation, <code>bpy.ops</code> is the menu commands.</li>
+  <li>For generating, work on data directly. It is faster and does not depend on selection.</li>
+  <li>An object is a placement. A mesh is geometry. Many objects can share one mesh.</li>
+  <li>Nothing is visible until it is linked into a collection.</li>
+  <li>Seed Python's random generator, and offset noise by seeded amounts.</li>
+  <li>Make scripts repeatable by clearing what the previous run created.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Blender challenge 1</p>
+  <h2>The Rule Scene</h2>
+  <p>Rebuild the idea of your Lesson 1 poster as a Blender scene: a field of objects in which every property is computed, generated by a script that runs from an empty file.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>One script that clears the scene and builds everything, including a camera and at least one light.</li>
+    <li>At least 200 objects sharing <strong>no more than three meshes</strong>.</li>
+    <li>At least <strong>three properties</strong> per object (position, scale, rotation, material) follow from <strong>two different fields</strong>, such as distance from a point and noise.</li>
+    <li>A <code>SEED</code> constant at the top. The same seed always gives the same scene.</li>
+    <li>No operator calls inside the main loop.</li>
+    <li>It runs with <code>blender --background --python</code> and saves a rendered image.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start from <code>01_first_script.py</code> and change one thing at a time.</li>
+    <li>For rotation, set <code>obj.rotation_euler = (x, y, z)</code> in radians.</li>
+    <li>To render: set <code>scene.render.filepath</code>, then call <code>bpy.ops.render.render(write_still=True)</code>.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Running the script twice gives an identical scene, and a different seed gives a clearly different one.</li>
+    <li>Changing the grid size from 16 to 40 needs no other edit.</li>
+  </ul>
+  <a class="start" href="scripts/starters/b1_rule_scene.py">Open the starter script</a>
+</section>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-meshes-and-modifiers.html">Blender 2: Meshes and Modifiers →</a></footer>
+</main>
+</body>
+</html>

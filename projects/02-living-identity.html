@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project 2 · A Living Identity</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-atlas.html">← Project 1</a><span>Project 2 of 3</span><a href="03-code-to-object.html">Project 3 →</a></nav>
+<main>
+<header>
+  <p class="kicker">Project 2</p>
+  <h1>A Living Identity</h1>
+  <p class="lede">Design a visual identity for an invented festival, studio or product, as a system and not as a single logo. It has a mark, a palette, type and motion, it responds to people, and it produces every format the organisation would need from one piece of code.</p>
+</header>
+
+<h2>The brief</h2>
+<p>Invent a client. A three-day music festival, a bakery, a research lab, a bus company: anything you can describe in two sentences. Write those two sentences down first, with three words for how the identity should feel. Every decision afterwards is tested against them.</p>
+<p>Then build the system that is the identity. The deliverable is a web page that shows it alive, and a set of exported assets that all clearly belong to the same family.</p>
+<p>Plan for ten to twenty hours.</p>
+
+<h2>Lessons this project draws on</h2>
+<table>
+  <thead><tr><th>Lesson</th><th>What it contributes</th></tr></thead>
+  <tbody>
+    <tr><td><a href="../lessons/11-colour.html">11 · Colour</a></td><td>A palette generated with roles and checked for contrast</td></tr>
+    <tr><td><a href="../lessons/12-typography.html">12 · Typography</a></td><td>The name set in type that the system can move, fit and combine with the mark</td></tr>
+    <tr><td><a href="../lessons/15-animation-and-looping.html">15 · Animation and Looping</a></td><td>Easing, staggering, and a motion signature that loops perfectly</td></tr>
+    <tr><td><a href="../special/01-interactivity.html">Special 1 · Interactivity</a></td><td>Response to pointer, sound, time or data</td></tr>
+    <tr><td><a href="../special/02-practical-uses.html">Special 2 · Practical Uses</a></td><td>Brand systems: fixed rules, variable parameters, automated layout</td></tr>
+    <tr><td><a href="../web/01-generative-web-design.html">Web design 1</a> and <a href="../web/02-building-real-pages.html">2</a></td><td>Putting it on a real page: layering, sizing, reduced motion, touch</td></tr>
+    <tr><td><a href="../special/07-critique-and-art-direction.html">Special 7 · Critique and Art Direction</a></td><td>Parameter sweeps to find the range that is always on-brand</td></tr>
+    <tr><td><a href="../lessons/10-systems-and-finishing.html">10 · Systems and Finishing</a></td><td>Seeding, and making every output good</td></tr>
+  </tbody>
+</table>
+<p>You must use at least four of these, and colour, type and motion are not optional.</p>
+
+<h2>The joining idea: one state, every format</h2>
+<p>An identity system has two halves. The <strong>constants</strong> are what makes it recognisable: the construction of the mark, the typeface, the palette roles, the way things move. The <strong>variables</strong> are what makes it alive: a seed, an energy level, a date, a name.</p>
+<p>Put the variables in one object. Write one drawing function that takes that object and a rectangle, and draws the identity into the rectangle whatever its shape. Then a poster, an avatar and a banner are the same call with different rectangles.</p>
+<p>Move the pointer across the example below. One number, <code>energy</code>, changes the mark, the colour and the spacing of the type in all three formats at once.</p>
+
+<div class="example" data-title="P2.1 · One state drives three formats" data-h="400">
+<script type="text/plain">
+const state = { seed: 3, energy: 0.4, name: 'TIDE' };
+const seedSlider = ui.slider('seed', 1, 30, 3, 1);
+const nameField = ui.text('name', 'TIDE');
+
+// Draw the whole identity into any rectangle.
+function identity(x, y, w, h, s) {
+  const R = PA.rng(s.seed);
+  const hue = R.range(0, 360);
+  const paper = PA.oklch(0.95, 0.02, hue);
+  const ink = PA.oklch(0.25, 0.04, hue);
+  const accent = PA.oklch(0.68, 0.08 + s.energy * 0.12, hue + 150);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.fillStyle = paper; ctx.fillRect(x, y, w, h);
+
+  const wide = w > h * 1.6;
+  const size = Math.min(w, h) * (wide ? 0.3 : 0.26);
+  const cx = wide ? x + h / 2 : x + w / 2;
+  const cy = wide ? y + h / 2 : y + h * 0.4;
+
+  // The mark: a ring of bars. The construction is constant, the lengths vary.
+  const bars = 28;
+  const phase = R.range(0, PA.TAU);
+  ctx.lineCap = 'round';
+  ctx.lineWidth = size * 0.07;
+  for (let i = 0; i < bars; i++) {
+    const a = i / bars * PA.TAU;
+    const wave = 0.5 + 0.5 * Math.sin(a * 3 + phase + time * 1.5);
+    const len = size * (0.25 + wave * s.energy * 0.75);
+    ctx.strokeStyle = i % 4 === 0 ? accent : ink;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * size * 0.45, cy + Math.sin(a) * size * 0.45);
+    ctx.lineTo(cx + Math.cos(a) * (size * 0.45 + len), cy + Math.sin(a) * (size * 0.45 + len));
+    ctx.stroke();
+  }
+
+  // The name: letter spacing follows the same number, and the size shrinks to fit its box.
+  const boxX = wide ? x + h : x + w * 0.08;
+  const boxW = wide ? w - h - w * 0.05 : w * 0.84;
+  const letters = s.name.split('');
+  let fontSize = Math.min(w, h) * (wide ? 0.3 : 0.13);
+  let gap, total;
+  function measure() {
+    ctx.font = '700 ' + fontSize + 'px system-ui, sans-serif';
+    gap = fontSize * (0.1 + s.energy * 0.5);
+    total = -gap;
+    for (const ch of letters) total += ctx.measureText(ch).width + gap;
+  }
+  measure();
+  if (total > boxW) { fontSize *= boxW / total; measure(); }
+  ctx.fillStyle = ink;
+  ctx.textBaseline = 'middle';
+  let tx = boxX + (boxW - total) / 2;
+  const ty = wide ? y + h / 2 : y + h * 0.86;
+  ctx.textAlign = 'left';
+  for (const ch of letters) {
+    ctx.fillText(ch, tx, ty);
+    tx += ctx.measureText(ch).width + gap;
+  }
+  ctx.restore();
+}
+
+let time = 0;
+loop((t) => {
+  time = t;
+  state.seed = seedSlider();
+  state.name = (nameField() || 'TIDE').toUpperCase().slice(0, 8);
+  const target = mouse.active ? PA.clamp(mouse.x / W, 0, 1) : 0.4;
+  state.energy += (target - state.energy) * 0.1;
+
+  ctx.fillStyle = '#d9d4cb';
+  ctx.fillRect(0, 0, W, H);
+  const m = 14;
+  const posterW = (H - m * 2) * 0.7;
+  identity(m, m, posterW, H - m * 2, state);                              // poster
+  const restX = m * 2 + posterW, restW = W - restX - m;
+  const sq = Math.min(H * 0.52, restW);
+  identity(restX, m, sq, sq, state);                                      // avatar
+  identity(restX, m * 2 + sq, restW, H - m * 3 - sq, state);              // banner
+});
+</script>
+</div>
+
+<p>This example is a demonstration of the structure and not an identity. Its mark is generic, its type is the system font, its motion is one sine wave, and it was designed for no one. Yours starts from a client and a feeling.</p>
+
+<h2>Milestones</h2>
+<h3>1 · The client and the words</h3>
+<p>Two sentences about who it is for, three words for how it should feel, and a list of five formats it needs. Put them in a comment at the top of your file. This costs ten minutes and saves hours.</p>
+<h3>2 · The mark</h3>
+<p>A generative mark with a constant construction and two or three variables. Draw a sweep of thirty variations on one sheet. All thirty must be recognisably the same mark, and no two identical. Narrow the parameter ranges until that is true.</p>
+<h3>3 · Colour and type</h3>
+<p>A palette generator with roles, constrained to the client's feeling, with contrast checked in code. The name set in type, with at least one typographic behaviour of its own: tracking, weight, a baseline that moves, letters that assemble.</p>
+<h3>4 · Motion</h3>
+<p>A motion signature: how the identity arrives, how it idles, how it leaves. It must loop perfectly when idle. Decide the easing once and use it everywhere.</p>
+<h3>5 · Response</h3>
+<p>One input that means something for this client. Sound level for a festival, time of day for a bakery, live data for a lab. The response should be visible within a second and should never break the identity.</p>
+<h3>6 · Formats</h3>
+<p>One drawing function, five rectangles: for example a poster, a square avatar, a wide banner, a business card and a favicon-sized mark. Check the smallest one first. A mark that fails at 32 pixels needs a simpler small-size rule.</p>
+<h3>7 · The page</h3>
+<p>A web page that presents it: the identity alive at the top, the formats below, a control to change the seed and the name, and export buttons. It respects reduced motion and works by touch.</p>
+
+<section class="challenge">
+  <p class="kicker">Project 2</p>
+  <h2>The Identity System</h2>
+  <p>One system, a family of outputs, alive on a page.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Techniques from <strong>at least four</strong> of the lessons in the table above, including colour, typography and animation, listed in a comment at the top of your file.</li>
+    <li>A written brief: the client in two sentences and three words for the feeling.</li>
+    <li>All variables live in <strong>one state object</strong>, and one function draws the identity into any rectangle from that state.</li>
+    <li>A <strong>generative mark</strong>: thirty variations that are all recognisable as the same mark.</li>
+    <li>A <strong>generated palette</strong> with roles. Text contrast of at least 4.5 is checked in code for every seed.</li>
+    <li>A <strong>motion signature</strong> with an entrance and an idle state that loops perfectly.</li>
+    <li>It <strong>responds</strong> to at least one input, and the response suits the client.</li>
+    <li><strong>Five formats</strong> from the same function, including one no larger than 64 pixels.</li>
+    <li>PNG export of each format, and the state exported as JSON so that any output can be recreated.</li>
+    <li>Reduced motion is respected, and the page works on a touch screen.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Constrain first. An identity is mostly a list of things that never change.</li>
+    <li>Give the drawing function proportions and not pixels. Every size inside it should be a fraction of the rectangle.</li>
+    <li>For the smallest format, drop detail by rule: fewer elements, heavier strokes, no text.</li>
+    <li>Drive several properties from one variable, as the example does. Linked changes read as one behaviour. Unlinked changes read as noise.</li>
+    <li>Run the sweep from Special Topic 7 on every parameter and narrow each range until its worst output is acceptable.</li>
+    <li>To export a format, draw it to an offscreen canvas at the size you need and save that canvas.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>A one-page brand guide generated by the code itself, showing the palette, the mark's construction and the rules.</li>
+    <li>A sound signature made with Web Audio, driven by the same state. It must start only on a click.</li>
+    <li>A looping video export of the idle motion with MediaRecorder.</li>
+    <li>Names of real events or people typed in produce a personal variant: a badge for every attendee.</li>
+    <li>An SVG export of the mark at one fixed state.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <p>You can cover the names on any two exported formats and someone can still tell they belong together, and when every seed you try gives an identity you would be willing to hand to the client.</p>
+  <a class="start" href="../challenges/project-2-identity.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="01-atlas.html">← Project 1: The Atlas</a><a href="03-code-to-object.html">Project 3: From Code to Object →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

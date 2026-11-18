@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 2 · A Generator Someone Could Use</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1200" height="1200"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 2 — A GENERATOR SOMEONE COULD USE
+   Full brief: ../special/02-practical-uses.html
+
+   THE BRIEF (fill this in before writing any code)
+     Which job:        product range / level generator / avatar system / data portrait
+     Who it is for:    ...
+     What they need:   ...
+     A failure is:     ...
+                       ...
+                       ...
+
+   Checklist
+   [ ] The brief above is written
+   [ ] Fixed rules and seeded rules are separate and labelled in the code
+   [ ] At least three constraints hold in every output, enforced by code
+   [ ] A contact sheet of at least 24 outputs
+   [ ] Export in the format the job needs
+   [ ] Every output is traceable to its seed
+   [ ] 200 outputs generated and none breaks a constraint
+   [ ] Someone else can make a new output without reading the code */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ---- FIXED RULES: the same for every output ----
+const FIXED = {
+  // margins, type, line weights, layout...
+};
+
+// ---- SEEDED RULES: chosen from the seed ----
+function choose(seed) {
+  const R = PA.rng(seed);
+  return {
+    // colours, counts, shapes...
+  };
+}
+
+// Draws one output inside the box (x, y, w, h).
+function generate(seed, x, y, w, h) {
+  const rules = choose(seed);
+
+  // ---- your generator here ----
+
+}
+
+// Returns a list of problems with an output. An empty list means it passed.
+function check(seed) {
+  const problems = [];
+
+  // ---- test your constraints here ----
+
+  return problems;
+}
+
+// TODO: a contact sheet, a single view, a bulk test that runs check() on 200 seeds, and an export
+
+</script>
+</body>
+</html>

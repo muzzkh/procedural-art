@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 9 · A Workshop of Your Own</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 92vmin; max-height: 86vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); touch-action: none; }
+  #report { margin: 0; padding: 10px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="1000" height="1000"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 9 — A WORKSHOP OF YOUR OWN
+   Full brief: ../special/09-project-workflow.html
+
+   Checklist
+   [ ] A folder layout with library, dated sketches and projects, under Git, outputs ignored
+   [ ] A personal library of at least eight functions, each with a one-line description
+   [ ] THIS FILE as your sketch template: one parameters object, a seeded generator,
+       a key that saves the image with its recipe, parameters readable from the page address
+   [ ] A loader: a saved recipe file reproduces the image exactly
+   [ ] A fingerprint check for at least two library functions, with recorded values
+   [ ] One earlier challenge piece moved into a project, with a frozen library, a README and a tag
+   [ ] At least ten commits with notes that say what changed
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const report = document.getElementById('report');
+
+// ---- every adjustable value lives here, and nowhere else ----
+const params = {
+  title: 'untitled',
+  seed: 1,
+  codeVersion: '0.1.0',
+  // ---- your parameters ----
+};
+
+// TODO: read params from the page address (location.hash) if it holds any
+
+function render(p) {
+  const R = PA.rng(p.seed), N = PA.noise(p.seed);
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+
+  // ---- your sketch ----
+
+  report.textContent = fileName(p);
+}
+
+// A name that identifies this exact output: title, seed, and a fingerprint of all the parameters.
+function fileName(p) {
+  // ---- your naming rule ----
+  return p.title + '-s' + p.seed;
+}
+
+function saveBoth(p) {
+  // ---- save the PNG and the recipe (JSON) under the same name ----
+}
+
+function loadRecipe(text) {
+  // ---- parse a saved recipe, copy it into params, and render ----
+}
+
+render(params);
+
+// TODO: a key to save, a key for a new seed, and a file picker that calls loadRecipe
+</script>
+</body>
+</html>

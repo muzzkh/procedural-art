@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blender 3 · Geometry Nodes</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-meshes-and-modifiers.html">← Blender 2</a><span>Blender 3 of 4</span><a href="04-addons-and-libraries.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Blender 3</p>
+  <h1>Geometry Nodes</h1>
+  <p class="lede">Geometry Nodes is Blender's visual programming system for procedural modelling. Instead of writing lines of code you connect boxes, but the ideas are exactly the ones in this course: fields, noise, scattering, instancing. This lesson explains the system, then builds a node tree from Python.</p>
+</header>
+
+<h2>What Geometry Nodes is</h2>
+<p>A Geometry Nodes setup is a modifier whose behaviour you design as a graph. Geometry flows in on the left, passes through nodes that each change it, and flows out on the right. Because it is a modifier, the result updates live as you change any value, and the original object is never destroyed.</p>
+<p>Two kinds of thing travel along the connections:</p>
+<dl class="vocab">
+  <dt>Geometry</dt><dd>Actual data: a mesh, a set of points, curves, or instances. Drawn as green connections.</dd>
+  <dt>Fields</dt><dd>A <em>formula</em> that will be evaluated once per vertex, point or face: "this element's position", "noise at this position". Drawn with dashed lines.</dd>
+</dl>
+<p>A field is the same idea as in Lesson 1: a rule that gives a value for every location. Connect "noise at position" to the offset of a Set Position node and every vertex moves by its own noise value. Nothing is looped over by hand.</p>
+
+<h2>The nodes that matter most</h2>
+<table>
+  <thead><tr><th>Node</th><th>What it does</th><th>In this course</th></tr></thead>
+  <tbody>
+    <tr><td>Grid, Ico Sphere, Curve Line…</td><td>Create a starting shape</td><td>The grid of Lesson 1</td></tr>
+    <tr><td>Set Position</td><td>Move every element, by a field</td><td>Displacement, Lesson 3</td></tr>
+    <tr><td>Noise Texture, Voronoi Texture</td><td>Fields of noise</td><td>Lessons 3 and 7</td></tr>
+    <tr><td>Math, Vector Math, Map Range</td><td>Arithmetic on fields</td><td>Shaping functions, Maths 1</td></tr>
+    <tr><td>Distribute Points on Faces</td><td>Scatter points over a surface, optionally evenly spaced</td><td>Poisson-disc sampling, Lesson 7</td></tr>
+    <tr><td>Instance on Points</td><td>Put a copy of a shape at every point</td><td>Instancing, three.js 2</td></tr>
+    <tr><td>Random Value</td><td>A different random number per element, from a seed</td><td>Lesson 2</td></tr>
+    <tr><td>Extrude Mesh, Scale Elements, Subdivide</td><td>Modelling operations</td><td></td></tr>
+    <tr><td>Mesh to Curve, Curve to Mesh</td><td>Convert between lines and tubes</td><td>Streamlines as tubes</td></tr>
+    <tr><td>Join Geometry</td><td>Combine several results</td><td></td></tr>
+    <tr><td>Realize Instances</td><td>Turn instances into real, editable geometry</td><td>Needed before exporting for print</td></tr>
+    <tr><td>Repeat Zone</td><td>Run a group of nodes several times</td><td>Loops and recursion, Lesson 6</td></tr>
+    <tr><td>Simulation Zone</td><td>Keep the result of the last frame and build on it</td><td>Simulations, Lesson 8</td></tr>
+  </tbody>
+</table>
+
+<h2>Nodes or Python?</h2>
+<table>
+  <thead><tr><th>Use Geometry Nodes when…</th><th>Use Python when…</th></tr></thead>
+  <tbody>
+    <tr><td>You want to see the result change as you drag a value</td><td>The logic has many branches, or needs data from outside Blender</td></tr>
+    <tr><td>The work is geometric: scatter, displace, instance, extrude</td><td>You are generating many separate files or scenes</td></tr>
+    <tr><td>Others will use the setup without reading code</td><td>You need an algorithm that is awkward as a graph: an L-system, a packing loop</td></tr>
+    <tr><td>Millions of elements: it is far faster than Python loops</td><td>You are building tools: buttons, panels, exporters</td></tr>
+  </tbody>
+</table>
+<p>They also work well together. Python can build node trees, set their inputs and feed them data, which is what the rest of this lesson does. The honest advice is to <strong>build a tree by hand in the node editor first</strong>, because that is how you learn what each node does. Script it when you need to create trees automatically, share them as part of an add-on, or drive their settings from a seed.</p>
+
+<h2>Building a node tree from Python</h2>
+<p>The script below creates this tree. Read it against the diagram.</p>
+<pre><code>Grid ──► Set Position ──► Set Shade Smooth ──────────────────┐
+              ▲     │                                         ├─► Join ─► Set Material ─► output
+Noise ─► × Height   └─► Distribute Points ─► Instance on Points ┘
+                                              ▲         ▲
+                                            Cone   Random Value (size)</code></pre>
+
+<figure class="shot">
+  <img src="img/03-geometry-nodes.png" alt="A hilly terrain covered in small cones of varying size, rendered in Blender">
+  <figcaption>The result of <a href="scripts/03_geometry_nodes.py">blender/scripts/03_geometry_nodes.py</a>: a noise terrain with 463 instanced cones.</figcaption>
+</figure>
+
+<h3>The tree and its inputs</h3>
+<p>A node tree is a datablock like a mesh. Its <code>interface</code> declares what the modifier will show: here the standard geometry in and out, plus two settings of our own.</p>
+<pre><code>tree = bpy.data.node_groups.new("Procedural Hills", "GeometryNodeTree")
+
+tree.interface.new_socket(name="Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+tree.interface.new_socket(name="Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+height_socket = tree.interface.new_socket(name="Height", in_out="INPUT", socket_type="NodeSocketFloat")
+height_socket.default_value = 1.6
+density_socket = tree.interface.new_socket(name="Tree Density", in_out="INPUT", socket_type="NodeSocketFloat")
+density_socket.default_value = 3.0</code></pre>
+
+<h3>Nodes and links</h3>
+<p>Each node is created by its type name, given values through its <code>inputs</code>, and connected with <code>links.new(from_output, to_input)</code>. Setting a location is optional, but it makes the tree readable when you open it in the editor.</p>
+<pre><code>nodes, links = tree.nodes, tree.links
+
+def add(kind, x, y):
+    node = nodes.new(kind)
+    node.location = (x, y)
+    return node
+
+group_in = add("NodeGroupInput", -900, 0)
+group_out = add("NodeGroupOutput", 900, 0)
+
+# 1. a flat grid
+grid = add("GeometryNodeMeshGrid", -700, 200)
+grid.inputs["Size X"].default_value = 10.0
+grid.inputs["Size Y"].default_value = 10.0
+grid.inputs["Vertices X"].default_value = 120
+grid.inputs["Vertices Y"].default_value = 120
+
+# 2. a noise texture, turned into an upward offset
+noise = add("ShaderNodeTexNoise", -700, -150)
+noise.inputs["Scale"].default_value = 0.45
+noise.inputs["Detail"].default_value = 5.0
+
+multiply = add("ShaderNodeMath", -480, -150)
+multiply.operation = "MULTIPLY"
+links.new(noise.outputs[0], multiply.inputs[0])              # the noise value...
+links.new(group_in.outputs["Height"], multiply.inputs[1])    # ...times the Height setting
+
+offset = add("ShaderNodeCombineXYZ", -280, -150)
+links.new(multiply.outputs[0], offset.inputs["Z"])
+
+set_position = add("GeometryNodeSetPosition", -80, 150)
+links.new(grid.outputs["Mesh"], set_position.inputs["Geometry"])
+links.new(offset.outputs["Vector"], set_position.inputs["Offset"])</code></pre>
+<p>The Noise Texture node has no explicit position input connected. A field node with nothing plugged in uses each element's own position, which is why this works.</p>
+
+<h3>Scattering and instancing</h3>
+<pre><code>scatter = add("GeometryNodeDistributePointsOnFaces", 110, -100)
+links.new(set_position.outputs["Geometry"], scatter.inputs["Mesh"])
+links.new(group_in.outputs["Tree Density"], scatter.inputs["Density"])
+
+cone = add("GeometryNodeMeshCone", 110, -380)
+cone.inputs["Vertices"].default_value = 6
+cone.inputs["Radius Bottom"].default_value = 0.09
+cone.inputs["Depth"].default_value = 0.45
+
+random_size = add("FunctionNodeRandomValue", 110, -620)       # each tree a different size
+random_size.data_type = "FLOAT"
+random_size.inputs["Min"].default_value = 0.5
+random_size.inputs["Max"].default_value = 1.6
+
+instance = add("GeometryNodeInstanceOnPoints", 380, -100)
+links.new(scatter.outputs["Points"], instance.inputs["Points"])
+links.new(cone.outputs["Mesh"], instance.inputs["Instance"])
+links.new(random_size.outputs[0], instance.inputs["Scale"])</code></pre>
+
+<h3>Using the tree</h3>
+<p>The tree does nothing until an object has a Geometry Nodes modifier that points to it. The object's own mesh can be empty, since the tree creates everything.</p>
+<pre><code>mesh = bpy.data.meshes.new("Hills")
+hills = bpy.data.objects.new("Hills", mesh)
+bpy.context.scene.collection.objects.link(hills)
+modifier = hills.modifiers.new("Procedural Hills", "NODES")
+modifier.node_group = tree
+
+def set_input(modifier, socket, value):
+    """Change an exposed setting from Python. Each one is stored under its socket's identifier."""
+    if hasattr(modifier, "properties"):                         # Blender 5.x
+        getattr(modifier.properties.inputs, socket.identifier).value = value
+    else:                                                       # Blender 4.x
+        modifier[socket.identifier] = value
+
+set_input(modifier, height_socket, 2.0)
+set_input(modifier, density_socket, 4.0)</code></pre>
+
+<div class="note"><p><strong>Version differences are real here.</strong> While testing this script in Blender 5.3 the 4.x way of setting a modifier input, <code>modifier["Socket_2"] = value</code>, failed with an error, which is why <code>set_input</code> has two branches. The 4.x branch is written from the documentation and was not run. Socket names also change between versions: the Noise Texture's first output is called "Fac" in 4.x and "Factor" in 5.x, so the script uses <code>outputs[0]</code>. When a script that builds nodes fails after an update, print the node's <code>inputs</code> and <code>outputs</code> names first.</p></div>
+
+<h2>Procedural materials</h2>
+<p>Materials are node trees too, built the same way. A procedural material computes the surface colour from formulas, like the materials in Special Topic 2. The usual recipe is a texture field, shaped by a colour ramp, into the surface shader.</p>
+<pre><code>mat = bpy.data.materials.new("Layered Rock")
+mat.use_nodes = True
+mnodes, mlinks = mat.node_tree.nodes, mat.node_tree.links
+bsdf = mnodes["Principled BSDF"]
+
+texture = mnodes.new("ShaderNodeTexNoise")
+texture.inputs["Scale"].default_value = 2.5
+texture.inputs["Detail"].default_value = 8.0
+
+ramp = mnodes.new("ShaderNodeValToRGB")                      # a colour ramp: maps 0..1 to a gradient
+ramp.color_ramp.elements[0].color = (0.10, 0.22, 0.12, 1.0)
+ramp.color_ramp.elements[1].color = (0.75, 0.68, 0.50, 1.0)
+mlinks.new(texture.outputs[0], ramp.inputs[0])
+mlinks.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+bsdf.inputs["Roughness"].default_value = 0.85</code></pre>
+<p>Geometry made by a node tree has no material until a <strong>Set Material</strong> node assigns one, which is the last node in the script.</p>
+
+<h2>From Blender to the printer</h2>
+<p>Instances are references, not real geometry, and they often overlap the surface they stand on. Before exporting a Geometry Nodes result for printing:</p>
+<ol>
+  <li>Add a <strong>Realize Instances</strong> node at the end, so the copies become actual mesh.</li>
+  <li>Merge overlapping parts into one skin. A <strong>Remesh</strong> modifier after the Geometry Nodes modifier is the simplest way, or use a Mesh Boolean node set to union.</li>
+  <li>Give open surfaces thickness, with Solidify or an Extrude Mesh node.</li>
+  <li>Export with modifiers applied, as in the last lesson.</li>
+</ol>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Geometry Nodes is a modifier whose behaviour is a graph: geometry in, nodes, geometry out.</li>
+  <li>Fields are formulas evaluated per element. Noise into Set Position displaces every vertex.</li>
+  <li>Distribute Points plus Instance on Points is the scattering pattern for everything.</li>
+  <li>Python creates trees with <code>node_groups.new</code>, <code>nodes.new</code> and <code>links.new</code>, and exposes settings through <code>tree.interface</code>.</li>
+  <li>Node and socket names change between Blender versions. Reach unreliable sockets by position.</li>
+  <li>Realize instances and merge overlaps before printing.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Blender challenge 3</p>
+  <h2>A Scatter System</h2>
+  <p>Build a reusable Geometry Nodes setup that covers any surface with generated detail, and a script that creates it.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A node tree that works on <strong>whatever mesh the modifier is put on</strong>, using the incoming geometry instead of creating its own.</li>
+    <li>Points are scattered with a <strong>density that varies</strong> across the surface by a field: noise, height, or steepness.</li>
+    <li>At least <strong>two different instance shapes</strong>, chosen per point, with random scale and rotation.</li>
+    <li>At least <strong>four exposed settings</strong>, including a seed, with sensible defaults and limits.</li>
+    <li>A procedural <strong>material</strong> assigned inside the tree.</li>
+    <li>A script that builds the whole thing from an empty file and applies it to a test object.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Build it by hand first. Then recreate it in Python node by node, running the script after each addition.</li>
+    <li>Connect the Group Input's Geometry straight to Distribute Points on Faces.</li>
+    <li>For density by steepness, use the Normal node's Z component.</li>
+    <li>Steal the structure of <code>03_geometry_nodes.py</code>, especially the <code>add</code> helper.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The same modifier gives good results on a plane, a sphere and Blender's monkey.</li>
+    <li>Someone can use it from the modifier panel without opening the node editor.</li>
+  </ul>
+  <a class="start" href="scripts/starters/b3_scatter_system.py">Open the starter script</a>
+</section>
+
+<footer class="next"><a href="02-meshes-and-modifiers.html">← Blender 2</a><a href="04-addons-and-libraries.html">Blender 4: Add-ons and Libraries →</a></footer>
+</main>
+</body>
+</html>

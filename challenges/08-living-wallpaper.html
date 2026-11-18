@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 8 · The Living Wallpaper</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  /* a small canvas, enlarged with crisp pixels */
+  canvas { width: 94vmin; height: 94vmin; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="200" height="200"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 8 — THE LIVING WALLPAPER
+   Full brief: ../lessons/08-simulation-and-emergence.html
+
+   A cellular automaton of your own design that stays interesting indefinitely.
+
+   Checklist
+   [ ] At least 100 x 100 cells, three or more states, double buffered, edges wrap
+   [ ] A rule you designed or adapted (not plain Game of Life)
+   [ ] Still interesting after 1,000 generations
+   [ ] Colouring shows age, time since last change, or fading trails
+   [ ] Some rule parameter varies across the canvas or over time
+   [ ] Keys: pause, single step, restart from a new seed
+   [ ] You can describe the rule in two sentences */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let R = PA.rng();
+let grid = new Uint8Array(W * H);     // current state of every cell
+let next = new Uint8Array(W * H);     // the state being computed
+const img = ctx.createImageData(W, H);
+let generation = 0;
+
+function reset() {
+  // ---- fill grid with a starting state ----
+  generation = 0;
+}
+
+function step() {
+  // ---- read from grid, write to next, then swap them ----
+  generation++;
+}
+
+function render() {
+  // ---- turn the grid into colours in img.data ----
+  ctx.putImageData(img, 0, 0);
+}
+
+function frame() {
+  step();
+  render();
+  requestAnimationFrame(frame);     // call frame again on the next screen refresh
+}
+
+reset();
+frame();
+
+// TODO: keys for pause, single step and restart
+
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>3D printing challenge 3 · A Toolpath of Your Own</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px/1.5 Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 90vmin; max-height: 76vmin; }
+  #report { white-space: pre-wrap; margin: 0; padding: 12px; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="900" height="900"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script>
+/* 3D PRINTING CHALLENGE 3 — A TOOLPATH OF YOUR OWN
+   Full brief: ../printing/05-generative-toolpaths.html
+
+   THE DONOR FILE (plan it before printing anything)
+     Footprint and position on the plate:  ...
+     Height:                               ...   (must be at least as tall as this print)
+     Filament and plate type:              ...
+
+   Checklist
+   [ ] Every E value is computed from bead size and move length
+   [ ] Continuous path: at most one travel per layer, none in a spiral section
+   [ ] At least one property varies along the path by a rule
+   [ ] A correct first layer: slow, right height, fan off, and a base
+   [ ] 3D preview, plus line count, filament length, time and peak flow
+   [ ] preflight() runs on the output, and download is refused while it reports problems
+   [ ] Preflight clean for at least five seeds
+   [ ] The assembled file looks right at every layer in a G-code preview
+
+   WARNING: this file writes BODY G-code only. It is not printable until combined with
+   the start and end sequences from a file Bambu Studio sliced for your printer. */
+
+// ---- machine limits (Lesson 4) ----
+const BED = 256, MAX_Z = 250;
+const EXCLUDED = { x: 18, y: 28 };            // front-left corner
+const PRIME_STRIP_Y = 15;                     // keep the first layer behind this
+const FLOW_LIMIT = 20;                        // mm3/s: use your filament's "max volumetric speed"
+const FILAMENT_AREA = Math.PI * (1.75 / 2) ** 2;
+const beadArea = (w, h) => (w - h) * h + Math.PI * (h / 2) ** 2;
+
+// ---- print settings ----
+const LAYER = 0.2, WIDTH = 0.5;
+const SPEED = 40, FIRST_SPEED = 20, TRAVEL = 150;     // mm/s
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const seed = 'toolpath-1';
+const R = PA.rng(seed), N = PA.noise(seed);
+
+const gcode = [];          // lines of text
+const path = [];           // preview segments: [x1, y1, z1, x2, y2, z2, r, g, b]
+
+function generate() {
+  gcode.push('; BODY ONLY. Not printable by itself.');
+  gcode.push('M83 ; relative extrusion');
+
+  // ---- your toolpath here ----
+
+}
+
+// Returns a list of problems. An empty list means the G-code passed.
+function preflight(lines) {
+  const problems = [];
+
+  // ---- your checks here ----
+
+  return problems;
+}
+
+generate();
+const problems = preflight(gcode);
+document.getElementById('report').textContent =
+  'seed ' + seed + ' · ' + gcode.length + ' lines\n' +
+  (problems.length ? problems.length + ' PROBLEMS:\n' + problems.slice(0, 12).join('\n') : 'preflight: no problems found');
+
+function frame(ms) {
+  if (path.length) MESH.lines(ctx, W, H, path, { spin: ms / 4000, tilt: 0.5 });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// TODO: a key that downloads the body, but only when preflight() is clean:
+//   MESH.download(seed + '-body.gcode', gcode.join('\n'), 'text/plain')
+</script>
+</body>
+</html>

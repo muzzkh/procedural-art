@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 · Wave Function Collapse</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="13-images-as-input.html">← Lesson 13</a><span>Lesson 14 of 19</span><a href="15-animation-and-looping.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 14</p>
+  <h1>Wave Function Collapse</h1>
+  <p class="lede">Lesson 2 placed tiles at random and enjoyed the accidents. Wave Function Collapse places tiles so that every neighbour fits, everywhere, and still looks random. It is the algorithm behind a great many generated game levels, cities and patterns, and it is simpler than its name.</p>
+</header>
+
+<h2>The problem</h2>
+<p>You have a set of tiles and a rule about which may sit beside which. You want to fill a grid so that the rule holds at every border between cells, with as much variety as the rule allows. Filling the grid at random breaks the rule constantly. Filling it in reading order and hoping works only for simple tilesets. Wave Function Collapse, published by Maxim Gumin in 2016, solves it with two ideas: <strong>decide the most constrained cell first</strong>, and <strong>after every decision, work out all its consequences</strong>.</p>
+<p>The name is borrowed from quantum physics, loosely. Each cell starts as a blur of every possibility and "collapses" to one. Nothing quantum is involved.</p>
+
+<h2>Tiles and sockets</h2>
+<p>The neatest way to state which tiles fit together is to label each tile's four edges. The labels are called <strong>sockets</strong>. Two tiles may touch if the two edges that meet carry the same label.</p>
+<p>The tileset here is a set of pipes. Each edge is either <code>1</code>, a pipe crosses it, or <code>0</code>, it does not. A tile is fully described by its four sockets in the order top, right, bottom, left, and can be drawn from them. Rotating a tile shifts the list round by one place, so six hand-made shapes give sixteen tiles.</p>
+<p>Scattered at random, they make a mess. The red marks show every border where a pipe meets a blank edge.</p>
+
+<div class="example" data-title="14.1 Tiles from sockets, placed at random">
+<script type="text/plain">
+const R = PA.rng();                 // run again: it is always broken
+
+// six shapes. each is [top, right, bottom, left]: 1 means a pipe crosses that edge
+const shapes = [[0, 0, 0, 0], [1, 0, 0, 0], [1, 0, 1, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 1]];
+
+// add every distinct rotation
+const tiles = [];
+for (const s of shapes) {
+  let e = s;
+  for (let turn = 0; turn < 4; turn++) {
+    if (!tiles.some((t) => t.edges.join() === e.join())) tiles.push({ edges: e });
+    e = [e[3], e[0], e[1], e[2]];                  // a quarter turn: each socket moves to the next side
+  }
+}
+
+function drawTile(tile, x, y, s) {
+  const c = [x + s / 2, y + s / 2];
+  const ends = [[c[0], y], [x + s, c[1]], [c[0], y + s], [x, c[1]]];        // the middle of each side
+  ctx.strokeStyle = '#8ecae6';
+  ctx.lineWidth = s * 0.22;
+  ctx.lineCap = 'round';
+  tile.edges.forEach((socket, d) => {
+    if (!socket) return;
+    ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(ends[d][0], ends[d][1]); ctx.stroke();
+  });
+}
+
+const N = 15, S = W / N;
+ctx.fillStyle = '#12202e';
+ctx.fillRect(0, 0, W, H);
+const grid = [];
+for (let i = 0; i < N * N; i++) {
+  grid.push(R.pick(tiles));
+  drawTile(grid[i], (i % N) * S, Math.floor(i / N) * S, S);
+}
+
+// count the borders where the two sockets disagree
+let broken = 0;
+ctx.fillStyle = '#ff4d6d';
+for (let y = 0; y < N; y++) {
+  for (let x = 0; x < N; x++) {
+    const t = grid[y * N + x];
+    if (x + 1 < N && t.edges[1] !== grid[y * N + x + 1].edges[3]) { broken++; ctx.fillRect((x + 1) * S - 3, (y + 0.5) * S - 3, 6, 6); }
+    if (y + 1 < N && t.edges[2] !== grid[(y + 1) * N + x].edges[0]) { broken++; ctx.fillRect((x + 0.5) * S - 3, (y + 1) * S - 3, 6, 6); }
+  }
+}
+ctx.fillStyle = '#fff';
+ctx.font = '13px monospace';
+ctx.fillText(tiles.length + ' tiles · ' + broken + ' broken borders', 10, H - 10);
+</script>
+</div>
+
+<h2>The algorithm</h2>
+<p>Every cell keeps a list of the tiles it could still be. At the start that is every tile. Then repeat:</p>
+<ol>
+  <li><strong>Observe.</strong> Find the undecided cell with the fewest remaining options. The number of options is called its <strong>entropy</strong>. Low entropy means a cell is nearly forced, so it is the one most likely to become impossible if left until later.</li>
+  <li><strong>Collapse.</strong> Choose one of that cell's options at random and discard the others.</li>
+  <li><strong>Propagate.</strong> The choice restricts the neighbours: any tile of theirs that cannot fit beside the chosen one is removed. If a neighbour lost options, <em>its</em> neighbours may now lose some too, so the consequences are followed outward until nothing changes.</li>
+</ol>
+<p>Stop when every cell has exactly one option. If a cell ever reaches zero options there is a <strong>contradiction</strong>: the choices so far cannot be completed.</p>
+<p>The example runs the algorithm a few steps per frame. Undecided cells show how many options they have left, darker for fewer. Watch decisions spread outward from each collapsed cell as its neighbours' numbers drop.</p>
+
+<div class="example" data-title="14.2 Observe, collapse, propagate">
+<script type="text/plain">
+const R = PA.rng();
+const shapes = [[0, 0, 0, 0], [1, 0, 0, 0], [1, 0, 1, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 1]];
+const tiles = [];
+for (const s of shapes) {
+  let e = s;
+  for (let turn = 0; turn < 4; turn++) {
+    if (!tiles.some((t) => t.join() === e.join())) tiles.push(e);
+    e = [e[3], e[0], e[1], e[2]];
+  }
+}
+
+const N = 20, S = W / N;
+const dx = [0, 1, 0, -1], dy = [-1, 0, 1, 0], opposite = [2, 3, 0, 1];      // top, right, bottom, left
+const cells = [];
+for (let i = 0; i < N * N; i++) cells.push(tiles.map((_, k) => k));         // each cell: the tiles it could still be
+
+function propagate(start) {
+  const stack = [start];
+  while (stack.length) {
+    const c = stack.pop(), cx = c % N, cy = Math.floor(c / N);
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + dx[d], ny = cy + dy[d];
+      if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+      const nb = ny * N + nx;
+      // a neighbour's tile survives if it fits beside at least one tile this cell could still be
+      const survivors = cells[nb].filter((b) => cells[c].some((a) => tiles[a][d] === tiles[b][opposite[d]]));
+      if (survivors.length < cells[nb].length) { cells[nb] = survivors; stack.push(nb); }    // it changed: follow on
+    }
+  }
+}
+
+function step() {
+  let best = -1, fewest = Infinity;                       // 1. observe: lowest entropy
+  for (let i = 0; i < cells.length; i++) {
+    const k = cells[i].length;
+    if (k > 1 && (k < fewest || (k === fewest && R.chance(0.3)))) { best = i; fewest = k; }
+  }
+  if (best < 0) return false;                             // finished
+  cells[best] = [R.pick(cells[best])];                    // 2. collapse
+  propagate(best);                                        // 3. propagate
+  return true;
+}
+
+loop(() => {
+  for (let k = 0; k < 3; k++) step();
+  ctx.fillStyle = '#12202e';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+  cells.forEach((options, i) => {
+    const x = (i % N) * S, y = Math.floor(i / N) * S, c = [x + S / 2, y + S / 2];
+    if (options.length === 1) {                           // decided: draw the tile
+      const ends = [[c[0], y], [x + S, c[1]], [c[0], y + S], [x, c[1]]];
+      ctx.strokeStyle = '#8ecae6';
+      ctx.lineWidth = S * 0.22;
+      tiles[options[0]].forEach((socket, d) => {
+        if (socket) { ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(ends[d][0], ends[d][1]); ctx.stroke(); }
+      });
+    } else {                                              // undecided: show the entropy
+      ctx.fillStyle = PA.hsl(40, 80, 20 + options.length * 2.5);
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(options.length, c[0], c[1] + 4);
+    }
+  });
+});
+</script>
+</div>
+
+<p>With all sixteen pipe tiles, every combination of sockets exists, so a contradiction can never happen here. That is unusual. Most interesting tilesets are incomplete.</p>
+
+<h2>Contradictions, weights and borders</h2>
+<p>Three refinements turn the bare algorithm into a design tool. <code>PA.wfc</code> is the code above with these added.</p>
+<dl class="vocab">
+  <dt>Contradiction handling</dt><dd>If a cell runs out of options, the simplest cure is to throw the grid away and start again. For most tilesets a few restarts are enough. Serious implementations <em>backtrack</em> instead: undo the last few decisions and try differently.</dd>
+  <dt>Weights</dt><dd>Give each tile a weight, and collapse by weighted choice. Weights do not change what is possible, only how often each tile appears, which is how you set the character of the output.</dd>
+  <dt>Border constraints</dt><dd>Restrict cells before starting: for example, require a blank socket on every outside edge so that no pipe runs off the grid. Any cell can be fixed in advance this way, which lets you place a doorway or a river by hand and have the rest generated round it.</dd>
+</dl>
+<p>Here the tileset has lost its dead-end and its crossing, so some arrangements cannot be completed, and the outside border must be blank. The readout reports how many restarts were needed. The slider changes the weight of the straight pieces.</p>
+
+<div class="example" data-title="14.3 A harder tileset, with weights and a closed border">
+<script type="text/plain">
+const straight = ui.slider('straight weight', 0.2, 12, 3, 0.2);
+const blank = ui.slider('blank weight', 0.2, 12, 2, 0.2);
+let seed = 1;
+ui.button('new seed', () => { seed++; draw(); });
+
+function draw() {
+  // no dead-ends and no crossings this time: [top, right, bottom, left], with a weight for each shape
+  const shapes = [[[0, 0, 0, 0], blank()], [[1, 0, 1, 0], straight()], [[1, 1, 0, 0], 1], [[1, 1, 1, 0], 0.4]];
+  const tiles = [];
+  for (const [s, weight] of shapes) {
+    let e = s;
+    for (let turn = 0; turn < 4; turn++) {
+      if (!tiles.some((t) => t.edges.join() === e.join())) tiles.push({ edges: e, weight });
+      e = [e[3], e[0], e[1], e[2]];
+    }
+  }
+
+  const N = 24, S = W / N;
+  const result = PA.wfc({ tiles, cols: N, rows: N, rng: PA.rng(seed), border: 0 });      // border: 0 = blank outside edges
+
+  ctx.fillStyle = '#12202e';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = S * 0.24;
+  if (result.ok) {
+    result.grid.forEach((k, i) => {
+      const x = (i % N) * S, y = Math.floor(i / N) * S, c = [x + S / 2, y + S / 2];
+      const ends = [[c[0], y], [x + S, c[1]], [c[0], y + S], [x, c[1]]];
+      tiles[k].edges.forEach((socket, d) => {
+        if (socket) { ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(ends[d][0], ends[d][1]); ctx.stroke(); }
+      });
+    });
+  }
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.fillText(result.ok ? 'solved after ' + result.restarts + ' restarts' : 'gave up after ' + result.restarts + ' restarts', 10, H - 10);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Richer sockets: a landscape</h2>
+<p>Sockets can be any labels, not just on and off. For terrain, label each tile's four <em>corners</em> with a terrain type, and make a tile's edge socket the pair of corners along that edge. Two tiles then fit when the corners they share agree, which is exactly what you want for a map.</p>
+<p>The design rule goes into which tiles exist. Here a tile may combine water with sand, or sand with grass, or grass with forest, but never terrains that are further apart. No tile contains both water and grass, so the algorithm cannot put them side by side, and a beach appears between them everywhere without any code that mentions beaches. Tiles with four equal corners get a high weight, which makes regions large.</p>
+
+<div class="example" data-title="14.4 A map from corner-labelled tiles">
+<script type="text/plain">
+const calm = ui.slider('region size', 1, 60, 18, 1);
+let seed = 1;
+ui.button('new seed', () => { seed++; draw(); });
+const colours = ['#2c6e9b', '#e2cd96', '#5d9950', '#2f6b3a'];      // 0 water, 1 sand, 2 grass, 3 forest
+
+function draw() {
+  // every way of giving the four corners a terrain, keeping only gentle transitions
+  const tiles = [];
+  for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) for (let c = 0; c < 4; c++) for (let d = 0; d < 4; d++) {
+    const corners = [a, b, c, d];                                  // top-left, top-right, bottom-right, bottom-left
+    if (Math.max(...corners) - Math.min(...corners) > 1) continue; // only neighbouring terrains within one tile
+    const uniform = a === b && b === c && c === d;
+    tiles.push({
+      corners,
+      edges: ['' + a + b, '' + b + c, '' + d + c, '' + a + d],     // each edge is the pair of corners along it
+      weight: uniform ? calm() : 1,
+    });
+  }
+
+  const N = 30, S = W / N;
+  const result = PA.wfc({ tiles, cols: N, rows: N, rng: PA.rng(seed) });
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  if (!result.ok) return;
+  result.grid.forEach((k, i) => {
+    const x = (i % N) * S, y = Math.floor(i / N) * S, h = S / 2, t = tiles[k].corners;
+    [[0, 0], [h, 0], [h, h], [0, h]].forEach(([ox, oy], q) => {    // paint each quarter in its corner's terrain
+      ctx.fillStyle = colours[t[q]];
+      ctx.fillRect(x + ox, y + oy, h + 0.5, h + 0.5);
+    });
+  });
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.fillText(tiles.length + ' tiles · ' + result.restarts + ' restarts', 10, H - 10);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Going further</h2>
+<table>
+  <thead><tr><th>Idea</th><th>What it adds</th></tr></thead>
+  <tbody>
+    <tr><td>Hand-drawn tiles</td><td>Replace the drawing code with images. The sockets describe which images join.</td></tr>
+    <tr><td>Asymmetric sockets</td><td>Edges that fit only their mirror image, for tiles with a direction such as stairs or one-way roads</td></tr>
+    <tr><td>The overlapping model</td><td>Gumin's original version learns the rule from a small example image: every small patch of the output must be a patch found in the example</td></tr>
+    <tr><td>Three dimensions</td><td>Six sockets per block instead of four. Used for buildings, dungeons and whole towns.</td></tr>
+    <tr><td>Pre-set cells</td><td>Fix some cells by hand before solving, so that a designer and the algorithm share the work</td></tr>
+    <tr><td>Backtracking</td><td>Undo recent choices on a contradiction instead of restarting, which matters for large grids</td></tr>
+    <tr><td>Global constraints</td><td>Rules that sockets cannot express, such as "all rooms must be reachable", checked during or after solving</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Label tile edges with sockets. Tiles fit where the meeting sockets are equal.</li>
+  <li>Each cell holds the set of tiles it could still be.</li>
+  <li>Collapse the cell with the fewest options, then propagate the consequences until nothing changes.</li>
+  <li>A cell with no options is a contradiction: restart or backtrack.</li>
+  <li>Weights set how often tiles appear. Which tiles exist sets what can appear.</li>
+  <li>Design the tileset and the rules. The algorithm only enforces them.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Sockets listed in an inconsistent order, so that tiles match in the wrong direction. Decide the order once and draw a test grid.</li>
+  <li>Forgetting rotations, which leaves a tileset that can hardly ever be completed.</li>
+  <li>Expecting large-scale structure. The algorithm only knows about neighbours, so its output is locally correct and globally shapeless unless you add weights, pre-set cells or a guiding field.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 14</p>
+  <h2>Your Own Tileset</h2>
+  <p>Design a tileset with a character of its own and use Wave Function Collapse to build something from it: a circuit board, a city plan, a knot pattern, a garden, a dungeon.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>At least <strong>eight tile shapes</strong> that you designed and draw in code, expanded by rotation.</li>
+    <li>At least <strong>three socket types</strong>, not just on and off.</li>
+    <li>At least one tile that is <strong>rare</strong> by weight, and gives the output its points of interest.</li>
+    <li>A <strong>border rule</strong> or some <strong>pre-set cells</strong>, so that the result is framed or built round something you placed.</li>
+    <li>Your own solver, or <code>PA.wfc</code>, with the number of restarts reported.</li>
+    <li>Seeded. A key gives a new seed, and the grid is at least 20 × 20.</li>
+    <li>A way to see the tileset itself: a key that shows every tile with its sockets marked.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Draw the tileset view first, and check every tile by eye before solving anything.</li>
+    <li>If the solver often fails, look for a combination of sockets that no tile provides, and add the missing tile.</li>
+    <li>Draw tiles from their sockets where you can. Then a new tile is one more line of data.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Let noise bias the weights across the canvas, so that different regions have different character.</li>
+    <li>Write the solver yourself with backtracking instead of restarts.</li>
+    <li>Animate the collapse, as in example 14.2, as part of the finished piece.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Ten seeds all solve, and all look like the same world.</li>
+    <li>Someone could guess what the tiles represent.</li>
+  </ul>
+  <a class="start" href="../challenges/14-your-own-tileset.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="13-images-as-input.html">← Lesson 13</a><a href="15-animation-and-looping.html">Lesson 15: Animation and Looping →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

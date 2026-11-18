@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 16 · A Grown Form</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 16 — A GROWN FORM
+   Full brief: ../lessons/16-growth.html
+
+   Checklist
+   [ ] A growth algorithm written by you (aggregation, space colonisation, differential growth, or a mix)
+   [ ] Growth is confined to a shape defined by an inside test
+   [ ] A field (noise or distance) changes how it grows in different places
+   [ ] The rendering shows history: age, order, or thickness by flow
+   [ ] A clear stopping rule; the growth can be watched
+   [ ] Seeded; keys for a new seed and for saving a PNG
+   [ ] At least 3,000 elements at a comfortable frame rate
+   [ ] The outline of the shape can be recognised from the growth alone */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let seed = 1;
+let R = PA.rng(seed), N = PA.noise(seed);
+
+// The shape the form must stay inside.
+function inside(x, y) {
+  // ---- your shape here ----
+  return Math.hypot(x - W / 2, y - H / 2) < 420;
+}
+
+let finished = false;
+
+function reset() {
+  R = PA.rng(seed); N = PA.noise(seed);
+  finished = false;
+  // ---- the starting state: a seed point, a line, a ring ----
+}
+
+function step() {
+  // ---- one step of growth. set finished = true when your stopping rule is met ----
+}
+
+function render() {
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  // ---- draw the form, showing its history ----
+}
+
+function frame() {
+  if (!finished) step();
+  render();
+  requestAnimationFrame(frame);
+}
+
+reset();
+frame();
+
+// TODO: keys for a new seed and for saving a PNG
+</script>
+</body>
+</html>

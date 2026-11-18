@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>three.js challenge · A Small World</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  canvas { display: block; }
+  #label { position: fixed; left: 12px; bottom: 10px; color: #cfd6dd; font: 13px Consolas, monospace; }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="label"></div>
+<script src="../assets/pa.js"></script>
+<script type="module">
+/* THREE.JS CHALLENGE — A SMALL WORLD
+   Full brief: ../three/03-shaders-interaction-export.html
+   (Needs an internet connection: three.js loads from a content delivery network.)
+
+   Checklist
+   [ ] Everything comes from one seed, shown on screen, changed by a key
+   [ ] At least one custom geometry built from your own function
+   [ ] At least one instanced mesh with 1000+ copies placed by rule
+   [ ] At least one custom shader
+   [ ] Raycast interaction: something responds to the pointer
+   [ ] A deliberate palette, lighting, fog and camera position
+   [ ] 60 frames per second, and it resizes with the window
+   [ ] A key saves a PNG
+   [ ] Ten seeds give ten scenes you would screenshot */
+
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const PA = window.PA;                      // the course helper library: PA.rng, PA.noise...
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+camera.position.set(8, 6, 10);
+const controls = new OrbitControls(camera, renderer.domElement);
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize();
+
+const pointer = new THREE.Vector2();
+addEventListener('pointermove', (e) => {
+  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+});
+
+let seed = 1;
+
+function build(seed) {
+  const R = PA.rng(seed), N = PA.noise(seed);
+  document.getElementById('label').textContent = 'seed ' + seed;
+  scene.clear();
+
+  // ---- your world here ----
+
+}
+
+build(seed);
+
+renderer.setAnimationLoop((ms) => {
+  const t = ms / 1000;
+
+  // ---- your animation and interaction here ----
+
+  renderer.render(scene, camera);
+});
+
+// TODO: keys for a new seed and for saving a PNG
+</script>
+</body>
+</html>

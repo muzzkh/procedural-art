@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blender 4 · Add-ons and Libraries</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-geometry-nodes.html">← Blender 3</a><span>Blender 4 of 4</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Blender 4</p>
+  <h1>Add-ons and Libraries</h1>
+  <p class="lede">A script is something you run. An add-on is something you install: your generator becomes a menu entry with sliders, available in every file. This lesson turns scripts into tools, organises reusable code into libraries, and runs Blender without its window to generate in bulk.</p>
+</header>
+
+<h2>From script to tool</h2>
+<p>An add-on is a Python package that Blender loads at start-up. It registers new pieces of interface with Blender, and they then behave like built-in features. Three kinds of piece cover most add-ons:</p>
+<dl class="vocab">
+  <dt>Operator</dt><dd>An action: something that appears in a menu or on a button and does a job when run.</dd>
+  <dt>Properties</dt><dd>The operator's settings. Blender draws sliders and fields for them automatically.</dd>
+  <dt>Panel</dt><dd>A block of interface in a sidebar or properties editor that shows buttons and settings.</dd>
+</dl>
+<p>The course includes a complete working add-on, <a href="addons/procedural_tools/__init__.py">blender/addons/procedural_tools</a>, which adds a seeded terrain and a seeded vase to the Add menu. It was run in Blender 5.3: both operators create their objects, the panel registers, and the folder builds into an installable package. The listings below are from it.</p>
+
+<h2>An operator</h2>
+<pre class="listing"><code>import bpy
+from bpy.props import FloatProperty, IntProperty
+
+from . import generators
+
+
+class MESH_OT_procedural_terrain(bpy.types.Operator):
+    """Add a noise terrain generated from a seed"""          # this text is the tooltip
+    bl_idname = "mesh.procedural_terrain"                     # how the operator is called from Python
+    bl_label = "Procedural Terrain"                           # its name in menus
+    bl_options = {"REGISTER", "UNDO"}                         # UNDO also gives the adjust panel after running
+
+    # Properties are declared as annotations. Blender builds the interface for them.
+    seed: IntProperty(name="Seed", default=1, min=0)
+    size: FloatProperty(name="Size", default=8.0, min=0.1, unit="LENGTH")
+    cells: IntProperty(name="Resolution", default=64, min=4, max=512)
+    height: FloatProperty(name="Height", default=2.0, min=0.0)
+    scale: FloatProperty(name="Feature Scale", default=0.45, min=0.01)
+
+    def execute(self, context):
+        vertices, faces = generators.terrain(self.seed, self.size, self.cells, self.height, self.scale)
+        build_object(context, f"Terrain {self.seed}", vertices, faces)
+        return {"FINISHED"}</code></pre>
+<p>What each part does:</p>
+<ul>
+  <li><strong><code>bl_idname</code></strong> has the form <code>category.name</code>. After registration the operator can be called as <code>bpy.ops.mesh.procedural_terrain(seed=5)</code>.</li>
+  <li><strong>The properties</strong> use a colon, not an equals sign. Each becomes a control with the limits you give.</li>
+  <li><strong><code>execute</code></strong> does the work and returns <code>{"FINISHED"}</code>. It receives the context instead of reaching for <code>bpy.context</code>.</li>
+  <li><strong><code>"UNDO"</code></strong> in the options is what makes the tool feel procedural. After you run the operator, a small panel appears at the bottom left of the viewport (press F9 if it is hidden). Changing a value there undoes and re-runs the operator, so dragging the Seed slider regenerates the terrain live.</li>
+</ul>
+
+<h2>A panel and a menu entry</h2>
+<pre><code>class VIEW3D_PT_procedural_tools(bpy.types.Panel):
+    bl_label = "Procedural Tools"
+    bl_space_type = "VIEW_3D"               # which editor
+    bl_region_type = "UI"                   # its sidebar
+    bl_category = "Procedural"              # the tab name
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Add from a seed:")
+        column = layout.column(align=True)
+        column.operator(MESH_OT_procedural_terrain.bl_idname, icon="RNDCURVE")
+        column.operator(MESH_OT_procedural_vase.bl_idname, icon="MESH_CYLINDER")
+
+
+def menu_entries(self, context):
+    self.layout.separator()
+    self.layout.operator(MESH_OT_procedural_terrain.bl_idname, icon="RNDCURVE")
+    self.layout.operator(MESH_OT_procedural_vase.bl_idname, icon="MESH_CYLINDER")</code></pre>
+<p>A panel's <code>draw</code> function runs every time the interface redraws, so it must only describe the layout and never change data. The class names follow a convention Blender checks: an upper-case prefix, then <code>_OT_</code> for operators, <code>_PT_</code> for panels or <code>_MT_</code> for menus.</p>
+
+<h2>Registration</h2>
+<p>Blender finds out about your classes only when you register them. Every add-on has these two functions, and <code>unregister</code> must undo everything <code>register</code> did, in reverse order.</p>
+<pre><code>classes = (MESH_OT_procedural_terrain, MESH_OT_procedural_vase, VIEW3D_PT_procedural_tools)
+
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    bpy.types.VIEW3D_MT_mesh_add.append(menu_entries)       # add our entries to Add > Mesh
+
+
+def unregister():
+    bpy.types.VIEW3D_MT_mesh_add.remove(menu_entries)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)</code></pre>
+
+<h2>Keep generating separate from interface</h2>
+<p>Notice the first lines of the operator's <code>execute</code>: it calls <code>generators.terrain(…)</code> and gets back plain lists of points and faces. The file <a href="addons/procedural_tools/generators.py">generators.py</a> contains no operators, no panels and no reference to the interface at all.</p>
+<p>That separation is the most important structural habit in tool-building:</p>
+<ul>
+  <li>The same function can be called from the add-on, from a stand-alone script, and from a batch job.</li>
+  <li>It can be tested by comparing its output for a known seed.</li>
+  <li>The interface can be redesigned without touching the algorithm.</li>
+</ul>
+
+<h2>Packaging and installing</h2>
+<p>Since Blender 4.2, add-ons are distributed as <strong>extensions</strong>. An extension is a folder containing your Python files and a manifest, <code>blender_manifest.toml</code>, that describes it:</p>
+<pre><code>schema_version = "1.0.0"
+
+id = "procedural_tools"
+version = "1.0.0"
+name = "Procedural Tools"
+tagline = "Seeded procedural meshes from the Procedural Art course"
+maintainer = "Your Name"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+tags = ["Add Mesh"]</code></pre>
+<p>Blender builds the installable zip for you and checks the manifest as it does so:</p>
+<pre><code>blender --command extension build --source-dir blender/addons/procedural_tools --output-dir .</code></pre>
+<p>To install: Edit, Preferences, Get Extensions, open the drop-down menu at the top right, choose <em>Install from Disk</em> and pick the zip. For development, it is quicker to point Blender at the folder itself as a local repository, also under Get Extensions, so that edits take effect on restart without rebuilding.</p>
+<p>Before 4.2, an add-on was identified by a <code>bl_info</code> dictionary at the top of <code>__init__.py</code>. The course add-on includes one as well, which newer versions ignore.</p>
+
+<h2>Libraries</h2>
+<p>"Library" means three different things in Blender work, and all three are worth setting up.</p>
+
+<h3>1. Your own Python modules</h3>
+<p>Functions you keep rewriting belong in a module. The course's <a href="scripts/proclib.py">proclib.py</a> is an example: clearing the scene, seeded noise, building an object from lists, a surface from a function, a camera and light. To use a module from a stand-alone script, tell Python where it is:</p>
+<pre><code>import sys
+sys.path.append(r"C:\path\to\Procedural Art\blender\scripts")
+import proclib
+
+proclib.clear_scene()
+vase = proclib.grid_surface("Vase", my_function, 96, 60, close_u=True)</code></pre>
+<p>Inside an add-on, modules in the same folder are imported relatively: <code>from . import generators</code>. While developing, Blender keeps the old version of a module in memory after you edit it. Either restart Blender or reload it by hand:</p>
+<pre><code>import importlib
+importlib.reload(proclib)</code></pre>
+
+<h3>2. Third-party Python packages</h3>
+<p>Blender has its own Python, separate from any other on your computer, and it already includes NumPy. For other packages, the supported way in 4.2 and later is to bundle their wheel files inside your extension and list them in the manifest:</p>
+<pre><code>wheels = [
+  "./wheels/some_package-1.2.3-py3-none-any.whl",
+]</code></pre>
+<p>Blender installs them when the extension is enabled. Installing packages into Blender's Python by hand with pip also works, but it breaks when Blender is updated and is hard for anyone else to reproduce.</p>
+
+<h3>3. Asset libraries</h3>
+<p>The third kind holds not code but things: node groups, materials, objects and collections that you want to reuse in every project.</p>
+<ol>
+  <li>In a <code>.blend</code> file, right-click a node group, material or object and choose <em>Mark as Asset</em>. From Python: <code>tree.asset_mark()</code>.</li>
+  <li>Save the file into a folder that is registered as an asset library, in Preferences, File Paths, Asset Libraries.</li>
+  <li>In any other file, open the <strong>Asset Browser</strong> and drag the asset in.</li>
+</ol>
+<p>A Geometry Nodes scatter system, such as the one from the last lesson's challenge, is an ideal asset: build it once, then drag it onto any object. A script can also pull data out of another <code>.blend</code> file directly:</p>
+<pre><code>with bpy.data.libraries.load(r"C:\path\to\library.blend", link=False) as (source, target):
+    target.node_groups = [name for name in source.node_groups if name == "Procedural Hills"]
+
+tree = target.node_groups[0]          # now part of this file</code></pre>
+<p>With <code>link=True</code> the data stays in the library file and is only referenced, so improving the library updates every project that uses it.</p>
+
+<h2>Batch generation</h2>
+<p>Blender runs without its window when started with <code>--background</code>, which makes it a generator you can script from outside. The course's <a href="scripts/04_batch_generate.py">04_batch_generate.py</a> produces a rendered image and an STL file for each seed in a list. It was run for two seeds and wrote all four files.</p>
+<pre><code>blender --background --python 04_batch_generate.py -- --seeds 1 2 3 --size 400</code></pre>
+<p>Everything after the lone <code>--</code> is ignored by Blender and left for the script, which reads it in the ordinary Python way:</p>
+<pre class="listing"><code>argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+parser = argparse.ArgumentParser()
+parser.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
+parser.add_argument("--size", type=int, default=400, help="image size in pixels")
+args = parser.parse_args(argv)
+
+for seed in args.seeds:
+    proclib.clear_scene()                                          # this also removes unused materials...
+    land = proclib.material("Land", (0.35, 0.55, 0.3), roughness=0.9)     # ...so make ours afterwards
+    vertices, faces = generators.terrain(seed=seed, size=8.0, cells=96, height=2.4)
+    terrain = proclib.mesh_object(f"Terrain {seed}", vertices, faces, smooth=True)
+    terrain.data.materials.append(land)
+    proclib.camera_and_sun(location=(8, -8, 6.5), target=(0, 0, 0.4))
+
+    for obj in bpy.context.scene.objects:
+        obj.select_set(obj == terrain)
+    bpy.context.view_layer.objects.active = terrain
+    bpy.ops.wm.stl_export(filepath=os.path.join(out_dir, f"terrain-{seed:04d}.stl"), export_selected_objects=True)
+
+    proclib.render_still(os.path.join(out_dir, f"terrain-{seed:04d}.png"), size=args.size)</code></pre>
+<p>The comment about materials records a real bug found while testing: the first version created the material once, before the loop, and <code>clear_scene</code> deleted it because nothing was using it yet.</p>
+
+<h3>Recording how something was made</h3>
+<p>Lesson 10 insisted on keeping the seed with every output. In Blender, store it on the object itself as a custom property, where it is saved with the file and visible in the Object properties:</p>
+<pre><code>obj["seed"] = seed
+obj["generator"] = "procedural_tools.terrain 1.0.0"
+obj["settings"] = "size=8.0 cells=96 height=2.4"</code></pre>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>An add-on registers operators, properties and panels. Blender draws the controls.</li>
+  <li><code>bl_options = {"REGISTER", "UNDO"}</code> gives the live adjust panel, which makes an operator feel procedural.</li>
+  <li>Keep generating functions in a module with no interface code.</li>
+  <li>An extension is a folder with a manifest. Blender's own command builds and checks the zip.</li>
+  <li>Three kinds of library: your modules, bundled packages, and asset libraries of node groups and materials.</li>
+  <li><code>--background</code> turns Blender into a batch generator. Store the seed on what you make.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Blender challenge 4</p>
+  <h2>Your Own Add-on</h2>
+  <p>Package one of your generators from this course as a Blender add-on that someone else could install and use.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>At least <strong>one operator</strong> that generates geometry from a seed, with at least <strong>four properties</strong> that have sensible limits.</li>
+    <li>The live <strong>adjust panel</strong> works: changing a property after running regenerates the result.</li>
+    <li>A <strong>panel</strong> in the viewport sidebar, and an entry in the Add menu.</li>
+    <li>All generating code lives in a <strong>separate module</strong> that imports nothing from the interface.</li>
+    <li>A valid <strong>manifest</strong>, and the folder builds with <code>blender --command extension build</code>.</li>
+    <li>Generated objects carry their <strong>seed and settings</strong> as custom properties.</li>
+    <li>A <strong>batch script</strong> that uses the same generator module to produce files for a list of seeds without opening the window.</li>
+    <li>Enabling, disabling and re-enabling the add-on leaves no errors in the console.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start from the starter add-on and get an empty operator registering before adding any generating code.</li>
+    <li>Add a <code>poll</code> class method to an operator to say when it is allowed to run, for example only in Object Mode.</li>
+    <li>Port a generator from JavaScript by keeping the structure and swapping <code>PA.rng</code> for <code>random.Random</code> and <code>PA.noise</code> for <code>mathutils.noise</code>.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>A fresh copy of Blender can install the zip and use the tool with no other set-up.</li>
+    <li>The batch script and the button produce identical geometry for the same seed.</li>
+  </ul>
+  <a class="start" href="addons/starter_addon/__init__.py">Open the starter add-on</a>
+</section>
+
+<footer class="next"><a href="03-geometry-nodes.html">← Blender 3</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+</body>
+</html>

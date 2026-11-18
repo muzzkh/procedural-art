@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Printing 4 · G-code Fundamentals</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-models-from-formulas.html">← 3D Printing 3</a><span>3D printing 4 of 5</span><a href="05-generative-toolpaths.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">3D Printing 4</p>
+  <h1>G-code Fundamentals</h1>
+  <p class="lede">G-code is what the printer actually runs: a plain text list of moves and settings. This lesson teaches you to read it, to calculate extrusion yourself, to add custom G-code safely through Bambu Studio, and to check any G-code before it goes near a P1S.</p>
+</header>
+
+<div class="note">
+<p><strong>Read this first.</strong> A printer does exactly what G-code says, including driving the hot nozzle into the bed or into the print. Slicers protect you from that. Hand-written G-code does not.</p>
+<p>Bambu Lab publishes no official reference for the commands specific to its printers. The P1S details in these two lessons were read from the stock P1S profile that ships with Bambu Studio (its start G-code is dated October 2025) and from community notes. Firmware and slicer updates can change them. Treat your own freshly sliced file as the authority, and watch the first layer of anything custom with a hand near the stop button.</p>
+</div>
+
+<h2>The coordinate system of the P1S</h2>
+<ul>
+  <li><strong>Origin</strong> at the front-left corner of the plate. X runs to the right, Y toward the back, Z upward. Units are millimetres.</li>
+  <li><strong>Printable area</strong> 256 × 256 mm. The stock profile allows Z up to 250 mm.</li>
+  <li><strong>Excluded zone:</strong> the front-left 18 × 28 mm. The filament cutter needs it.</li>
+  <li><strong>Prime line:</strong> the stock start sequence draws a purge line along the front edge, from X 18 to X 240 between Y 1 and Y 11. Keep your own first layer behind Y 15.</li>
+  <li><strong>The bed moves in Z.</strong> "Z up" in G-code means the bed moving down, away from the nozzle.</li>
+</ul>
+
+<h2>The commands you need</h2>
+<p>A line is a command letter and number, followed by parameters. Anything after a semicolon is a comment.</p>
+<table>
+  <thead><tr><th>Command</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>G1 X50 Y60 E0.8 F1800</code></td><td>Move in a straight line to X 50, Y 60 while pushing 0.8 mm of filament, at 1800 mm per minute. The core of every print.</td></tr>
+    <tr><td><code>G0 X10 Y10 F12000</code></td><td>A travel move: the same, by convention without extruding.</td></tr>
+    <tr><td><code>G1 Z0.4</code></td><td>Move to height 0.4 mm.</td></tr>
+    <tr><td><code>G2</code> / <code>G3</code></td><td>Clockwise and anticlockwise arcs, with the centre given as offsets I and J.</td></tr>
+    <tr><td><code>G28</code></td><td>Home: find the mechanical origin. Must happen before any positioned move.</td></tr>
+    <tr><td><code>G90</code> / <code>G91</code></td><td>Positions are absolute coordinates, or relative steps from where the head is.</td></tr>
+    <tr><td><code>M83</code> / <code>M82</code></td><td>E values are relative (the amount for this move) or absolute (a running total). Bambu's G-code uses <strong>relative</strong>.</td></tr>
+    <tr><td><code>G92 E0</code></td><td>Declare the current extruder position to be zero.</td></tr>
+    <tr><td><code>M104 S220</code> / <code>M109 S220</code></td><td>Set the nozzle to 220 °C, without waiting or waiting until it arrives.</td></tr>
+    <tr><td><code>M140 S60</code> / <code>M190 S60</code></td><td>The same for the bed.</td></tr>
+    <tr><td><code>M106 P1 S255</code></td><td>Fan speed, 0 to 255. On Bambu printers P1 is the part-cooling fan, P2 the auxiliary fan, P3 the chamber fan.</td></tr>
+    <tr><td><code>M204 S5000</code></td><td>Acceleration, in mm/s².</td></tr>
+    <tr><td><code>M220 S80</code> / <code>M221 S95</code></td><td>Scale all speeds to 80%, or all extrusion to 95%.</td></tr>
+    <tr><td><code>M400</code></td><td>Wait until all queued moves have finished.</td></tr>
+    <tr><td><code>M400 U1</code></td><td>Bambu: pause and wait for the user to press resume. This is the stock "pause" G-code.</td></tr>
+    <tr><td><code>M73 P25 R40</code></td><td>Tell the screen the print is 25% done with 40 minutes left.</td></tr>
+  </tbody>
+</table>
+<p>Two details trip up everyone. <strong>F is in millimetres per minute</strong>, so 60 mm/s is <code>F3600</code>. And F is <strong>sticky</strong>: once set, it applies to every following move until changed.</p>
+
+<h3>Reading G-code</h3>
+<p>The example holds a small piece of hand-written G-code and a parser of about twenty lines. The parser tracks the head position, and for each move decides whether plastic was extruded. Extruding moves are drawn in orange, travel moves in blue, over an outline of the bed. Edit the G-code and run it again.</p>
+
+<div class="example" data-title="P4.1 A G-code reader">
+<script type="text/plain">
+const gcode = `
+M83                      ; relative extrusion
+G1 Z0.2 F1200            ; first layer height
+G0 X100 Y100 F12000      ; travel to the start
+G1 X160 Y100 E1.881 F1800
+G1 X160 Y160 E1.881
+G1 X100 Y160 E1.881
+G1 X100 Y100 E1.881
+G1 Z0.4 F1200            ; second layer
+G1 X160 Y100 E1.881 F3000
+G1 X160 Y160 E1.881
+G1 X100 Y160 E1.881
+G1 X100 Y100 E1.881
+G1 E-0.8 F1800           ; retract
+G0 X128 Y200 Z10 F12000  ; move away
+`;
+
+function parse(text) {
+  const segments = [];
+  let x = 0, y = 0, z = 0, relativeE = true, lastE = 0;
+  for (let line of text.split('\n')) {
+    line = line.split(';')[0].trim();                 // drop the comment
+    if (!line) continue;
+    const words = line.split(/\s+/);
+    const cmd = words[0];
+    const arg = {};
+    for (const w of words.slice(1)) arg[w[0]] = parseFloat(w.slice(1));
+
+    if (cmd === 'M83') relativeE = true;
+    if (cmd === 'M82') relativeE = false;
+    if (cmd === 'G0' || cmd === 'G1') {
+      const nx = arg.X ?? x, ny = arg.Y ?? y, nz = arg.Z ?? z;      // unmentioned axes stay where they are
+      let e = arg.E ?? 0;
+      if (!relativeE && arg.E !== undefined) { e = arg.E - lastE; lastE = arg.E; }
+      const moved = nx !== x || ny !== y || nz !== z;
+      if (moved) segments.push(e > 0 ? [x, y, z, nx, ny, nz, 1, 0.6, 0.2] : [x, y, z, nx, ny, nz, 0.3, 0.5, 0.9]);
+      x = nx; y = ny; z = nz;
+    }
+  }
+  return segments;
+}
+
+const path = parse(gcode);
+const bed = [[0, 0, 0, 256, 0, 0], [256, 0, 0, 256, 256, 0], [256, 256, 0, 0, 256, 0], [0, 256, 0, 0, 0, 0],
+             [18, 0, 0, 18, 28, 0], [18, 28, 0, 0, 28, 0]].map((s) => s.concat([0.4, 0.4, 0.45]));
+const all = bed.concat(path);
+
+loop((t) => {
+  MESH.lines(ctx, W, H, all, { spin: 0.4 + Math.sin(t * 0.3) * 0.3, tilt: 0.75 });
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '13px monospace';
+  ctx.fillText(path.length + ' moves · orange = printing · blue = travel · grey = the bed and its excluded corner', 12, H - 14);
+});
+</script>
+</div>
+
+<h2>Extrusion: the one calculation that matters</h2>
+<p>The E value says how many millimetres of <em>filament</em> to push for a move. Too little and the line is thin and weak. Too much and plastic piles up and drags. The slicer computes it for every move, and if you write G-code yourself, so must you. It is a volume balance: the plastic that goes in must equal the bead that comes out.</p>
+<p class="formula">E = (bead cross-section × move length) ÷ filament cross-section</p>
+<ul>
+  <li><strong>Bead cross-section</strong> for a bead of width <code>w</code> and height <code>h</code>: a rectangle with rounded ends, <code>(w − h) × h + π × (h ÷ 2)²</code>.</li>
+  <li><strong>Filament cross-section</strong> for 1.75 mm filament: <code>π × 0.875²</code> = 2.405 mm².</li>
+</ul>
+<p>For the standard 0.42 × 0.2 mm bead that works out to 0.03135 mm of filament per millimetre of travel, which is why the 60 mm sides above each have <code>E1.881</code>.</p>
+<p>The generator below writes the G-code for a single-wall square tube. It is the smallest complete toolpath: it has a first layer, a layer change, and correctly computed extrusion. It is the pattern for everything in Lesson 5.</p>
+
+<div class="example" data-title="P4.2 Generating a toolpath with correct extrusion">
+<script type="text/plain">
+const NOZZLE = 0.4, WIDTH = 0.45, LAYER = 0.2;          // millimetres
+const FILAMENT_AREA = Math.PI * (1.75 / 2) ** 2;
+const beadArea = (w, h) => (w - h) * h + Math.PI * (h / 2) ** 2;
+
+const SIZE = 40, LAYERS = 40, CX = 128, CY = 128;       // a 40 mm square tube, 8 mm tall, mid-bed
+const SPEED = 50, FIRST_SPEED = 20, TRAVEL = 200;       // mm/s
+
+const out = [];
+const path = [];
+let x = 0, y = 0, z = 0;
+
+function travel(nx, ny) {
+  out.push('G0 X' + nx.toFixed(3) + ' Y' + ny.toFixed(3) + ' F' + TRAVEL * 60);
+  path.push([x, y, z, nx, ny, z, 0.3, 0.5, 0.9]);
+  x = nx; y = ny;
+}
+function extrude(nx, ny, speed) {
+  const length = Math.hypot(nx - x, ny - y);
+  const e = beadArea(WIDTH, LAYER) * length / FILAMENT_AREA;       // the volume balance
+  out.push('G1 X' + nx.toFixed(3) + ' Y' + ny.toFixed(3) + ' E' + e.toFixed(5) + ' F' + speed * 60);
+  path.push([x, y, z, nx, ny, z, 1, 0.6, 0.2]);
+  x = nx; y = ny;
+}
+
+out.push('; BODY ONLY: a ' + SIZE + ' mm single-wall tube. Needs the printer\'s own start and end G-code.');
+out.push('M83 ; relative extrusion');
+const h = SIZE / 2;
+for (let layer = 0; layer < LAYERS; layer++) {
+  z = (layer + 1) * LAYER;
+  out.push('; layer ' + (layer + 1));
+  out.push('G1 Z' + z.toFixed(3) + ' F1200');
+  if (layer === 0) travel(CX - h, CY - h);
+  if (layer === 1) out.push('M106 P1 S255 ; part cooling on after the first layer');
+  const speed = layer === 0 ? FIRST_SPEED : SPEED;
+  extrude(CX + h, CY - h, speed);
+  extrude(CX + h, CY + h, speed);
+  extrude(CX - h, CY + h, speed);
+  extrude(CX - h, CY - h, speed);
+}
+
+// left: preview.  right: the first lines of G-code
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+MESH.lines(ctx, 300, 300, path, { spin: 0.6, tilt: 0.6 });
+ctx.font = '11px monospace';
+ctx.fillStyle = '#9fe0c4';
+out.slice(0, 32).forEach((line, i) => ctx.fillText(line, 312, 22 + i * 17));
+ctx.fillStyle = '#cfd6dd';
+const filament = out.reduce((sum, line) => sum + (parseFloat((line.match(/E([\d.]+)/) || [0, 0])[1])), 0);
+ctx.fillText(out.length + ' lines · ' + (filament / 1000).toFixed(2) + ' m of filament · ' +
+  (beadArea(WIDTH, LAYER) * SPEED).toFixed(1) + ' mm³/s at full speed', 12, 330);
+ctx.fillText('each layer starts where the last ended, so there are no travel moves between layers', 12, 350);
+</script>
+</div>
+
+<h2>What is inside a Bambu Studio file</h2>
+<p>Slice any model, choose "Export G-code file", and open the result in a text editor. It has a fixed structure:</p>
+<ol>
+  <li><strong>Header and settings</strong> as comments: thumbnail, estimated time, filament used, and every slicer setting.</li>
+  <li><strong>The machine start G-code.</strong> On a P1S this is long, and does a great deal: heats the bed, homes, loads and purges filament (driving the AMS if present), wipes the nozzle, probes the bed, runs a vibration check, re-homes, and draws the prime line along the front edge.</li>
+  <li><strong>The layers.</strong> Each begins with the layer change G-code, which in the stock profile reports progress to the screen: <code>M73 L…</code> and <code>M991 S0 P…</code>. Then come the moves, with comments naming each feature (outer wall, inner wall, infill and so on).</li>
+  <li><strong>The machine end G-code:</strong> retract, lift, park at the back, heaters and fans off, lower the bed.</li>
+</ol>
+<div class="note"><p><strong>Do not write your own start and end sequences.</strong> The stock start G-code contains dozens of printer-specific steps in a deliberate order, several of them undocumented. Always reuse the one Bambu Studio writes for your printer, plate and filament. Lesson 5 shows how to combine it with a toolpath you generate.</p></div>
+
+<h2>Custom G-code through Bambu Studio</h2>
+<p>The safe way to customise a print is to let the slicer keep control and add small pieces of G-code at defined points. Bambu Studio has three places for this.</p>
+<table>
+  <thead><tr><th>Where</th><th>Runs</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td>Printer settings, Machine G-code: start, end, layer change, time lapse, change filament, pause</td><td>At those events, on every print with that printer preset</td><td>Per-layer logic. Save a copy of the preset first, and leave start and end alone unless you know exactly why.</td></tr>
+    <tr><td>Filament settings: filament start and end G-code</td><td>When that filament is loaded or unloaded</td><td>Filament-specific settings</td></tr>
+    <tr><td>Preview tab: right-click the layer slider to add a pause, a filament change or custom G-code</td><td>Once, at the layer you picked, in this print only</td><td>One-off actions at a height. The lowest-risk option.</td></tr>
+  </tbody>
+</table>
+<p>In the settings fields you can use placeholders, which the slicer replaces with values when it writes the file. These appear in the stock P1S profile:</p>
+<table>
+  <thead><tr><th>Placeholder</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td><code>{layer_num}</code></td><td>The current layer, counting from 0</td></tr>
+    <tr><td><code>{layer_z}</code></td><td>Its height in millimetres</td></tr>
+    <tr><td><code>[total_layer_count]</code>, <code>{max_layer_z}</code></td><td>The number of layers and the height of the top one</td></tr>
+    <tr><td><code>[nozzle_temperature_initial_layer]</code>, <code>[bed_temperature_initial_layer_single]</code></td><td>The filament's first-layer temperatures</td></tr>
+    <tr><td><code>{filament_type[initial_extruder]}</code>, <code>{curr_bed_type}</code></td><td>The material name and the plate type</td></tr>
+    <tr><td><code>{if condition}…{endif}</code></td><td>Include the enclosed G-code only when the condition holds</td></tr>
+  </tbody>
+</table>
+
+<h3>Simple techniques</h3>
+<p>Each of these is a line or two in the layer change G-code, or added at a layer in the preview.</p>
+<table>
+  <thead><tr><th>Technique</th><th>G-code</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Pause at a layer</td><td><code>{if layer_num == 60}M400 U1{endif}</code></td><td>Drop in a magnet, a nut or a weight, then resume. The preview's "add pause" does the same.</td></tr>
+    <tr><td>Temperature tower</td><td><code>{if layer_num == 50}M104 S215{endif}</code>, repeated with other values</td><td>Print one test piece at several temperatures to find the best</td></tr>
+    <tr><td>Cooling by height</td><td><code>{if layer_num == 100}M106 P1 S128{endif}</code></td><td>Less fan for strength in one zone, more for overhangs in another</td></tr>
+    <tr><td>Slow a delicate section</td><td><code>M220 S50</code> at one layer, <code>M220 S100</code> at a later one</td><td>Fine towers and thin features</td></tr>
+    <tr><td>Flow by height</td><td><code>M221 S95</code>, and <code>M221 S100</code> to restore</td><td>Tuning; a matt-to-glossy change on some filaments</td></tr>
+    <tr><td>Short wait</td><td><code>G4 P2000</code></td><td>Dwell for 2000 milliseconds, letting a small layer cool</td></tr>
+  </tbody>
+</table>
+<p>Whatever you change, <strong>restore it</strong>. An override left on carries into the rest of the print, and <code>M220</code> and <code>M221</code> in particular are easy to forget. The stock start sequence resets both, so a forgotten override will not leak into the next print, but it will affect the rest of this one.</p>
+
+<h2>Preflight: check before you print</h2>
+<p>A slicer checks its own output. Nobody checks yours. So write the checker once and run it on everything. The one below reads G-code and reports moves outside the printable volume, extrusion in the excluded corner, flow beyond what the hotend can melt, and temperatures beyond the machine's limits. The sample G-code contains five deliberate mistakes. Fix them until the report is clean.</p>
+
+<div class="example" data-title="P4.3 A preflight checker (find the five mistakes)">
+<script type="text/plain">
+const gcode = `
+M83
+M104 S320
+G1 Z0.2 F1200
+G0 X5 Y5 F12000
+G1 X15 Y20 E0.6 F1800
+G0 X100 Y100
+G1 X200 Y100 E3.135 F1800
+G1 X200 Y270 E5.3
+G1 X100 Y100 E6 F24000
+G1 Z-0.5
+`;
+
+const LIMITS = { x: 256, y: 256, z: 250, nozzle: 300, bed: 100, flow: 20, speed: 500 };
+const FILAMENT_AREA = Math.PI * (1.75 / 2) ** 2;
+
+function preflight(text) {
+  const problems = [];
+  let x = 0, y = 0, z = 0, f = 1500, n = 0;
+  for (let line of text.split('\n')) {
+    n++;
+    line = line.split(';')[0].trim();
+    if (!line) continue;
+    const words = line.split(/\s+/), cmd = words[0], arg = {};
+    for (const w of words.slice(1)) arg[w[0]] = parseFloat(w.slice(1));
+    const flag = (message) => problems.push('line ' + n + ': ' + message + '   [' + line + ']');
+
+    if ((cmd === 'M104' || cmd === 'M109') && arg.S > LIMITS.nozzle) flag('nozzle temperature above ' + LIMITS.nozzle);
+    if ((cmd === 'M140' || cmd === 'M190') && arg.S > LIMITS.bed) flag('bed temperature above ' + LIMITS.bed);
+
+    if (cmd === 'G0' || cmd === 'G1') {
+      const nx = arg.X ?? x, ny = arg.Y ?? y, nz = arg.Z ?? z, e = arg.E ?? 0;
+      if (arg.F !== undefined) f = arg.F;
+      if (nx < 0 || nx > LIMITS.x || ny < 0 || ny > LIMITS.y) flag('outside the bed');
+      if (nz < 0 || nz > LIMITS.z) flag('Z outside 0 to ' + LIMITS.z);
+      if (f / 60 > LIMITS.speed) flag('faster than ' + LIMITS.speed + ' mm/s');
+      const length = Math.hypot(nx - x, ny - y, nz - z);
+      if (e > 0 && length > 0) {
+        if (nx < 18 && ny < 28) flag('printing in the excluded front-left corner');
+        const flow = e * FILAMENT_AREA / (length / (f / 60));          // mm3 of plastic per second
+        if (flow > LIMITS.flow) flag('flow ' + flow.toFixed(1) + ' mm³/s exceeds ' + LIMITS.flow);
+      }
+      x = nx; y = ny; z = nz;
+    }
+  }
+  return problems;
+}
+
+const problems = preflight(gcode);
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+ctx.font = '13px monospace';
+ctx.fillStyle = problems.length ? '#ff8a94' : '#7ee0a1';
+ctx.fillText(problems.length ? problems.length + ' problems found' : 'No problems found. (That does not make it a good print.)', 14, 30);
+ctx.fillStyle = '#e8e3d8';
+problems.forEach((p, i) => ctx.fillText(p, 14, 62 + i * 24));
+</script>
+</div>
+
+<p>A clean report means the G-code will not damage the printer in the ways tested. It does not mean the print will succeed. Always follow it with a visual check: Bambu Studio can open a G-code file and show its toolpath layer by layer.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>G-code is one move or setting per line. <code>G1</code> with X, Y, E and F is most of every file.</li>
+  <li>F is millimetres per minute, and stays in force until changed.</li>
+  <li>E is filament length, found from a volume balance: bead area × distance ÷ filament area.</li>
+  <li>Bambu printers use relative extrusion and need their own long start sequence. Reuse it, never rewrite it.</li>
+  <li>For simple changes, add G-code through the slicer: at a layer in the preview, or with placeholders in the layer change field.</li>
+  <li>Run a preflight check on any G-code you wrote or changed.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <ul>
+    <li><strong>Annotate a real file.</strong> Slice a 20 mm cube, export the G-code, and find: the end of the start sequence, the first move of the first layer, a layer change, a retraction, a travel move, and the first line of the end sequence. Calculate the E value of one wall move yourself and compare it with the file.</li>
+    <li><strong>Temperature tower.</strong> Using the layer change G-code and <code>{if}</code>, make a tall thin test piece print in five temperature bands. Work out which layer numbers begin each band from the layer height.</li>
+    <li><strong>Extend the checker.</strong> Add three rules to the preflight example: extrusion before any temperature has been set, a first layer faster than 50 mm/s, and a move that passes through the prime-line strip at the front of the bed.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="03-models-from-formulas.html">← 3D Printing 3</a><a href="05-generative-toolpaths.html">3D Printing 5: Generative Toolpaths →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

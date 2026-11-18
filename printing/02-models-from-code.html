@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Printing 2 · Models from Code</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-how-printing-works.html">← 3D Printing 1</a><span>3D printing 2 of 5</span><a href="03-models-from-formulas.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">3D Printing 2</p>
+  <h1>Models from Code</h1>
+  <p class="lede">A 3D model is a list of triangles. If your code can produce points in space, it can produce a printable object. This lesson builds meshes by hand, then from height maps and stacked outlines, and exports them as STL files that Bambu Studio opens directly.</p>
+</header>
+
+<h2>What a mesh is</h2>
+<p>A printable model is a <strong>closed surface made of triangles</strong>. Nothing else: no curves, no solids, no units. Three rules make a pile of triangles into something a slicer accepts.</p>
+<ol>
+  <li><strong>Watertight.</strong> Every edge is shared by exactly two triangles. No holes, no loose flaps, no surfaces with zero thickness.</li>
+  <li><strong>Consistently facing.</strong> Each triangle has an outside. It is the side from which its three corners run <em>anticlockwise</em>. All triangles must agree.</li>
+  <li><strong>Real size.</strong> The numbers are taken as millimetres. Decide your dimensions in millimetres before writing anything else.</li>
+</ol>
+<p>In these lessons a mesh is an array of triangles, each triangle three points, each point <code>[x, y, z]</code> with Z up. A helper called <code>MESH</code> (in <code>assets/mesh.js</code>, short enough to read) draws a preview, checks the rules above, and writes the STL file. In the preview, a triangle facing the wrong way is drawn red.</p>
+
+<div class="example" data-title="P2.1 A box, one triangle at a time (click to download the STL)">
+<script type="text/plain">
+const w = 40, d = 30, h = 20;            // millimetres
+
+// the eight corners
+const A = [0, 0, 0], B = [w, 0, 0], C = [w, d, 0], D = [0, d, 0];      // bottom
+const E = [0, 0, h], F = [w, 0, h], G = [w, d, h], I = [0, d, h];      // top
+
+// six faces, two triangles each. corners run anticlockwise when you look at the face from outside
+const tris = [
+  [A, C, B], [A, D, C],      // bottom (seen from below)
+  [E, F, G], [E, G, I],      // top
+  [A, B, F], [A, F, E],      // front
+  [B, C, G], [B, G, F],      // right
+  [C, D, I], [C, I, G],      // back
+  [D, A, E], [D, E, I],      // left
+];
+
+// try it: swap two corners of one triangle, e.g. change [E, F, G] to [E, G, F].
+// it turns red in the preview and the report below says the mesh is not valid.
+
+const info = MESH.report(tris);
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.5 });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 14);
+});
+
+canvas.onclick = () => MESH.download('box.stl', MESH.stl(tris));
+</script>
+</div>
+
+<h3>The STL file</h3>
+<p>STL is the simplest 3D format there is: a count, then for each triangle a direction and three corners. It stores no units, colours or names. Written as text it looks like this:</p>
+<pre><code>solid box
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 20
+      vertex 40 0 20
+      vertex 40 30 20
+    endloop
+  endfacet
+  …
+endsolid box</code></pre>
+<p>The compact binary version holds the same numbers and is what <code>MESH.stl</code> writes. Bambu Studio also reads 3MF, a newer format that adds units, colours and several objects per file. STL is enough for everything in this course.</p>
+
+<h2>Height maps: a field becomes a relief</h2>
+<p>The quickest route from 2D procedural work to a 3D object is the <strong>height map</strong>. Take a grid of points, and raise each one by the value of a field. Every 2D technique in this course gives you a field: noise, a distance function, a reaction–diffusion pattern, a wave simulation.</p>
+<p>A sheet of triangles is not printable, because it has no thickness. To make it a solid, the height map needs a flat bottom and four side walls joining the two. That is exactly what the function below builds, and it is the same code as <code>MESH.heightfield</code>.</p>
+
+<div class="example" data-title="P2.2 A terrain tile (click to download the STL)">
+<script type="text/plain">
+const SIZE = 80;           // an 80 x 80 mm tile
+const CELLS = 80;          // grid resolution: 1 mm per cell
+const BASE = 2;            // millimetres of solid plastic under the lowest point
+const RELIEF = 14;         // height of the tallest mountain above the base
+
+const N = PA.noise('tile-3');
+const heightAt = (x, y) => {
+  const n = N.fbm(x * 0.03, y * 0.03, { octaves: 4 });
+  return BASE + RELIEF * PA.smoothstep(0.3, 0.75, n);       // flat plains, then mountains
+};
+
+function heightfield(nx, ny, w, d, zAt) {
+  const tris = [];
+  const X = (i) => (i / nx) * w, Y = (j) => (j / ny) * d;
+  const top = (i, j) => [X(i), Y(j), zAt(X(i), Y(j))];
+  const bot = (i, j) => [X(i), Y(j), 0];
+
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      // top surface: each grid square is two triangles, facing up
+      tris.push([top(i, j), top(i + 1, j), top(i + 1, j + 1)], [top(i, j), top(i + 1, j + 1), top(i, j + 1)]);
+      // bottom: the same square at z = 0, facing down, so the corner order is reversed
+      tris.push([bot(i, j), bot(i + 1, j + 1), bot(i + 1, j)], [bot(i, j), bot(i, j + 1), bot(i + 1, j + 1)]);
+    }
+  }
+  for (let i = 0; i < nx; i++) {       // front and back walls join top edge to bottom edge
+    tris.push([bot(i, 0), bot(i + 1, 0), top(i + 1, 0)], [bot(i, 0), top(i + 1, 0), top(i, 0)]);
+    tris.push([bot(i + 1, ny), bot(i, ny), top(i, ny)], [bot(i + 1, ny), top(i, ny), top(i + 1, ny)]);
+  }
+  for (let j = 0; j < ny; j++) {       // left and right walls
+    tris.push([bot(0, j + 1), bot(0, j), top(0, j)], [bot(0, j + 1), top(0, j), top(0, j + 1)]);
+    tris.push([bot(nx, j), bot(nx, j + 1), top(nx, j + 1)], [bot(nx, j), top(nx, j + 1), top(nx, j)]);
+  }
+  return tris;
+}
+
+const tris = heightfield(CELLS, CELLS, SIZE, SIZE, heightAt);
+const info = MESH.report(tris);
+
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.3, tilt: 0.7, colour: [0.55, 0.75, 0.5] });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 14);
+});
+canvas.onclick = () => MESH.download('terrain-tile.stl', MESH.stl(tris));
+</script>
+</div>
+
+<p>Resolution is a real decision. One cell per millimetre is plenty: the nozzle cannot draw detail finer than its own 0.4 mm width, so a finer grid only makes the file larger. A tile like this has no overhangs at all, so it prints without support.</p>
+
+<h3>Patterns in relief</h3>
+<p>The same function turns any flat pattern into a tactile object: coasters, stamps, texture tiles, embossed signs. Give the pattern two levels and a smooth ramp between them. The ramp matters. A perfectly vertical step is fine to print, but a slight slope hides layer lines and releases from the bed more cleanly. A <strong>lithophane</strong> is this same idea with the height taken from an image's darkness: printed thin in white plastic and lit from behind, thick areas look dark and thin areas bright.</p>
+
+<div class="example" data-title="P2.3 A patterned coaster (click to download the STL)">
+<script type="text/plain">
+const rings = ui.slider('rings', 2, 10, 5, 1);
+const arms = ui.slider('arms', 0, 12, 6, 1);
+const depth = ui.slider('relief mm', 0.4, 3, 1.2, 0.2);
+
+const SIZE = 90, BASE = 2.4;
+let tris = [], info = { ok: false, text: '' };
+
+function build() {
+  const pattern = (x, y) => {
+    const dx = x - SIZE / 2, dy = y - SIZE / 2;
+    const r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+    if (r > SIZE / 2 - 3) return 0;                                      // a flat rim round the edge
+    const wave = Math.sin(r / (SIZE / 2) * rings() * PA.TAU + Math.sin(a * arms()) * 1.5);
+    return PA.smoothstep(-0.25, 0.25, wave);                             // 0 or 1, with a sloped edge between
+  };
+  tris = MESH.heightfield(120, 120, SIZE, SIZE, (x, y) => BASE + depth() * pattern(x, y));
+  info = MESH.report(tris);
+}
+build();
+ui.onChange(build);
+
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.3, tilt: 0.85, colour: [0.9, 0.55, 0.45] });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 14);
+});
+canvas.onclick = () => MESH.download('coaster.stl', MESH.stl(tris));
+</script>
+</div>
+
+<h2>Lofting: stacked outlines</h2>
+<p>The second general method builds an object from the bottom up, as the printer does. Describe the <strong>outline at each height</strong> as a ring of points, then join each ring to the one above with a band of triangles. Close the bottom ring and the top ring with flat caps and the result is watertight. This is called lofting.</p>
+<p>Since the outline can be any function of height and angle, lofting covers vases, lampshades, bottles, columns, bowls and horns. The design is a single function <code>radius(v, a)</code>, where <code>v</code> runs from 0 at the base to 1 at the top and <code>a</code> is the angle round the axis. The polygonal vase below adds a twist: the angle is offset as height increases.</p>
+
+<div class="example" data-title="P2.4 A lofted vase (click to download the STL)">
+<script type="text/plain">
+const sides = ui.slider('sides', 3, 12, 6, 1);
+const twist = ui.slider('twist', 0, 2, 0.6, 0.05);
+const belly = ui.slider('belly', 0, 0.6, 0.3, 0.02);
+const HEIGHT = 140, BASE_R = 32;             // millimetres
+const RINGS = 70, SEGS = 96;
+
+let tris = [], info = { ok: false, text: '' }, worst = 0;
+
+function build() {
+  // the whole design: radius at height v (0 to 1) and angle a
+  const radius = (v, a) => {
+    const profile = 0.8 + belly() * Math.sin(v * 2.9 + 0.3) - 0.12 * v;           // the silhouette
+    const b = a + v * twist() * PA.TAU / sides();                                 // twist with height
+    const k = Math.PI / sides();
+    const polygon = Math.cos(k) / Math.cos((((b % (2 * k)) + 2 * k) % (2 * k)) - k);   // a regular polygon in polar form
+    return BASE_R * profile * PA.lerp(1, polygon, 0.85);
+  };
+  const point = (i, j) => {
+    const v = i / RINGS, a = ((j % SEGS) / SEGS) * PA.TAU, r = radius(v, a);
+    return [r * Math.cos(a), r * Math.sin(a), v * HEIGHT];
+  };
+
+  tris = [];
+  for (let i = 0; i < RINGS; i++) {
+    for (let j = 0; j < SEGS; j++) {
+      const a = point(i, j), b = point(i, j + 1), c = point(i + 1, j + 1), d = point(i + 1, j);
+      tris.push([a, b, c], [a, c, d]);                     // a band between two rings
+    }
+  }
+  for (let j = 0; j < SEGS; j++) {
+    tris.push([[0, 0, 0], point(0, j + 1), point(0, j)]);                   // bottom cap, facing down
+    tris.push([[0, 0, HEIGHT], point(RINGS, j), point(RINGS, j + 1)]);      // top cap, facing up
+  }
+  info = MESH.report(tris);
+
+  worst = 0;                                               // steepest lean of the wall, in or out
+  for (let i = 0; i < RINGS; i++) {
+    for (let j = 0; j < SEGS; j += 4) {
+      const a = (j / SEGS) * PA.TAU;
+      const lean = Math.abs(radius((i + 1) / RINGS, a) - radius(i / RINGS, a)) / (HEIGHT / RINGS);
+      worst = Math.max(worst, Math.atan(lean) * 180 / Math.PI);
+    }
+  }
+}
+build();
+ui.onChange(build);
+
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.4, tilt: 0.3, colour: [0.45, 0.7, 0.9] });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 34);
+  ctx.fillStyle = worst <= 45 ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText('steepest wall lean ' + worst.toFixed(0) + '°  ' + (worst <= 45 ? '(no support needed)' : '(too steep)'), 12, H - 14);
+});
+canvas.onclick = () => MESH.download('vase.stl', MESH.stl(tris));
+</script>
+</div>
+
+<div class="note"><p><strong>Solid model, hollow print.</strong> This vase is exported as a solid plug, not a thin shell. That is deliberate. In Bambu Studio, turn on <em>Spiral vase</em> mode (under Others → Special mode). The slicer then prints only the outer skin as one continuous rising spiral, with a solid bottom, giving a seamless hollow vase. For a vase with a thicker wall, set top layers and infill to zero instead and choose the number of wall loops.</p></div>
+
+<h2>Other ways to build a mesh</h2>
+<table>
+  <thead><tr><th>Method</th><th>How</th><th>Makes</th></tr></thead>
+  <tbody>
+    <tr><td>Extrusion</td><td>A flat outline given a height: two caps and a band of side walls</td><td>Name plates, cookie cutters, brackets, gears</td></tr>
+    <tr><td>Revolution</td><td>Lofting with a radius that depends only on height</td><td>Anything turned on a lathe</td></tr>
+    <tr><td>Sweep</td><td>A cross-section carried along a 3D path, turned to follow the tangent</td><td>Tubes, knots, handles, rails</td></tr>
+    <tr><td>Parametric surface</td><td>A grid in (u, v) mapped through a formula to (x, y, z), then thickened</td><td>Shells, saddles, Möbius bands</td></tr>
+    <tr><td>Instancing</td><td>One small mesh copied to many generated positions</td><td>Scales, spikes, textured skins</td></tr>
+    <tr><td>Implicit surfaces</td><td>A distance function, turned into triangles by an algorithm</td><td>Blends, lattices, organic forms: the next lesson</td></tr>
+  </tbody>
+</table>
+<p>Hand-built meshes get difficult when shapes must be joined, cut or hollowed, because the triangles of two objects do not line up. For that work use the implicit method of the next lesson, or a tool that performs "boolean" operations for you: OpenSCAD and CadQuery (both driven by code), Blender (see the Blender section), or the slicer itself, which can merge overlapping parts.</p>
+
+<h2>Checking a model</h2>
+<ul>
+  <li><strong>In code:</strong> <code>MESH.check(tris)</code> counts open edges, measures the size and volume, and detects an inside-out mesh.</li>
+  <li><strong>In Bambu Studio:</strong> a warning icon appears beside an object with errors, and the slicer offers to repair it. Do not rely on the repair. Fix the generator.</li>
+  <li><strong>In the slice preview:</strong> scrub through the layers. Missing walls or unexpected gaps mean a geometry problem. Check the printed size shown in the object list.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A model is triangles that form a closed surface, all facing outward, measured in millimetres.</li>
+  <li>Anticlockwise corners, seen from outside, mark the outside.</li>
+  <li>A height map plus a bottom and four walls turns any 2D field into a solid.</li>
+  <li>Lofting joins outlines at successive heights. One radius function is the whole design.</li>
+  <li>Grid resolution finer than the nozzle width adds file size, not detail.</li>
+  <li>Check watertightness and size in code before opening the slicer.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">3D printing challenge 1</p>
+  <h2>An Object from a Function</h2>
+  <p>Design a useful, printable object whose shape comes from a function you wrote, and take it as far as a sliced preview in Bambu Studio.</p>
+  <h3>Choose one</h3>
+  <ul>
+    <li><strong>Relief tile or coaster</strong> from a field of your own: a pattern from an earlier lesson, a map of somewhere imaginary, or a lithophane of a generated image.</li>
+    <li><strong>Lofted vessel:</strong> a vase, planter, pen pot or lampshade from your own radius function.</li>
+  </ul>
+  <h3>Requirements</h3>
+  <ul>
+    <li>All sizes in <strong>millimetres</strong>, as named constants, and the object fits the P1S: within 256 × 256 mm and 250 mm tall.</li>
+    <li><code>MESH.check</code> reports a <strong>watertight</strong> mesh that is not inside out.</li>
+    <li>The generator <strong>enforces</strong> at least two print rules and reports them: for example a maximum wall lean of 45°, a minimum base thickness, a minimum feature width of 0.8 mm.</li>
+    <li><strong>Seeded</strong>, with at least five seeds giving valid objects.</li>
+    <li>A key press <strong>downloads the STL</strong>, named after the seed.</li>
+    <li>You have opened the STL in Bambu Studio, confirmed the size, sliced it, and noted the estimated time and filament in a comment.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Build your own mesh code for at least one part. Use the helpers for the rest.</li>
+    <li>If the lean check fails for some seeds, reduce the amplitude until it passes instead of letting it through.</li>
+    <li>For a vessel, remember spiral vase mode. For a tile, no support is ever needed.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The slicer shows no warnings and the size you intended.</li>
+    <li>You would be willing to start the print.</li>
+  </ul>
+  <a class="start" href="../challenges/p2-printable-object.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="01-how-printing-works.html">← 3D Printing 1</a><a href="03-models-from-formulas.html">3D Printing 3: Models from Formulas →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

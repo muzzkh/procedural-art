@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat Sheet</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+<style>
+  .sheet { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }
+  .sheet section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.4rem 1rem 1rem; }
+  .sheet h2 { font-size: 1.15rem; border: 0; margin: 0.9rem 0 0.5rem; padding: 0; }
+  .sheet pre { max-width: none; margin: 0.5rem 0 0; font-size: 0.78rem; }
+  .sheet p { font-size: 0.9rem; margin: 0.4rem 0; }
+  @media print { nav.top, footer.next { display: none; } body { font-size: 11px; } .sheet section { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<nav class="top"><a href="glossary.html">← Glossary</a><span>Reference</span><a href="artists-and-works.html">Artists and works →</a></nav>
+<main>
+<header>
+  <p class="kicker">Reference</p>
+  <h1>Cheat Sheet</h1>
+  <p class="lede">The formulas and code idioms of the course on one page. It prints well: use your browser's print command.</p>
+</header>
+
+<div class="sheet">
+
+<section>
+<h2>Everyday maths</h2>
+<pre><code>lerp(a, b, t)   = a + (b - a) * t
+norm(v, a, b)   = (v - a) / (b - a)
+map(v, a,b,c,d) = c + (d - c) * (v - a) / (b - a)
+clamp(v, lo, hi)= Math.min(hi, Math.max(lo, v))
+smoothstep(t)   = t * t * (3 - 2 * t)
+fract(x)        = x - Math.floor(x)
+TAU             = 2 * Math.PI          // a full turn
+degrees → radians: d * Math.PI / 180</code></pre>
+</section>
+
+<section>
+<h2>Shaping a 0–1 value</h2>
+<pre><code>t * t                 // ease in
+1 - (1 - t) ** 2      // ease out
+t ** p                // p &lt; 1 early, p &gt; 1 late
+Math.sin(t * Math.PI) // up and back down
+Math.floor(t * n) / n // n steps
+Math.exp(-d*d / (s*s))// bell: 1 at d = 0, fading
+Math.exp(-k * t)      // decay</code></pre>
+</section>
+
+<section>
+<h2>Circles and angles</h2>
+<pre><code>x = cx + Math.cos(a) * r
+y = cy + Math.sin(a) * r
+angle  = Math.atan2(dy, dx)
+length = Math.hypot(dx, dy)
+golden angle = Math.PI * (3 - Math.sqrt(5))
+// evenly round a circle:
+for (i = 0; i &lt; n; i++) a = i / n * TAU
+// phyllotaxis:
+a = i * golden;  r = c * Math.sqrt(i)</code></pre>
+</section>
+
+<section>
+<h2>Vectors</h2>
+<pre><code>len = Math.hypot(x, y)
+unit      = [x / len, y / len]
+from A to B = [bx - ax, by - ay]
+perpendicular = [-y, x]            // quarter turn
+dot = ax * bx + ay * by   // unit vectors: 1 same, 0 square
+rotate by a:
+  [x*cos(a) - y*sin(a), x*sin(a) + y*cos(a)]</code></pre>
+</section>
+
+<section>
+<h2>Matrices</h2>
+<pre><code>apply [a b; c d]:  x' = a*x + b*y;  y' = c*x + d*y
+det = a*d - b*c     // area factor; &lt; 0 mirrored; 0 collapsed
+inverse = [d -b; -c a] / det
+grid point = i * e1 + j * e2       // basis e1, e2
+cell under mouse = floor(inverse * (mouse - origin))
+with a shift:  x' = a*x + b*y + tx  // ctx.setTransform
+chain: M = parent * rotate * translate * scale
+perspective:  sx = x * f / depth;  sy = y * f / depth
+eigenvalues = (tr ± sqrt(tr*tr - 4*det)) / 2,  tr = a + d
+blend: w1*A + w2*B + w3*C,  w1 + w2 + w3 = 1</code></pre>
+</section>
+
+<section>
+<h2>Canvas basics</h2>
+<pre><code>ctx.fillStyle = '#e4572e'; ctx.fillRect(x, y, w, h);
+ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.stroke();
+
+ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  // draw at the origin
+ctx.restore();
+
+ctx.globalAlpha = 0.5;
+ctx.globalCompositeOperation = 'multiply'; // 'lighter'</code></pre>
+</section>
+
+<section>
+<h2>Grid</h2>
+<pre><code>const cell = W / cols;
+for (let j = 0; j &lt; rows; j++) {
+  for (let i = 0; i &lt; cols; i++) {
+    const x = (i + 0.5) * cell;
+    const y = (j + 0.5) * cell;
+    const t = i / (cols - 1);     // 0 to 1 across
+    // checker: (i + j) % 2
+  }
+}</code></pre>
+</section>
+
+<section>
+<h2>Randomness (PA)</h2>
+<pre><code>const R = PA.rng(seed);   // same seed, same numbers
+R()                    // 0 to 1
+R.range(lo, hi)        R.int(lo, hi)
+R.pick(array)          R.chance(0.3)
+R.gauss(mean, sd)      R.shuffle(array)
+R.weighted(items, weights)
+R() ** 3               // mostly small, a few large
+value = orderly + R.range(-1, 1) * amount(position)</code></pre>
+</section>
+
+<section>
+<h2>Noise (PA)</h2>
+<pre><code>const N = PA.noise(seed);
+N.get(x * f, y * f)            // 0 to 1, clustered near 0.5
+N.get(x * f, y * f, t)         // animate with a third input
+N.fbm(x*f, y*f, { octaves: 5 })// layered detail
+// seamless round a loop:
+N.get(5 + Math.cos(a) * k, 5 + Math.sin(a) * k)
+// flow field angle:
+N.get(x * 0.004, y * 0.004) * TAU * 2
+// warp: sample at (x + q1 * s, y + q2 * s)</code></pre>
+</section>
+
+<section>
+<h2>Motion</h2>
+<pre><code>// Euler (Lesson 5)
+v += a;  v *= 0.98;  p += v;
+
+// Verlet (Lesson 17)
+vx = (x - px) * 0.99;  px = x;  x += vx + ax;
+
+// stick between a and b, rest length L
+d = Math.hypot(b.x - a.x, b.y - a.y);
+fix = (d - L) / d / 2;
+a.x += dx * fix;  b.x -= dx * fix;   // and y
+
+// follow with smoothing
+value += (target - value) * 0.1;</code></pre>
+</section>
+
+<section>
+<h2>Animation</h2>
+<pre><code>phase = (time % LOOP) / LOOP;      // 0 to 1
+a = phase * TAU;
+Math.sin(a * k)                    // k whole: loops cleanly
+local = clamp((progress - delay) / duration);
+pingPong = 1 - Math.abs(phase * 2 - 1);
+easeInOut = t &lt; .5 ? 4*t*t*t : 1 - (2 - 2*t) ** 3 / 2;</code></pre>
+</section>
+
+<section>
+<h2>Pixels</h2>
+<pre><code>const img = ctx.createImageData(W, H);
+for (let y = 0; y &lt; H; y++)
+  for (let x = 0; x &lt; W; x++) {
+    const k = (y * W + x) * 4;
+    img.data[k] = r; img.data[k+1] = g;
+    img.data[k+2] = b; img.data[k+3] = 255;
+  }
+ctx.putImageData(img, 0, 0);
+brightness = 0.2126*r + 0.7152*g + 0.0722*b;</code></pre>
+</section>
+
+<section>
+<h2>Distance functions</h2>
+<pre><code>circle : length(p) - r
+box    : q = abs(p) - b;
+         length(max(q, 0)) + min(max(q.x, q.y), 0)
+union  : min(a, b)        intersect: max(a, b)
+subtract: max(a, -b)      shell: abs(a) - t
+smooth union:
+  h = clamp(0.5 + 0.5 * (b - a) / k, 0, 1)
+  mix(b, a, h) - k * h * (1 - h)
+repeat : fract(p) - 0.5
+edge   : 1 - smoothstep(0, 0.01, d)</code></pre>
+</section>
+
+<section>
+<h2>Colour</h2>
+<pre><code>PA.hsl(h, s, l, alpha)
+PA.oklch(L, C, H)      // L 0–1, C 0–0.3, H degrees
+PA.contrast(rgbA, rgbB)  // text needs 4.5 or more
+cosine palette:
+  0.5 + 0.5 * cos(TAU * (t + [0, 0.33, 0.67]))
+harmony (hue offsets):
+  analogous ±30 · complementary 180
+  split 150, 210 · triadic 120, 240
+weights: dominant 6, support 3, accent 1</code></pre>
+</section>
+
+<section>
+<h2>Neighbours fast</h2>
+<pre><code>// grid of buckets, cell size = search radius
+const cells = Array.from({ length: cols * rows }, () =&gt; []);
+for (i) cells[cy * cols + cx].push(i);
+for (i) for (oy = -1..1) for (ox = -1..1)
+  for (const j of cells[(cy+oy) * cols + cx+ox]) ...</code></pre>
+<p>Batch drawing: one <code>beginPath</code>, many segments, one <code>stroke</code>.</p>
+</section>
+
+<section>
+<h2>Saving</h2>
+<pre><code>canvas.toBlob((blob) =&gt; {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '.png';
+  a.click();
+});
+// SVG path: 'M x y L x y L x y Z'
+// seed in the address:
+seed = location.hash.slice(1) || String(Date.now());
+// recipe: JSON.stringify(params, null, 2)</code></pre>
+</section>
+
+<section>
+<h2>Print and fabrication</h2>
+<pre><code>pixels = mm / 25.4 * dpi          // 300 dpi for prints
+A4 210 x 297 mm    A3 297 x 420    A2 420 x 594
+bleed 3 mm, keep text 5 mm inside
+SVG: width="210mm" viewBox="0 0 210 297"
+laser kerf ≈ 0.1–0.3 mm
+3D print: overhang ≤ 45°, wall ≥ 0.8 mm</code></pre>
+</section>
+
+<section>
+<h2>G-code (P1S)</h2>
+<pre><code>bed 256 x 256, Z to 250, avoid front-left 18 x 28
+G1 X.. Y.. E.. F..   // F is mm per MINUTE
+M83                  // relative extrusion
+bead area = (w - h) * h + PI * (h / 2) ** 2
+E = area * length / 2.405      // 1.75 mm filament
+flow = area * speed            // keep under the limit
+M104 nozzle  M140 bed  M106 P1 S0-255 fan
+M400 U1 pause</code></pre>
+<p>Reuse the slicer's start and end sequences. Preflight everything.</p>
+</section>
+
+<section>
+<h2>Sound</h2>
+<pre><code>frequency = 440 * 2 ** ((note - 69) / 12)
+pentatonic: [0, 2, 4, 7, 9]
+hit = (i * hits) % steps &lt; hits   // Euclidean rhythm
+gain.setValueAtTime(0, t);
+gain.linearRampToValueAtTime(0.5, t + 0.01);
+gain.exponentialRampToValueAtTime(0.001, t + len);</code></pre>
+</section>
+
+<section>
+<h2>Checklist for any piece</h2>
+<p>Seeded? Margin? Limited, weighted palette? Three scales of element? Somewhere to rest the eye? Texture? Works at thumbnail size and in greyscale? Every output good, not just this one? Seed and parameters saved with it?</p>
+</section>
+
+</div>
+
+<footer class="next"><a href="glossary.html">← Glossary</a><a href="artists-and-works.html">Artists and works →</a></footer>
+</main>
+</body>
+</html>

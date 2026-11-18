@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 5 · Particles and Flow Fields</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="04-curves-and-trigonometry.html">← Lesson 4</a><span>Lesson 5 of 19</span><a href="06-recursion-and-grammars.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 5</p>
+  <h1>Particles and Flow Fields</h1>
+  <p class="lede">Until now you have computed where each mark goes. From here on you often will not. You will release many simple moving points, give them rules, and let the picture be the record of where they went.</p>
+</header>
+
+<h2>Vectors and motion</h2>
+<p>A <strong>vector</strong> is a pair of numbers, an x part and a y part, used to describe a position, a direction or a push. Motion needs three of them:</p>
+<dl class="vocab">
+  <dt>Position</dt><dd>Where the particle is.</dd>
+  <dt>Velocity</dt><dd>How much the position changes each step.</dd>
+  <dt>Acceleration</dt><dd>How much the velocity changes each step. Forces such as gravity act here.</dd>
+</dl>
+<p>Each frame you apply them in order. This is called Euler integration and it is the engine of nearly every simulation in creative coding:</p>
+<pre><code>velocity += acceleration;
+position += velocity;</code></pre>
+<p>A <strong>particle system</strong> is many of these at once, usually with a lifespan so that old particles disappear and new ones are born.</p>
+
+<div class="example" data-title="5.1 A fountain">
+<script type="text/plain">
+const R = PA.rng();
+let particles = [];
+
+loop(() => {
+  ctx.fillStyle = 'rgba(16, 20, 24, 0.2)';
+  ctx.fillRect(0, 0, W, H);
+
+  // birth: a few new particles each frame
+  for (let k = 0; k < 4; k++) {
+    particles.push({
+      x: W / 2, y: H - 40,
+      vx: R.gauss(0, 1.5), vy: R.range(-11, -7),     // thrown upward
+      life: 1, hue: R.range(20, 60),
+    });
+  }
+
+  for (const p of particles) {
+    p.vy += 0.15;            // gravity: acceleration changes velocity
+    p.x += p.vx;             // velocity changes position
+    p.y += p.vy;
+    p.life -= 0.008;         // ageing
+
+    ctx.fillStyle = PA.hsl(p.hue, 90, 60, p.life);
+    ctx.fillRect(p.x, p.y, 3, 3);
+  }
+
+  // death: remove the old and the fallen
+  particles = particles.filter((p) => p.life > 0 && p.y < H);
+});
+</script>
+</div>
+
+<p>The translucent rectangle drawn at the start of each frame is a standard trick. It does not fully erase the previous frame, so moving things leave fading trails.</p>
+
+<h2>Forces</h2>
+<p>A force is anything that adds to velocity. To pull a particle toward a target, find the direction from particle to target, scale it down to a small push, and add it. Multiplying velocity by a number slightly below 1 each frame acts as <strong>drag</strong>, which keeps speeds under control.</p>
+
+<div class="example" data-title="5.2 Attraction (move the mouse over the canvas)">
+<script type="text/plain">
+const R = PA.rng(5);
+const particles = [];
+for (let i = 0; i < 600; i++) {
+  particles.push({ x: R.range(W), y: R.range(H), vx: 0, vy: 0 });
+}
+
+loop(() => {
+  ctx.fillStyle = 'rgba(11, 19, 43, 0.25)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#5bc0be';
+
+  for (const p of particles) {
+    const dx = mouse.x - p.x, dy = mouse.y - p.y;     // vector pointing at the mouse
+    const d = Math.hypot(dx, dy) + 20;                // its length (plus a little, to avoid dividing by 0)
+
+    p.vx += (dx / d) * 0.4;       // a small push in that direction
+    p.vy += (dy / d) * 0.4;
+    p.vx += (-dy / d) * 0.15;     // plus a sideways push, so they orbit instead of collapsing
+    p.vy += (dx / d) * 0.15;
+    p.vx *= 0.98;                 // drag
+    p.vy *= 0.98;
+    p.x += p.vx;
+    p.y += p.vy;
+
+    ctx.fillRect(p.x, p.y, 2, 2);
+  }
+});
+</script>
+</div>
+
+<p>Try it: make the first push negative to repel. Delete the sideways push and the particles fall straight in. Remove the drag lines and watch the system gain energy until it flies apart.</p>
+
+<h2>Flow fields</h2>
+<p>A <strong>flow field</strong> assigns a direction to every point of the canvas, like a map of wind. The classic way to make one is to take the noise value at each point and treat it as an angle. Because noise is smooth, neighbouring directions nearly agree, and the field forms currents and eddies.</p>
+
+<div class="example" data-title="5.3 Seeing the field">
+<script type="text/plain">
+const N = PA.noise('field');
+
+// the whole field is this one function
+function angleAt(x, y) {
+  return N.get(x * 0.004, y * 0.004) * PA.TAU * 2;
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#264653';
+ctx.lineWidth = 1.2;
+
+for (let y = 10; y < H; y += 20) {
+  for (let x = 10; x < W; x += 20) {
+    const a = angleAt(x, y);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a) * 14, y + Math.sin(a) * 14);
+    ctx.stroke();
+  }
+}
+</script>
+</div>
+
+<p>The two numbers to tune are the frequency (<code>0.004</code>), which sets the size of the swirls, and the angle multiplier (<code>PA.TAU * 2</code>), which sets how sharply the field turns. Because noise values cluster round the middle, multiplying by more than one full turn is needed to get directions pointing every way.</p>
+
+<h3>Letting particles follow it</h3>
+<p>Now drop particles in. Each step, a particle looks up the angle where it stands and takes a small step that way. Draw each step as a short line and the particle leaves a streamline. Thousands of translucent streamlines build up into something that looks like hair, grass or brushwork.</p>
+
+<div class="example" data-title="5.4 Particles tracing the field">
+<script type="text/plain">
+const R = PA.rng('flow'), N = PA.noise('flow');
+const angleAt = (x, y) => N.get(x * 0.003, y * 0.003) * PA.TAU * 2;
+const palette = ['#264653', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51'];
+
+function spawn() {
+  return { x: R.range(W), y: R.range(H), colour: R.pick(palette), age: R.int(40, 200) };
+}
+
+const particles = [];
+for (let i = 0; i < 1500; i++) particles.push(spawn());
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.lineWidth = 1;
+ctx.globalAlpha = 0.35;
+
+loop((t, frame) => {
+  if (frame > 400) return;                  // decide when the drawing is finished
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    const a = angleAt(p.x, p.y);
+    const nx = p.x + Math.cos(a) * 2, ny = p.y + Math.sin(a) * 2;
+
+    ctx.strokeStyle = p.colour;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(nx, ny);
+    ctx.stroke();
+
+    p.x = nx; p.y = ny;
+    p.age--;
+    if (p.age < 0 || nx < 0 || nx > W || ny < 0 || ny > H) particles[i] = spawn();
+  }
+});
+</script>
+</div>
+
+<p>Notice that this sketch never clears the canvas. The image <em>accumulates</em>. Deciding when to stop is an artistic choice: too early is sparse, too late is mud.</p>
+
+<h3>Drawing whole streamlines</h3>
+<p>For a more graphic look, compute each streamline in full and draw it as one stroke with its own thickness and colour. A few very thick lines among many thin ones gives the composition a hierarchy. Tyler Hobbs's <em>Fidenza</em> (2021), the best-known flow-field artwork, is built on this idea plus careful collision rules and colour.</p>
+
+<div class="example" data-title="5.5 Ribbons">
+<script type="text/plain">
+const R = PA.rng('ribbons'), N = PA.noise('ribbons');
+const angleAt = (x, y) => N.fbm(x * 0.0025, y * 0.0025, { octaves: 2 }) * PA.TAU * 2;
+const palette = ['#1d3557', '#457b9d', '#e63946', '#f1faee', '#f4a261'];
+
+ctx.fillStyle = '#efe6d5';
+ctx.fillRect(0, 0, W, H);
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+
+for (let k = 0; k < 220; k++) {
+  let x = R.range(-50, W + 50), y = R.range(-50, H + 50);
+  const steps = R.int(20, 120);
+
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  for (let s = 0; s < steps; s++) {
+    const a = angleAt(x, y);
+    x += Math.cos(a) * 4;
+    y += Math.sin(a) * 4;
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = R.pick(palette);
+  ctx.lineWidth = R.weighted([2, 6, 14, 30], [5, 4, 2, 1]);    // mostly thin, rarely fat
+  ctx.stroke();
+}
+</script>
+</div>
+
+<h2>Other ways to make a field</h2>
+<p>The field is just a function from position to angle, so you can build it from anything:</p>
+<ul>
+  <li><strong>Quantised angles.</strong> Round the angle to the nearest of a few directions for a circuit-board look: <code>Math.round(a / step) * step</code>.</li>
+  <li><strong>Attractors and vortices.</strong> Use the angle toward a point, or that angle plus a quarter turn to circle it.</li>
+  <li><strong>Blends.</strong> Mix noise with a vortex by distance, so the flow swirls near one spot and wanders elsewhere.</li>
+  <li><strong>Curl noise.</strong> Described next.</li>
+</ul>
+
+<h3>Curl noise</h3>
+<p>Angle-from-noise fields have places where streamlines converge and bunch up. For fluid-like motion you want a field where nothing piles up or thins out. <strong>Curl noise</strong> provides that. Treat the noise as a height map and move along its contour lines instead of up or down its slopes: measure how the noise changes in x and in y, then swap the two and negate one.</p>
+
+<div class="example" data-title="5.6 Curl noise">
+<script type="text/plain">
+const N = PA.noise('curl'), R = PA.rng('curl');
+const s = 0.005, eps = 0.01;
+
+function curl(x, y) {
+  // how fast does the noise change in each direction?
+  const dndy = (N.get(x * s, y * s + eps) - N.get(x * s, y * s - eps)) / (2 * eps);
+  const dndx = (N.get(x * s + eps, y * s) - N.get(x * s - eps, y * s)) / (2 * eps);
+  return { x: dndy, y: -dndx };       // rotated a quarter turn: follow the contours
+}
+
+const particles = [];
+for (let i = 0; i < 2500; i++) particles.push({ x: R.range(W), y: R.range(H) });
+
+loop(() => {
+  ctx.fillStyle = 'rgba(8, 12, 20, 0.08)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(150, 220, 255, 0.8)';
+
+  for (const p of particles) {
+    const v = curl(p.x, p.y);
+    p.x = (p.x + v.x * 1.5 + W) % W;       // wrap round the edges
+    p.y = (p.y + v.y * 1.5 + H) % H;
+    ctx.fillRect(p.x, p.y, 1.3, 1.3);
+  }
+});
+</script>
+</div>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Motion is position, velocity and acceleration, updated in that order each step.</li>
+  <li>A force is anything that adds to velocity. Drag keeps a system stable.</li>
+  <li>A particle system adds birth, ageing and death.</li>
+  <li>A flow field is a function from position to direction. Noise-as-angle is the standard recipe.</li>
+  <li>Tune the field's frequency and turn amount first, then count, step length, weight and colour.</li>
+  <li>Accumulating drawings need a stopping rule.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Step lengths that are too large, which make streamlines angular. Two to four pixels is typical.</li>
+  <li>Starting every particle on a grid, which leaves a visible grid in the result. Use random or jittered starts.</li>
+  <li>Using a frequency so high that the field is chaotic. If the lines look scribbled, lower it.</li>
+  <li>Letting lines run off the canvas edge without a plan. Either leave a clean margin or let them bleed off evenly on all sides.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 5</p>
+  <h2>The Flow-Field Poster</h2>
+  <p>Make a finished flow-field composition: seeded, with a deliberate palette, a clean margin, and a field you designed instead of plain noise.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Everything is driven by one seed.</li>
+    <li>At least <strong>800 streamlines</strong>, each drawn as a complete path.</li>
+    <li>The field combines noise with <strong>at least one other influence</strong>: a vortex, an attractor, quantised angles, or a blend between two fields.</li>
+    <li>Line <strong>weight and colour follow rules</strong>, not just uniform random picks. For example weight by starting position, colour by the field angle at the start, or a weighted palette.</li>
+    <li>A <strong>margin</strong>: streamlines stop when they reach the border area, leaving a clean frame.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write <code>angleAt(x, y)</code> first and check it with the little-lines view from example 5.3 before releasing any particles.</li>
+    <li>To stop at the margin, break out of the stepping loop when the point leaves the inner rectangle.</li>
+    <li>Draw fat lines first and thin lines last, or the thin ones disappear.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li><strong>No crossings.</strong> Keep a grid recording which cells are already occupied. Stop a streamline when it enters a cell that another line has claimed. This is the largest single improvement you can make to a flow-field piece.</li>
+    <li>Vary the density, so some regions are crowded and others nearly empty.</li>
+    <li>Use curl noise for the field.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The piece has an obvious overall movement that the eye can follow.</li>
+    <li>Three different seeds all give a poster you would print.</li>
+  </ul>
+  <a class="start" href="../challenges/05-flow-field-poster.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="04-curves-and-trigonometry.html">← Lesson 4</a><a href="06-recursion-and-grammars.html">Lesson 6: Recursion, Fractals and L-systems →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

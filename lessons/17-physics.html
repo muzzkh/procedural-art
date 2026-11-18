@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 17 · Physics</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="16-growth.html">← Lesson 16</a><span>Lesson 17 of 19</span><a href="18-geometry.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 17</p>
+  <h1>Physics</h1>
+  <p class="lede">Lesson 5 moved particles with forces. This lesson connects them. Join points with constraints and you get ropes, cloth and jelly, all from one small method that is stable, simple, and forgiving enough to play with.</p>
+</header>
+
+<h2>Verlet integration</h2>
+<p>Lesson 5 stored a position and a velocity for each particle. <strong>Verlet integration</strong> stores a position and the <em>previous</em> position instead. The velocity is never kept: it is simply the difference between the two.</p>
+<pre><code>velocity = position - previous
+previous = position
+position = position + velocity + acceleration</code></pre>
+<p>This looks like a minor rearrangement. Its consequence is large. Because velocity is derived from positions, you can <strong>move a point directly</strong>, to push it out of a wall or pull it toward a neighbour, and its velocity updates itself to match. Collisions and connections become a matter of correcting positions, with no forces to compute and nothing to blow up. That is why this method is used for cloth, hair and ragdolls in games.</p>
+<p>Friction is one multiplication: scale the derived velocity by a number slightly below 1.</p>
+
+<div class="example" data-title="17.1 Positions only: balls in a box">
+<script type="text/plain">
+const R = PA.rng();
+const balls = [];
+for (let i = 0; i < 70; i++) {
+  const x = R.range(40, W - 40), y = R.range(40, 300), r = R.range(8, 22);
+  balls.push({ x, y, px: x - R.range(-4, 4), py: y, r, hue: R.range(360) });      // previous position sets the starting velocity
+}
+
+loop(() => {
+  for (const b of balls) {
+    const vx = (b.x - b.px) * 0.999, vy = (b.y - b.py) * 0.999;     // velocity is just the last movement
+    b.px = b.x; b.py = b.y;
+    b.x += vx;
+    b.y += vy + 0.35;                                                // gravity is an acceleration added each step
+  }
+
+  // constraints: fix anything that is where it may not be, by moving it
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      for (let j = i + 1; j < balls.length; j++) {                   // two balls may not overlap
+        const b = balls[j];
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, overlap = a.r + b.r - d;
+        if (overlap > 0) {
+          const nx = dx / d, ny = dy / d;
+          a.x -= nx * overlap / 2; a.y -= ny * overlap / 2;          // push each half the overlap apart
+          b.x += nx * overlap / 2; b.y += ny * overlap / 2;
+        }
+      }
+      if (a.x < a.r) a.x = a.r;                                      // a ball may not leave the box
+      if (a.x > W - a.r) a.x = W - a.r;
+      if (a.y > H - a.r) a.y = H - a.r;
+    }
+  }
+
+  ctx.fillStyle = '#12151c';
+  ctx.fillRect(0, 0, W, H);
+  for (const b of balls) {
+    ctx.fillStyle = PA.oklch(0.72, 0.15, b.hue);
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, PA.TAU); ctx.fill();
+  }
+});
+</script>
+</div>
+
+<p>Notice that no line of that code makes a ball bounce or slow down when it hits something. A ball that is pushed out of the floor simply ends the step higher than it otherwise would have, so its next derived velocity points less downward.</p>
+
+<h2>Distance constraints: the rope</h2>
+<p>The one constraint that builds everything else is the <strong>stick</strong>: two points that must stay a fixed distance apart. After moving the points, measure the distance between each connected pair. If it is wrong, move both points along the line between them, half the error each, until it is right.</p>
+<p>Fixing one stick disturbs its neighbours, so the fix is repeated several times per frame. More repetitions make the material stiffer. Fewer make it stretchy. A point that should not move, a <strong>pin</strong>, is simply put back in place each time.</p>
+<p>A chain of points joined by sticks is a rope.</p>
+
+<div class="example" data-title="17.2 A rope (move the mouse to carry the top end)">
+<script type="text/plain">
+const COUNT = 32, LINK = 8;
+const points = [];
+for (let i = 0; i < COUNT; i++) points.push({ x: W / 2 + i * LINK, y: 80, px: W / 2 + i * LINK, py: 80 });
+
+loop((t) => {
+  // the first point is pinned: to the mouse, or to a slow swing until someone moves it
+  const pinX = mouse.active ? mouse.x : W / 2 + Math.sin(t * 1.3) * 150;
+  const pinY = mouse.active ? mouse.y : 90;
+
+  for (const p of points) {
+    const vx = (p.x - p.px) * 0.995, vy = (p.y - p.py) * 0.995;
+    p.px = p.x; p.py = p.y;
+    p.x += vx;
+    p.y += vy + 0.45;
+  }
+
+  for (let pass = 0; pass < 12; pass++) {                 // try 1 for elastic, 40 for a chain
+    points[0].x = pinX; points[0].y = pinY;               // the pin
+    for (let i = 0; i < COUNT - 1; i++) {
+      const a = points[i], b = points[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      const fix = (d - LINK) / d / 2;                     // how far out the length is, shared between the two ends
+      a.x += dx * fix; a.y += dy * fix;
+      b.x -= dx * fix; b.y -= dy * fix;
+    }
+  }
+
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#3b2f2f';
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (const p of points) ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+  const end = points[COUNT - 1];
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.arc(end.x, end.y, 12, 0, PA.TAU); ctx.fill();
+});
+</script>
+</div>
+
+<h2>Cloth</h2>
+<p>A grid of points with sticks between horizontal and vertical neighbours is cloth. Nothing else is added: the same integration, the same constraint. Pin a few points along the top and it hangs. Push the points with a force that varies in space and time, such as noise, and it billows.</p>
+
+<div class="example" data-title="17.3 Cloth in a breeze (move the mouse through it)">
+<script type="text/plain">
+const N = PA.noise('cloth');
+const COLS = 34, ROWS = 24, GAP = 13;
+const points = [], sticks = [];
+const at = (i, j) => points[j * COLS + i];
+
+for (let j = 0; j < ROWS; j++) {
+  for (let i = 0; i < COLS; i++) {
+    const x = (W - (COLS - 1) * GAP) / 2 + i * GAP, y = 50 + j * GAP;
+    points.push({ x, y, px: x, py: y, pinned: j === 0 && i % 3 === 0 });      // every third point of the top row is pinned
+  }
+}
+for (let j = 0; j < ROWS; j++) {
+  for (let i = 0; i < COLS; i++) {
+    if (i + 1 < COLS) sticks.push([at(i, j), at(i + 1, j)]);
+    if (j + 1 < ROWS) sticks.push([at(i, j), at(i, j + 1)]);
+  }
+}
+
+loop((t) => {
+  for (const p of points) {
+    if (p.pinned) continue;
+    const vx = (p.x - p.px) * 0.99, vy = (p.y - p.py) * 0.99;
+    p.px = p.x; p.py = p.y;
+    const wind = (N.get(p.x * 0.006, p.y * 0.006, t * 0.5) - 0.45) * 0.9;      // a breeze that varies across the cloth
+    p.x += vx + wind;
+    p.y += vy + 0.3;
+
+    const dx = p.x - mouse.x, dy = p.y - mouse.y, d = Math.hypot(dx, dy);
+    if (mouse.active && d < 45 && d > 0) { p.x += (dx / d) * (45 - d) * 0.5; p.y += (dy / d) * (45 - d) * 0.5; }    // the mouse is a ball
+  }
+
+  for (let pass = 0; pass < 5; pass++) {
+    for (const [a, b] of sticks) {
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      const fix = (d - GAP) / d / 2;
+      if (!a.pinned) { a.x += dx * fix; a.y += dy * fix; }
+      if (!b.pinned) { b.x -= dx * fix; b.y -= dy * fix; }
+    }
+  }
+
+  ctx.fillStyle = '#10202c';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(160, 220, 255, 0.55)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const [a, b] of sticks) { ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+  ctx.stroke();
+});
+</script>
+</div>
+
+<p>Real cloth simulations add diagonal sticks to resist shearing and longer ones to resist bending. To let cloth tear, delete any stick that has stretched to more than about three times its length.</p>
+
+<h2>Soft bodies</h2>
+<p>Close a rope into a ring and brace it, and you have a body that holds its shape and wobbles when struck. The bracing here is three sets of sticks: each point to its neighbour, to the neighbour after that, and straight across to the point opposite. Soft sticks across the middle let the body squash. Stiff ones round the rim keep it from collapsing.</p>
+
+<div class="example" data-title="17.4 Jelly">
+<script type="text/plain">
+const R = PA.rng();
+const bodies = [];
+
+function makeBody(cx, cy, radius, hue) {
+  const n = 18, points = [], sticks = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * PA.TAU, x = cx + Math.cos(a) * radius, y = cy + Math.sin(a) * radius;
+    points.push({ x, y, px: x - R.range(-3, 3), py: y });
+  }
+  const link = (i, j, stiff) => {
+    const a = points[i], b = points[j % n];
+    sticks.push({ a, b, length: Math.hypot(a.x - b.x, a.y - b.y), stiff });
+  };
+  for (let i = 0; i < n; i++) {
+    link(i, i + 1, 1);            // the skin
+    link(i, i + 2, 0.6);          // stops the skin kinking
+    if (i < n / 2) link(i, i + n / 2, 0.08);    // soft struts straight across: the squash
+  }
+  bodies.push({ points, sticks, hue });
+}
+for (let k = 0; k < 6; k++) makeBody(R.range(90, W - 90), 60 + k * 30, R.range(38, 62), 20 + k * 55);
+
+loop(() => {
+  for (const body of bodies) {
+    for (const p of body.points) {
+      const vx = (p.x - p.px) * 0.995, vy = (p.y - p.py) * 0.995;
+      p.px = p.x; p.py = p.y;
+      p.x += vx; p.y += vy + 0.3;
+    }
+    for (let pass = 0; pass < 6; pass++) {
+      for (const s of body.sticks) {
+        const dx = s.b.x - s.a.x, dy = s.b.y - s.a.y, d = Math.hypot(dx, dy) || 1;
+        const fix = ((d - s.length) / d / 2) * s.stiff;        // softer sticks correct only part of the error
+        s.a.x += dx * fix; s.a.y += dy * fix;
+        s.b.x -= dx * fix; s.b.y -= dy * fix;
+      }
+      for (const p of body.points) {                           // the walls and floor
+        if (p.y > H - 10) { p.y = H - 10; p.px = p.x - (p.x - p.px) * 0.6; }     // a little grip on the floor
+        if (p.x < 10) p.x = 10;
+        if (p.x > W - 10) p.x = W - 10;
+      }
+    }
+  }
+
+  ctx.fillStyle = '#fdf3e3';
+  ctx.fillRect(0, 0, W, H);
+  for (const body of bodies) {
+    ctx.beginPath();
+    for (const p of body.points) ctx.lineTo(p.x, p.y);
+    ctx.closePath();
+    ctx.fillStyle = PA.oklch(0.72, 0.16, body.hue, 0.85);
+    ctx.fill();
+    ctx.strokeStyle = PA.oklch(0.42, 0.14, body.hue);
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+});
+</script>
+</div>
+
+<h2>From physics to pictures</h2>
+<p>Physical simulation is a design tool, not just a toy. Some ways it is used in still images and objects:</p>
+<table>
+  <thead><tr><th>Use</th><th>How</th></tr></thead>
+  <tbody>
+    <tr><td>Draped forms</td><td>Drop cloth over invisible shapes, freeze it, and draw the folds as contour lines</td></tr>
+    <tr><td>Settled arrangements</td><td>Let objects fall and come to rest, giving packings that look placed by gravity</td></tr>
+    <tr><td>Spring layouts</td><td>Connect related items with springs and let the network relax into a balanced layout</td></tr>
+    <tr><td>Hanging chains</td><td>The curve of a hanging chain, turned upside down, is the ideal shape for an arch. Architects have designed vaults this way.</td></tr>
+    <tr><td>Traces</td><td>Attach a pen to a swinging or bouncing point and keep the line it draws</td></tr>
+    <tr><td>Motion design</td><td>Followers on springs, secondary motion, things that settle (Maths 4)</td></tr>
+  </tbody>
+</table>
+<p>For rigid objects that tumble and stack, with friction and proper collisions between arbitrary shapes, use a physics library. Matter.js and Planck.js are the usual choices in two dimensions, and Rapier in three. Writing that well is a large job. Verlet points and sticks cover a surprising amount without one.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Verlet integration keeps position and previous position. Velocity is their difference.</li>
+  <li>Because of that, you can correct positions directly and the motion stays consistent.</li>
+  <li>A constraint is a rule about positions, enforced by moving points until it holds.</li>
+  <li>The stick, a fixed distance between two points, builds ropes, cloth and soft bodies.</li>
+  <li>Repeat the constraint pass several times. More passes mean stiffer material.</li>
+  <li>A pin is a point that is put back every pass.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Setting a point's position without thinking about its previous position, which gives it a huge accidental velocity. To teleport a point, set both.</li>
+  <li>Too few constraint passes, so that cloth stretches like rubber, or far too many, wasting time.</li>
+  <li>Gravity so strong, or steps so large, that points pass through thin obstacles in a single step.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 17</p>
+  <h2>Something That Hangs, Swings or Wobbles</h2>
+  <p>Build a physical system from points and sticks and turn it into a piece, either an interactive toy or a still image made from the simulation's traces.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Your own Verlet integrator and stick constraint, <strong>written by you</strong>.</li>
+    <li>At least <strong>150 points</strong> connected into structures: a mobile of hanging shapes, a net, a curtain, a creature.</li>
+    <li>At least <strong>two kinds of constraint</strong>: sticks plus pins, a floor, a boundary shape, or collisions.</li>
+    <li>A <strong>varying force</strong>: wind from noise, the pointer, or gravity that changes direction.</li>
+    <li>The structure is <strong>generated from a seed</strong>, not laid out by hand.</li>
+    <li>It stays <strong>stable</strong>: nothing explodes or drifts away, however it is prodded.</li>
+    <li>Either it responds to the pointer in a satisfying way, or a key freezes it and exports a still made from the paths its points traced.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write three small functions: <code>integrate</code>, <code>constrain</code> and <code>render</code>. Every structure then differs only in how its points and sticks are created.</li>
+    <li>If it jitters, add passes or reduce the forces. If it stretches, add passes.</li>
+    <li>For traces, store a short history of positions for a few chosen points and draw them as fading lines.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Tearing: sticks that break when over-stretched.</li>
+    <li>A walker: a soft body that moves itself by changing some of its sticks' lengths in rhythm.</li>
+    <li>Export the frozen structure as an STL relief, using the printing lessons.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You have tried to break it for a minute and failed.</li>
+    <li>The motion looks like a material you could name: silk, rope, rubber, jelly.</li>
+  </ul>
+  <a class="start" href="../challenges/17-hangs-swings-wobbles.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="16-growth.html">← Lesson 16</a><a href="18-geometry.html">Lesson 18: Geometry Utilities →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

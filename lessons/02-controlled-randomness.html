@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 2 · Controlled Randomness</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-drawing-with-code.html">← Lesson 1</a><span>Lesson 2 of 19</span><a href="03-noise.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 2</p>
+  <h1>Controlled Randomness</h1>
+  <p class="lede">Randomness is what makes a system surprise its author. Used raw it gives static. Used with constraints it gives variety, texture and life. This lesson is about the constraints.</p>
+</header>
+
+<h2>Why artists want chance</h2>
+<p>A fully deterministic rule gives you exactly what you asked for. Add a random choice and the system starts producing results you did not specifically design, which is where generative art gets its name. The earliest computer artists of the 1960s, among them Georg Nees, Frieder Nake, Vera Molnár and A. Michael Noll, built most of their work on one idea: <strong>a strict structure, disturbed by a measured amount of chance</strong>.</p>
+<p>The skill is deciding three things: <em>what</em> is random, <em>how much</em>, and <em>with what distribution</em>.</p>
+
+<h2>Pseudo-random numbers and seeds</h2>
+<p>Computers do not produce true randomness. A pseudo-random number generator (PRNG) is a small function that scrambles a hidden number each time you call it and returns a value between 0 and 1. The values look patternless, but the sequence is completely determined by the starting number, called the <strong>seed</strong>.</p>
+<p>That is a feature. With a seed you can:</p>
+<ul>
+  <li>get the same picture again tomorrow,</li>
+  <li>keep the one output in a hundred that you love,</li>
+  <li>fix a bug without the picture changing under you,</li>
+  <li>render the same piece at a larger size for print.</li>
+</ul>
+<p>JavaScript's built-in <code>Math.random()</code> cannot be seeded, so generative artists bring their own generator. Here is a complete one, called mulberry32. You do not need to follow the bit operations; what matters is that it keeps a state <code>s</code>, scrambles it on every call, and returns a fraction.</p>
+
+<div class="example" data-title="2.1 A seeded generator from scratch">
+<script type="text/plain">
+function mulberry32(seed) {
+  let s = seed >>> 0;                       // the hidden state
+  return function () {
+    s = (s + 0x6D2B79F5) | 0;               // step the state
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;   // 0 ≤ value < 1
+  };
+}
+
+const rand = mulberry32(42);    // change 42: a different picture, equally repeatable
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+for (let i = 0; i < 400; i++) {
+  ctx.fillStyle = PA.hsl(180 + rand() * 60, 70, 50, 0.6);
+  ctx.beginPath();
+  ctx.arc(rand() * W, rand() * H, 3 + rand() * 14, 0, PA.TAU);
+  ctx.fill();
+}
+</script>
+</div>
+
+<p>Press Run several times: nothing changes, because the seed is fixed. From here on the examples use <code>PA.rng(seed)</code>, which is this same generator with some conveniences attached and which also accepts text seeds such as <code>PA.rng('autumn')</code>. Called with no seed, it picks a fresh one each run.</p>
+<div class="note"><p><strong>One generator, one order.</strong> A seeded piece is only repeatable if the random calls happen in the same order every time. If you add a new random call in the middle of a sketch, everything after it shifts. For that reason larger pieces often use separate generators for separate jobs, such as one for layout and one for colour.</p></div>
+
+<h2>Distributions: the shape of chance</h2>
+<p>A plain random number is <strong>uniform</strong>: every value between 0 and 1 is equally likely. That is rarely what a picture needs. Nature and good design are full of uneven distributions: many small things and few large ones, values clustered round a centre.</p>
+<dl class="vocab">
+  <dt>Uniform</dt><dd><code>R()</code>. Flat. Good for positions on a canvas.</dd>
+  <dt>Gaussian</dt><dd><code>R.gauss(mean, sd)</code>. A bell curve: most values near the mean, a few far away. Good for natural variation.</dd>
+  <dt>Biased</dt><dd><code>R() ** 3</code> pushes values toward 0, <code>R() ** 0.3</code> toward 1. Good for "mostly small, occasionally large".</dd>
+  <dt>Weighted choice</dt><dd><code>R.weighted(items, weights)</code>. Picks from a list with chosen odds. Good for palettes and rare features.</dd>
+</dl>
+
+<div class="example" data-title="2.2 Three distributions, same number of dots">
+<script type="text/plain">
+const R = PA.rng('distributions');
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+const bands = [
+  ['uniform        R()',              () => R()],
+  ['gaussian       R.gauss(0.5, 0.15)', () => R.gauss(0.5, 0.15)],
+  ['biased         R() ** 3',         () => R() ** 3],
+];
+
+bands.forEach(([label, sample], b) => {
+  const top = b * H / 3;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  for (let i = 0; i < 1500; i++) {
+    const x = sample() * W;                       // the distribution sets x
+    const y = top + 34 + R() * (H / 3 - 46);      // y is just spread out evenly
+    ctx.fillRect(x, y, 2, 2);
+  }
+  ctx.fillStyle = '#ffd166';
+  ctx.font = '14px monospace';
+  ctx.fillText(label, 12, top + 22);
+});
+</script>
+</div>
+
+<h2>The smallest generative artwork</h2>
+<p>A famous one-line program for the Commodore 64, known as <em>10 PRINT</em>, fills the screen with a maze by repeatedly printing one of two diagonal characters at random. It is the whole subject in miniature: a rigid grid, a choice between two tiles, a coin flip.</p>
+
+<div class="example" data-title="2.3 Two tiles and a coin">
+<script type="text/plain">
+const R = PA.rng();             // no seed: a new maze on every run
+
+ctx.fillStyle = '#2b2d6e';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#a5a7fc';
+ctx.lineWidth = 4;
+ctx.lineCap = 'square';
+
+const n = 24, c = W / n;
+for (let j = 0; j < n; j++) {
+  for (let i = 0; i < n; i++) {
+    const x = i * c, y = j * c;
+    ctx.beginPath();
+    if (R.chance(0.5)) {          // try 0.2 or 0.8
+      ctx.moveTo(x, y);     ctx.lineTo(x + c, y + c);    // tile "\"
+    } else {
+      ctx.moveTo(x + c, y); ctx.lineTo(x, y + c);        // tile "/"
+    }
+    ctx.stroke();
+  }
+}
+</script>
+</div>
+
+<p>Change the probability from 0.5 to 0.2. The maze turns into diagonal stripes with occasional interruptions. A single probability is already an expressive control.</p>
+
+<h2>Order into chaos</h2>
+<p>In 1968 Georg Nees plotted a grid of squares that is perfectly regular at the top and increasingly disordered toward the bottom. The piece works because randomness is not applied evenly: its <em>amount</em> is itself driven by a field, exactly like the fields in Lesson 1. This is the most important pattern in the lesson:</p>
+<pre><code>value = orderly value + random offset × amount(position)</code></pre>
+
+<div class="example" data-title="2.4 Randomness with a gradient">
+<script type="text/plain">
+const R = PA.rng(1968);
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#222';
+ctx.lineWidth = 1;
+
+const cols = 12, rows = 18, s = 26;
+const ox = (W - cols * s) / 2, oy = (H - rows * s) / 2;
+
+for (let j = 0; j < rows; j++) {
+  for (let i = 0; i < cols; i++) {
+    const chaos = j / rows;                          // 0 at the top, 1 at the bottom
+
+    const dx = R.range(-1, 1) * chaos * s * 0.6;     // random offset × amount
+    const dy = R.range(-1, 1) * chaos * s * 0.6;
+    const turn = R.range(-1, 1) * chaos * Math.PI / 2;
+
+    ctx.save();
+    ctx.translate(ox + (i + 0.5) * s + dx, oy + (j + 0.5) * s + dy);
+    ctx.rotate(turn);
+    ctx.strokeRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+}
+</script>
+</div>
+
+<p>Try it: make <code>chaos</code> depend on the distance from the centre, or on <code>i</code> instead of <code>j</code>, or square it (<code>chaos * chaos</code>) so order holds for longer before breaking.</p>
+
+<h2>Tiles that connect</h2>
+<p>Truchet tiles are square tiles whose pattern lines up with its neighbours whichever way the tile is turned. The classic design has two quarter-circle arcs joining the midpoints of adjacent sides. Random rotation produces long winding paths that nobody drew. This example also uses a weighted choice for colour: a dominant colour, a secondary and a rare accent.</p>
+
+<div class="example" data-title="2.5 Truchet tiles with a weighted palette">
+<script type="text/plain">
+const R = PA.rng('truchet-7');
+ctx.fillStyle = '#0b132b';
+ctx.fillRect(0, 0, W, H);
+
+const n = 12, c = W / n;
+ctx.lineWidth = c * 0.18;
+const colours = ['#5bc0be', '#fdfffc', '#ff9f1c'];
+
+for (let j = 0; j < n; j++) {
+  for (let i = 0; i < n; i++) {
+    ctx.save();
+    ctx.translate(i * c, j * c);
+    if (R.chance(0.5)) {                  // half the tiles are turned 90°
+      ctx.translate(c, 0);
+      ctx.rotate(Math.PI / 2);
+    }
+    ctx.strokeStyle = R.weighted(colours, [6, 3, 1]);   // 60% / 30% / 10%
+
+    ctx.beginPath();                      // arc around the top-left corner
+    ctx.arc(0, 0, c / 2, 0, Math.PI / 2);
+    ctx.stroke();
+    ctx.beginPath();                      // arc around the bottom-right corner
+    ctx.arc(c, c, c / 2, Math.PI, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+</script>
+</div>
+
+<h2>Random walks</h2>
+<p>So far each random value has been independent of the last. A <strong>random walk</strong> accumulates them: start somewhere, take a small random step, repeat. The path has memory, so it wanders instead of jumping, and many walkers together make soft organic clouds. This is your first taste of a process that grows a picture over time.</p>
+
+<div class="example" data-title="2.6 Forty walkers">
+<script type="text/plain">
+const R = PA.rng();
+ctx.fillStyle = '#111';
+ctx.fillRect(0, 0, W, H);
+
+const walkers = [];
+for (let i = 0; i < 40; i++) {
+  walkers.push({ x: W / 2, y: H / 2, hue: R.range(160, 320) });
+}
+
+loop(() => {
+  for (const w of walkers) {
+    for (let k = 0; k < 10; k++) {          // ten small steps per frame
+      w.x += R.gauss(0, 1.5);
+      w.y += R.gauss(0, 1.5);
+      ctx.fillStyle = PA.hsl(w.hue, 80, 65, 0.25);
+      ctx.fillRect(w.x, w.y, 1.2, 1.2);
+    }
+  }
+});
+</script>
+</div>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A PRNG is deterministic. The seed decides the whole sequence, which makes outputs repeatable.</li>
+  <li>Choose a distribution on purpose: uniform, gaussian, biased or weighted.</li>
+  <li>Randomness works best as a measured deviation from a structure, and the amount of deviation can itself follow a field.</li>
+  <li>A few tile designs plus random choice produce patterns much larger than any tile.</li>
+  <li>Accumulated randomness (a walk) has memory and looks organic. Independent randomness looks like static.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Mixing <code>Math.random()</code> into a seeded sketch. One unseeded call makes the whole piece unrepeatable.</li>
+  <li>Making everything random at once. Pick one or two properties and keep the rest orderly.</li>
+  <li>Using uniform randomness for sizes. It gives a bland sameness; a biased distribution with a few large elements reads far better.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 2</p>
+  <h2>The Seeded Tile Machine</h2>
+  <p>Build a tile-based pattern generator that turns a seed into a poster. The same seed must always give exactly the same image, and different seeds must give clearly different ones.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A single <code>seed</code> value at the top of the file controls all randomness, through <code>PA.rng(seed)</code>.</li>
+    <li>At least <strong>three distinct tile designs</strong> that you drew yourself, each a function that draws inside one cell.</li>
+    <li>Tiles are chosen by <strong>weighted</strong> choice, not evenly.</li>
+    <li>At least one parameter follows an <strong>order-to-chaos gradient</strong> across the canvas, as in example 2.4.</li>
+    <li>Colours come from a palette of at most five, with weights.</li>
+    <li>Pressing a key generates a new seed, redraws, and logs the seed to the console so that you can get any output back.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write <code>function draw(seed)</code> that creates the generator and draws everything. A key handler then only has to call it with a new number.</li>
+    <li>Design tiles whose lines meet the cell edges at the same points, so neighbours connect.</li>
+    <li>Use <code>window.addEventListener('keydown', ...)</code> for the key press.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Multi-scale tiling: some cells are randomly split into four smaller cells, which may split again.</li>
+    <li>Show the seed in small type in a corner of the poster.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Typing a logged seed back into the file reproduces that poster exactly.</li>
+    <li>Ten outputs in a row all look deliberate, and no two look the same.</li>
+  </ul>
+  <a class="start" href="../challenges/02-seeded-tile-machine.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="01-drawing-with-code.html">← Lesson 1</a><a href="03-noise.html">Lesson 3: Noise →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

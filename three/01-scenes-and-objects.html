@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>three.js 1 · Scenes and Objects</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  window.THREE = THREE;
+  window.OrbitControls = OrbitControls;
+  window.dispatchEvent(new Event('three-ready'));
+</script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>three.js 1 of 3</span><a href="02-geometry-from-code.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">three.js 1</p>
+  <h1>Scenes and Objects</h1>
+  <p class="lede">three.js is the standard library for 3D in the browser. It handles cameras, lighting and the graphics card, so that you can spend your effort on the procedural part: deciding what goes where. Everything from the ten lessons carries over, with one more coordinate.</p>
+</header>
+
+<div class="note"><p><strong>These pages need an internet connection.</strong> The rest of the course runs offline, but three.js is a large library, so these lessons load version 0.160 from a public content delivery network when the page opens. To work offline, install it with <code>npm install three</code> and point the import map at the top of each page to your local copy.</p></div>
+
+<h2>The five things in every three.js program</h2>
+<dl class="vocab">
+  <dt>Scene</dt><dd>A container for everything that exists: objects, lights, fog.</dd>
+  <dt>Camera</dt><dd>The viewpoint. A perspective camera makes distant things smaller, like an eye.</dd>
+  <dt>Renderer</dt><dd>Draws the scene, as seen by the camera, onto a canvas using the graphics card.</dd>
+  <dt>Mesh</dt><dd>A visible object: a <strong>geometry</strong> (its shape, as triangles) plus a <strong>material</strong> (how its surface responds to light).</dd>
+  <dt>Light</dt><dd>Without one, lit materials are black.</dd>
+</dl>
+<p>A full program looks like this. In the live examples on these pages the renderer is created for you, already attached to the example's canvas, so the example code starts at the scene.</p>
+<pre><code>import * as THREE from 'three';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(3, 2, 4);
+camera.lookAt(0, 0, 0);
+
+const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xe76f51 }));
+scene.add(cube);
+scene.add(new THREE.DirectionalLight(0xffffff, 3));
+
+renderer.setAnimationLoop((ms) =&gt; {
+  cube.rotation.y = ms / 1000;
+  renderer.render(scene, camera);
+});</code></pre>
+
+<h3>Coordinates</h3>
+<p>three.js uses a right-handed system with <strong>Y up</strong>: X to the right, Y upward, Z toward the viewer. (The 3D printing lessons use Z up, as machines do. Converting is a swap of two axes.) Units are whatever you decide. Rotations are in radians. The camera's four numbers are its field of view in degrees, the aspect ratio, and the nearest and farthest distances it draws.</p>
+
+<div class="example" data-mode="three" data-title="T1.1 One cube, one light (drag to orbit)">
+<script type="text/plain">
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
+camera.position.set(3, 2, 4);
+orbit(camera);                         // drag to look around, scroll to zoom
+
+const cube = new THREE.Mesh(
+  new THREE.BoxGeometry(1.5, 1.5, 1.5),                              // the shape
+  new THREE.MeshStandardMaterial({ color: 0xe76f51, roughness: 0.4 })   // the surface
+);
+scene.add(cube);
+
+const sun = new THREE.DirectionalLight(0xffffff, 3);     // light from one direction, like the sun
+sun.position.set(3, 5, 2);
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x8899bb, 0.8));        // a little light from everywhere, to lift the shadows
+
+loop((t) => {
+  cube.rotation.x = t * 0.4;
+  cube.rotation.y = t * 0.6;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<p>Try it: change <code>BoxGeometry</code> to <code>TorusKnotGeometry(0.8, 0.3, 120, 16)</code> or <code>IcosahedronGeometry(1, 0)</code>. Set <code>roughness</code> to 0.05 and add <code>metalness: 1</code>. Delete the ambient light and look at the dark side.</p>
+
+<h2>Loops make worlds</h2>
+<p>A single object is not procedural art. The step that matters is the same as Lesson 1: a loop, a grid, and properties driven by a field. Here a grid of boxes takes its height and colour from noise, which is all a low-polygon landscape or a generated city is.</p>
+<p>Two practical points. Create <strong>one geometry and reuse it</strong> for every mesh: only the position, scale and material differ. And <code>scene.fog</code> fades distant objects into the background colour, which is a cheap and effective cue for depth.</p>
+
+<div class="example" data-mode="three" data-title="T1.2 A landscape of boxes">
+<script type="text/plain">
+const N = PA.noise('blocks');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b2430);
+scene.fog = new THREE.Fog(0x1b2430, 14, 34);            // fade out between 14 and 34 units away
+
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(13, 11, 15);
+orbit(camera);
+
+const box = new THREE.BoxGeometry(1, 1, 1);             // one shape, shared by every block
+const size = 28;
+for (let i = 0; i < size; i++) {
+  for (let j = 0; j < size; j++) {
+    const n = N.fbm(i * 0.09, j * 0.09, { octaves: 3 });
+    const h = 0.2 + 9 * Math.max(0, n - 0.38);           // flat plains, then hills
+    const mesh = new THREE.Mesh(box, new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(0.33 - h * 0.035, 0.45, 0.32 + h * 0.06),
+    }));
+    mesh.scale.set(0.92, h, 0.92);
+    mesh.position.set(i - size / 2, h / 2, j - size / 2);     // a box is centred, so lift it by half its height
+    scene.add(mesh);
+  }
+}
+
+const sun = new THREE.DirectionalLight(0xfff0dd, 3.2);
+sun.position.set(-6, 10, 4);
+scene.add(sun, new THREE.HemisphereLight(0x9bbcff, 0x30281c, 1.1));    // sky colour above, ground colour below
+
+loop((t) => {
+  scene.rotation.y = t * 0.05;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<h2>The scene graph</h2>
+<p>Objects can contain other objects. A child's position, rotation and scale are relative to its parent, so moving the parent moves everything inside it. This tree of objects is the <strong>scene graph</strong>, and it is the 3D form of the <code>save</code>, <code>translate</code>, <code>rotate</code>, <code>restore</code> pattern from Lesson 1.</p>
+<p>It makes recursive structures natural. A branch is a group containing a cylinder and, at its tip, smaller branches. Each sub-branch only needs to know its own rotation relative to its parent. This is Lesson 6's fractal tree in three dimensions.</p>
+
+<div class="example" data-mode="three" data-title="T1.3 A tree built from nested groups">
+<script type="text/plain">
+const R = PA.rng();                   // run again for another tree
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf4efe6);
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(0, 5, 13);
+const controls = orbit(camera);
+controls.target.set(0, 4, 0);
+controls.update();
+
+const bark = new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.9 });
+const leaf = new THREE.MeshStandardMaterial({ color: 0x4a7c59, roughness: 0.8 });
+const cylinder = new THREE.CylinderGeometry(0.7, 1, 1, 7);      // slightly tapered, 1 unit tall
+const blob = new THREE.IcosahedronGeometry(1, 0);
+
+function branch(length, thickness, depth) {
+  const group = new THREE.Group();                 // the origin of this group is the base of the branch
+  const wood = new THREE.Mesh(cylinder, bark);
+  wood.scale.set(thickness, length, thickness);
+  wood.position.y = length / 2;
+  group.add(wood);
+
+  if (depth === 0) {                               // a tuft of leaves at each tip
+    const tuft = new THREE.Mesh(blob, leaf);
+    tuft.position.y = length;
+    tuft.scale.setScalar(R.range(0.35, 0.6));
+    group.add(tuft);
+    return group;
+  }
+  const children = R.int(2, 3);
+  for (let i = 0; i < children; i++) {
+    const child = branch(length * R.range(0.65, 0.8), thickness * 0.65, depth - 1);
+    child.position.y = length;                     // start at the tip of this branch
+    child.rotation.set(R.range(0.3, 0.8), (i / children) * PA.TAU + R.range(-0.5, 0.5), 0, 'YXZ');   // spin round the branch, then lean out
+    group.add(child);
+  }
+  return group;
+}
+
+const tree = branch(2.6, 0.32, 5);
+scene.add(tree);
+
+const sun = new THREE.DirectionalLight(0xffffff, 3);
+sun.position.set(4, 8, 5);
+scene.add(sun, new THREE.HemisphereLight(0xffffff, 0xb0a090, 1.4));
+
+loop((t) => {
+  tree.rotation.y = t * 0.2;
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<h2>Materials and lights in brief</h2>
+<table>
+  <thead><tr><th>Material</th><th>Behaviour</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td><code>MeshBasicMaterial</code></td><td>Flat colour, ignores lights</td><td>Graphic, poster-like work; fastest</td></tr>
+    <tr><td><code>MeshStandardMaterial</code></td><td>Physically based: <code>roughness</code> and <code>metalness</code></td><td>The default choice</td></tr>
+    <tr><td><code>MeshNormalMaterial</code></td><td>Colours each face by the direction it points</td><td>Checking a shape while building it</td></tr>
+    <tr><td><code>LineBasicMaterial</code>, <code>PointsMaterial</code></td><td>For lines and for points</td><td>Wireframes, particles</td></tr>
+    <tr><td><code>ShaderMaterial</code></td><td>You write the GLSL</td><td>Lesson 3 of this section</td></tr>
+  </tbody>
+</table>
+<p>Set <code>flatShading: true</code> on a standard material for a faceted, low-polygon look. For lights, a directional light plus a hemisphere light is a dependable start. Point lights and spotlights have positions and fall off with distance.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Scene, camera, renderer, meshes, lights. A mesh is a geometry plus a material.</li>
+  <li>Y is up. Rotations are radians. Units are yours to choose.</li>
+  <li>Procedural 3D is the same loops and fields as 2D, with one more coordinate.</li>
+  <li>Share geometries and materials between meshes.</li>
+  <li>The scene graph nests objects, so recursive structures build themselves.</li>
+  <li>Fog and a hemisphere light give depth for almost no effort.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <ul>
+    <li><strong>Rule poster in 3D.</strong> Rebuild your Lesson 1 challenge as a grid of 3D shapes in which height, rotation and colour each follow a field. No randomness.</li>
+    <li><strong>A city block.</strong> Start from T1.2. Make building footprints vary by recursive subdivision (Lesson 7), heights fall off with distance from a centre, and add a few very tall towers by weighted chance.</li>
+    <li><strong>A grove.</strong> Plant a dozen trees from T1.3 on a noise terrain, each from its own seed, with size depending on the terrain height.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-geometry-from-code.html">three.js 2: Geometry from Code →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

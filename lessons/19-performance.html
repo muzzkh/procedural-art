@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 19 · Performance</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="18-geometry.html">← Lesson 18</a><span>Lesson 19 of 19</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 19</p>
+  <h1>Performance</h1>
+  <p class="lede">Scale changes what a system can express. A flock of two hundred is a diagram, and a flock of twenty thousand is a murmuration. This lesson is about getting there: finding what is slow, and the handful of techniques that make sketches ten or a hundred times faster.</p>
+</header>
+
+<h2>Measure first</h2>
+<p>The first rule of performance work is that your guess about what is slow is probably wrong. Measure before changing anything.</p>
+<p>A smooth animation has <strong>16.7 milliseconds</strong> per frame at 60 frames a second. Everything, computing and drawing, must fit in that. The simplest measurement is a stopwatch round a piece of code:</p>
+<pre><code>const start = performance.now();
+update();
+const updateMs = performance.now() - start;</code></pre>
+<p>For a fuller picture, use the browser's own profiler. Press F12, open the <em>Performance</em> tab, press record, let the sketch run for a few seconds, and stop. The chart shows, for every frame, which functions took the time. Look for the widest bars. Nearly always one or two functions account for most of it, and those are the only ones worth touching.</p>
+<table>
+  <thead><tr><th>Usual culprit</th><th>Why it is slow</th><th>Cure</th></tr></thead>
+  <tbody>
+    <tr><td>Comparing everything with everything</td><td>The work grows with the square of the count</td><td>A spatial grid</td></tr>
+    <tr><td>Thousands of separate <code>stroke()</code> or <code>fill()</code> calls</td><td>Each one is a round trip to the graphics system</td><td>Put many shapes in one path, and draw once</td></tr>
+    <tr><td>Creating objects every frame</td><td>The browser must pause to clear them away</td><td>Reuse objects, or use typed arrays</td></tr>
+    <tr><td>Shadows, blur and large translucent fills</td><td>They touch a great many pixels</td><td>Use sparingly, or draw them once to a hidden canvas</td></tr>
+    <tr><td>Reading pixels back with <code>getImageData</code></td><td>It stalls the graphics pipeline</td><td>Keep your own copy of the data</td></tr>
+    <tr><td>A very large canvas</td><td>Four times the pixels at twice the size</td><td>Simulate small, display large</td></tr>
+  </tbody>
+</table>
+
+<h2>Spatial hashing</h2>
+<p>Boids, packing, differential growth and cloth collisions all ask the same question: <em>what is near this point?</em> The obvious way is to check every other point, which makes the work grow with the square of the count. Two thousand points need four million checks per frame. Twenty thousand need four hundred million.</p>
+<p>Almost all of those checks are wasted on points that are nowhere near. A <strong>spatial hash</strong> avoids them. Lay a coarse grid over the canvas, with cells as wide as the distance you care about, and drop each point into its cell. A point's neighbours can then only be in its own cell and the eight around it.</p>
+<p>The example runs the same simulation both ways and times it. Raise the particle count with the grid off, and watch the time climb steeply. Then turn the grid on.</p>
+
+<div class="example" data-title="19.1 The same simulation, with and without a grid">
+<script type="text/plain">
+const count = ui.slider('particles', 500, 8000, 2500, 100);
+const useGrid = ui.slider('use grid', 0, 1, 1, 1);
+const RADIUS = 14;
+const cols = Math.ceil(W / RADIUS), rows = Math.ceil(H / RADIUS);
+let n = 0, x, y, vx, vy, smoothMs = 0;
+
+function reset() {
+  const R = PA.rng(1);
+  n = count();
+  x = new Float32Array(n); y = new Float32Array(n); vx = new Float32Array(n); vy = new Float32Array(n);
+  for (let i = 0; i < n; i++) { x[i] = R.range(W); y[i] = R.range(H); }
+}
+reset();
+ui.onChange(() => { if (count() !== n) reset(); });
+
+let checks = 0;
+function repel(i, j) {                    // push two particles apart if they are within RADIUS
+  checks++;
+  const dx = x[i] - x[j], dy = y[i] - y[j], d2 = dx * dx + dy * dy;
+  if (d2 > 0 && d2 < RADIUS * RADIUS) {
+    const d = Math.sqrt(d2), f = (RADIUS - d) / RADIUS * 0.4;
+    vx[i] += (dx / d) * f; vy[i] += (dy / d) * f;
+  }
+}
+
+loop(() => {
+  const start = performance.now();
+  checks = 0;
+
+  if (useGrid()) {
+    const cells = [];                                              // one list of particle numbers per cell
+    for (let c = 0; c < cols * rows; c++) cells.push([]);
+    for (let i = 0; i < n; i++) cells[Math.min(rows - 1, Math.floor(y[i] / RADIUS)) * cols + Math.min(cols - 1, Math.floor(x[i] / RADIUS))].push(i);
+    for (let i = 0; i < n; i++) {
+      const cx = Math.min(cols - 1, Math.floor(x[i] / RADIUS)), cy = Math.min(rows - 1, Math.floor(y[i] / RADIUS));
+      for (let oy = -1; oy <= 1; oy++) {                           // only this cell and the eight round it
+        for (let ox = -1; ox <= 1; ox++) {
+          const gx = cx + ox, gy = cy + oy;
+          if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) continue;
+          for (const j of cells[gy * cols + gx]) if (j !== i) repel(i, j);
+        }
+      }
+    }
+  } else {
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (j !== i) repel(i, j);     // everything against everything
+  }
+
+  for (let i = 0; i < n; i++) {
+    vx[i] += (W / 2 - x[i]) * 0.0006; vy[i] += (H / 2 - y[i]) * 0.0006;     // a gentle pull to the centre
+    vx[i] *= 0.9; vy[i] *= 0.9;
+    x[i] = PA.clamp(x[i] + vx[i], 0, W - 0.01); y[i] = PA.clamp(y[i] + vy[i], 0, H - 0.01);
+  }
+  smoothMs += (performance.now() - start - smoothMs) * 0.1;
+
+  ctx.fillStyle = '#10141c';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#8ecae6';
+  for (let i = 0; i < n; i++) ctx.fillRect(x[i] - 1, y[i] - 1, 2, 2);
+  ctx.fillStyle = smoothMs < 16.7 ? '#7ee0a1' : '#ff8a94';
+  ctx.font = '13px monospace';
+  ctx.fillText(n + ' particles · ' + (checks / 1e6).toFixed(2) + ' million checks · ' + smoothMs.toFixed(1) + ' ms per frame', 12, H - 12);
+});
+</script>
+</div>
+
+<h2>Typed arrays and avoiding garbage</h2>
+<p>JavaScript makes it easy to give every particle its own object: <code>{ x, y, vx, vy }</code>. For large counts there is a leaner layout. A <strong>typed array</strong>, such as <code>Float32Array</code>, is a block of raw numbers with no object around each one. Keep one array per property, so that particle <code>i</code> is <code>x[i]</code>, <code>y[i]</code>, <code>vx[i]</code>, <code>vy[i]</code>. The numbers sit side by side in memory, which processors handle very efficiently, and nothing is created or thrown away as the sketch runs.</p>
+<p>The second half of this is <strong>garbage</strong>. Every object or array you create must eventually be cleaned up by the browser, and the cleaning happens in pauses that show as stutter. Code that makes a small temporary object for every particle on every frame, a very natural thing to write, creates millions of them a second.</p>
+<p>The example times three versions of the same update on your machine. The numbers vary between browsers and computers, which is the point: it measures, it does not assume.</p>
+
+<div class="example" data-title="19.2 Three ways to store 200,000 particles">
+<script type="text/plain">
+const COUNT = 200000, STEPS = 30;
+
+function run() {
+  const results = [];
+
+  // 1. an object per particle, and a NEW temporary object for every update
+  let objects = [];
+  for (let i = 0; i < COUNT; i++) objects.push({ pos: { x: i % 600, y: i % 400 }, vel: { x: 1, y: 0.5 } });
+  let start = performance.now();
+  for (let s = 0; s < STEPS; s++) {
+    for (const p of objects) p.pos = { x: (p.pos.x + p.vel.x) % 600, y: (p.pos.y + p.vel.y) % 600 };
+  }
+  results.push(['objects, creating a new one each update', performance.now() - start]);
+
+  // 2. an object per particle, changed in place
+  objects = [];
+  for (let i = 0; i < COUNT; i++) objects.push({ x: i % 600, y: i % 400, vx: 1, vy: 0.5 });
+  start = performance.now();
+  for (let s = 0; s < STEPS; s++) {
+    for (const p of objects) { p.x = (p.x + p.vx) % 600; p.y = (p.y + p.vy) % 600; }
+  }
+  results.push(['objects, changed in place', performance.now() - start]);
+
+  // 3. four typed arrays
+  const x = new Float32Array(COUNT), y = new Float32Array(COUNT), vx = new Float32Array(COUNT).fill(1), vy = new Float32Array(COUNT).fill(0.5);
+  for (let i = 0; i < COUNT; i++) { x[i] = i % 600; y[i] = i % 400; }
+  start = performance.now();
+  for (let s = 0; s < STEPS; s++) {
+    for (let i = 0; i < COUNT; i++) { x[i] = (x[i] + vx[i]) % 600; y[i] = (y[i] + vy[i]) % 600; }
+  }
+  results.push(['typed arrays', performance.now() - start]);
+
+  ctx.fillStyle = '#12151c';
+  ctx.fillRect(0, 0, W, H);
+  ctx.font = '14px monospace';
+  const slowest = Math.max(...results.map((r) => r[1]));
+  results.forEach(([label, ms], i) => {
+    const yy = 110 + i * 130;
+    ctx.fillStyle = '#cfd6dd';
+    ctx.fillText(label, 30, yy);
+    ctx.fillStyle = ['#ff8a94', '#ffd166', '#7ee0a1'][i];
+    ctx.fillRect(30, yy + 14, Math.max(4, (ms / slowest) * (W - 60)), 34);
+    ctx.fillText((ms / STEPS).toFixed(2) + ' ms per update of ' + COUNT.toLocaleString() + ' particles', 30, yy + 72);
+  });
+}
+run();
+ui.button('measure again', run);
+</script>
+</div>
+
+<h3>Drawing fast</h3>
+<p>Often the drawing costs more than the computing. Three habits help most:</p>
+<ul>
+  <li><strong>Batch.</strong> One <code>beginPath</code>, many <code>moveTo</code> and <code>lineTo</code> calls, one <code>stroke</code>. A thousand segments in a single path draw far faster than a thousand separate strokes. Group by colour and line width, since those cannot change within a path.</li>
+  <li><strong>Write pixels directly.</strong> For hundreds of thousands of points, set values in an <code>ImageData</code> array and put it on the canvas once, as the pixel examples in this course do.</li>
+  <li><strong>Cache.</strong> Anything that does not change, such as a background, a texture, or a finished layer, is drawn once to a hidden canvas and copied each frame with <code>drawImage</code>.</li>
+</ul>
+
+<h2>Web workers</h2>
+<p>JavaScript in a page runs on one thread, which also handles scrolling, clicks and drawing. A calculation that takes two seconds freezes the whole page for two seconds. A <strong>web worker</strong> is a second thread. You send it a job as a message, it computes without blocking anything, and it sends results back as messages.</p>
+<p>Workers suit work that is heavy but does not need to finish within a frame: rendering a large image, solving a big Wave Function Collapse, growing a structure, packing a hundred thousand circles. They cannot touch the page or the canvas directly. They receive data and return data.</p>
+<p>Here a worker renders a detailed fractal one row at a time. The small square keeps spinning throughout, which shows that the page has stayed responsive.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="19.3 Heavy work on another thread">
+<script type="text/plain">
+// the worker's code, as text. it runs separately and can only talk through messages
+const workerCode = `
+  onmessage = (e) => {
+    const { W, H } = e.data;
+    for (let py = 0; py < H; py++) {
+      const row = new Uint8Array(W);
+      for (let px = 0; px < W; px++) {
+        const cx = -0.7453 + (px / W - 0.5) * 0.012, cy = 0.1127 + (py / H - 0.5) * 0.012;    // a deep zoom: slow
+        let x = 0, y = 0, i = 0;
+        while (x * x + y * y < 4 && i < 3000) { const t = x * x - y * y + cx; y = 2 * x * y + cy; x = t; i++; }
+        row[px] = i === 3000 ? 0 : 40 + (i % 215);
+      }
+      postMessage({ py, row });               // send each finished row back
+    }
+  };
+`;
+const worker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' })));
+cleanup(() => worker.terminate());           // stop it when the example is re-run
+
+const img = ctx.createImageData(W, H);
+for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+let done = 0;
+
+worker.onmessage = (e) => {                   // a row has arrived: copy it into the picture
+  const { py, row } = e.data;
+  for (let px = 0; px < W; px++) {
+    const k = (py * W + px) * 4, v = row[px];
+    img.data[k] = v; img.data[k + 1] = v * 0.6; img.data[k + 2] = 255 - v * 0.7;
+  }
+  done = py + 1;
+};
+worker.postMessage({ W, H });                 // start the job
+
+loop((t) => {
+  ctx.putImageData(img, 0, 0);
+  ctx.save();                                 // proof that this thread is free: a square that never stops turning
+  ctx.translate(W - 26, 26);
+  ctx.rotate(t * 3);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillRect(-9, -9, 18, 18);
+  ctx.restore();
+  ctx.fillStyle = '#fff';
+  ctx.font = '11px monospace';
+  ctx.fillText(done < H ? 'rendering row ' + done + ' of ' + H : 'finished', 8, H - 8);
+});
+</script>
+</div>
+
+<h2>The graphics card</h2>
+<p>The largest step up is to move the work onto the GPU, which runs the same small program on enormous numbers of elements at once. Lesson 9 did this for pixels. It works for particles too.</p>
+<p>The simplest GPU particle system has no stored state at all. Each particle is given a few fixed numbers when it is created, and a vertex shader computes where it is from those numbers and the current time. JavaScript does nothing per particle while it runs. That restricts you to motion that can be written as a formula of time, as in Lesson 15, but within that limit a few hundred thousand particles cost almost nothing.</p>
+
+<div class="example" data-title="19.4 150,000 particles, positioned by a shader">
+<script type="text/plain">
+const COUNT = 150000;
+const glCanvas = document.createElement('canvas');           // a hidden WebGL canvas, copied to the visible one each frame
+glCanvas.width = W * 2; glCanvas.height = H * 2;
+const gl = glCanvas.getContext('webgl');
+cleanup(() => { const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); });
+
+function shader(type, source) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, source);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const program = gl.createProgram();
+gl.attachShader(program, shader(gl.VERTEX_SHADER, `
+  attribute vec3 seed;                      // per particle: starting angle, orbit radius, a phase
+  uniform float time;
+  varying float v_radius;
+  void main() {
+    float radius = seed.y;
+    float angle = seed.x + time * 0.35 / (0.12 + radius);          // inner particles circle faster
+    float breathe = 1.0 + 0.05 * sin(time * 1.3 + seed.z);
+    gl_Position = vec4(vec2(cos(angle), sin(angle)) * radius * breathe, 0.0, 1.0);
+    gl_PointSize = 2.0;
+    v_radius = radius;
+  }`));
+gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `
+  precision mediump float;
+  varying float v_radius;
+  void main() { gl_FragColor = vec4(mix(vec3(1.0, 0.75, 0.45), vec3(0.35, 0.55, 1.0), v_radius) * 0.28, 1.0); }`));
+gl.linkProgram(program);
+gl.useProgram(program);
+
+// three fixed numbers per particle, made once
+const R = PA.rng(7);
+const seeds = new Float32Array(COUNT * 3);
+for (let i = 0; i < COUNT; i++) {
+  const arm = R.int(0, 2) * (PA.TAU / 3), radius = Math.sqrt(R()) * 0.92;
+  seeds[i * 3] = arm + radius * 5 + R.gauss(0, 0.25);             // spiral arms: the angle depends on the radius
+  seeds[i * 3 + 1] = radius;
+  seeds[i * 3 + 2] = R.range(PA.TAU);
+}
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, seeds, gl.STATIC_DRAW);
+const where = gl.getAttribLocation(program, 'seed');
+gl.enableVertexAttribArray(where);
+gl.vertexAttribPointer(where, 3, gl.FLOAT, false, 0, 0);
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.ONE, gl.ONE);                                     // overlapping particles add their light
+const timeAt = gl.getUniformLocation(program, 'time');
+
+loop((t) => {
+  gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+  gl.clearColor(0.02, 0.02, 0.05, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform1f(timeAt, t);                                        // the only thing JavaScript sends each frame
+  gl.drawArrays(gl.POINTS, 0, COUNT);
+  ctx.drawImage(glCanvas, 0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.fillText(COUNT.toLocaleString() + ' particles, no per-particle JavaScript', 12, H - 12);
+});
+</script>
+</div>
+
+<p>Particles that interact, or that follow a simulation, need their positions stored and updated on the GPU as well. That is done by keeping positions in a texture and updating it with a fragment shader each frame, a technique known as GPU particle simulation, or with the transform feedback and compute features of newer graphics interfaces. It is a substantial step beyond this lesson, and three.js (see that section) removes much of the set-up.</p>
+
+<h2>A ladder of techniques</h2>
+<table>
+  <thead><tr><th>If the sketch handles about…</th><th>and you want…</th><th>try…</th></tr></thead>
+  <tbody>
+    <tr><td>1,000 interacting things</td><td>10,000</td><td>A spatial grid</td></tr>
+    <tr><td>10,000 things</td><td>100,000</td><td>Typed arrays, no allocation per frame, batched or pixel drawing</td></tr>
+    <tr><td>A slow one-off calculation</td><td>a page that stays responsive</td><td>A web worker</td></tr>
+    <tr><td>100,000 things</td><td>a million</td><td>The GPU</td></tr>
+    <tr><td>Any of these</td><td>the same look with less work</td><td>A smaller simulation, displayed larger. Fewer, better-placed elements.</td></tr>
+  </tbody>
+</table>
+<p>The last row matters most. The cheapest optimisation is often to notice that the picture does not need what you are computing.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Measure before optimising. One or two functions usually hold nearly all the time.</li>
+  <li>A frame has 16.7 milliseconds.</li>
+  <li>A spatial grid turns "check everything" into "check the neighbourhood".</li>
+  <li>Typed arrays and reused objects avoid the pauses caused by garbage.</li>
+  <li>Batch drawing calls, write pixels directly, and cache what does not change.</li>
+  <li>Workers keep the page responsive during heavy work. The GPU handles the largest counts.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Optimising code that was never the bottleneck, and making it harder to read for nothing.</li>
+  <li>Timing with the developer tools open and drawing conclusions from the absolute numbers. They slow things down. Compare before and after under the same conditions.</li>
+  <li>Making the code fast before the picture is good. Find the image first.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 19</p>
+  <h2>Ten Times Faster</h2>
+  <p>The starter file contains a working sketch that is deliberately, badly slow. Make it at least ten times faster without changing what it draws, then use the speed you have won to make it better.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li><strong>Measure first.</strong> Record the starting time per frame, and use the browser's profiler to find the two most expensive parts. Write both down in a comment before changing anything.</li>
+    <li>The optimised sketch draws <strong>the same picture</strong> for the same seed. Keep the original function so that you can compare.</li>
+    <li>At least <strong>ten times faster</strong> per frame at the original particle count, measured the same way.</li>
+    <li>At least <strong>three different techniques</strong> from this lesson, each noted in a comment with the time it saved.</li>
+    <li>Then <strong>raise the count</strong> until the frame time is back near 16 milliseconds, and report how many particles that is.</li>
+    <li>A short write-up, in comments: what was slow, what you changed, and what surprised you.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Change one thing at a time and measure after each. Some changes will do nothing, and that is useful to know.</li>
+    <li>The starter has at least four separate problems. They are not equally important.</li>
+    <li>To check that the picture is unchanged, draw old and new side by side with the same seed.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>A hundred times faster.</li>
+    <li>Move the simulation into a web worker.</li>
+    <li>Rebuild it on the GPU.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Your measurements show the tenfold gain, and you can say which change gave most of it.</li>
+    <li>The larger version is a better picture, not just a busier one.</li>
+  </ul>
+  <a class="start" href="../challenges/19-ten-times-faster.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="18-geometry.html">← Lesson 18</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

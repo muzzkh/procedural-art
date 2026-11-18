@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths 3 · Calculus</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-vectors-and-transformations.html">← Maths 2</a><span>Maths 3 of 6</span><a href="04-differential-equations.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Maths 3</p>
+  <h1>Calculus</h1>
+  <p class="lede">Calculus is the mathematics of change. It asks two questions: how fast is this changing right here, and how much has it added up to so far? In procedural art those become: which way does this curve or surface face, and how far along am I?</p>
+</header>
+
+<h2>Calculus without the algebra</h2>
+<p>School calculus is mostly rules for manipulating symbols. You need almost none of that here, because a computer can answer both questions numerically, by brute force:</p>
+<ul>
+  <li><strong>The derivative</strong> (rate of change): evaluate the function at two points very close together and see how much it changed.</li>
+  <li><strong>The integral</strong> (accumulation): chop the thing into many small pieces and add them up.</li>
+</ul>
+<p>What you do need is the <em>meaning</em> of each, so that you recognise when a design problem is one or the other.</p>
+
+<h2>The derivative: slope</h2>
+<p>The derivative of a function at a point is its slope there: how much the output changes per unit change of input. Steep uphill is a large positive derivative, flat is zero, downhill is negative.</p>
+<p class="formula">f′(x) ≈ ( f(x + h) − f(x − h) ) / 2h <small>for a small h</small></p>
+<p>That is called a <strong>finite difference</strong>. It works on any function at all, including noise, which has no formula you could differentiate by hand.</p>
+<p>Below, the top graph is a function and the bottom graph is its derivative. Move the mouse along it. Notice three things: where the top curve peaks or bottoms out, the derivative crosses zero; where the top curve is steepest, the derivative is at its extreme; and the derivative of a wave is another wave, shifted.</p>
+
+<div class="example" data-title="M3.1 A function and its slope (move the mouse)">
+<script type="text/plain">
+const f = (x) => Math.sin(x) + 0.5 * Math.sin(2.3 * x + 1);     // try any function here
+
+const h = 0.001;
+const slope = (x) => (f(x + h) - f(x - h)) / (2 * h);           // numerical derivative
+
+const X = (x) => x * 60;               // graph units to pixels
+const Y1 = (v) => 170 - v * 70;        // top graph
+const Y2 = (v) => 450 - v * 45;        // bottom graph
+
+function plot(fn, toY, colour) {
+  ctx.beginPath();
+  for (let px = 0; px <= W; px += 2) ctx.lineTo(px, toY(fn(px / 60)));
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+loop(() => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = '#333c48';          // the two zero lines
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, Y1(0)); ctx.lineTo(W, Y1(0));
+  ctx.moveTo(0, Y2(0)); ctx.lineTo(W, Y2(0));
+  ctx.stroke();
+
+  plot(f, Y1, '#ffd166');
+  plot(slope, Y2, '#5bc0be');
+
+  const x0 = PA.clamp(mouse.x, 0, W) / 60;
+  const m = slope(x0);
+
+  // the tangent: a straight line through the point with that slope
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(X(x0 - 1.2), Y1(f(x0) - m * 1.2));
+  ctx.lineTo(X(x0 + 1.2), Y1(f(x0) + m * 1.2));
+  ctx.stroke();
+
+  ctx.setLineDash([4, 5]);
+  ctx.strokeStyle = '#66707c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(X(x0), Y1(f(x0))); ctx.lineTo(X(x0), Y2(m));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(X(x0), Y1(f(x0)), 5, 0, PA.TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(X(x0), Y2(m), 5, 0, PA.TAU); ctx.fill();
+
+  ctx.font = '13px monospace';
+  ctx.fillStyle = '#ffd166'; ctx.fillText('f(x)', 12, 28);
+  ctx.fillStyle = '#5bc0be'; ctx.fillText("f'(x): the slope of the curve above", 12, 330);
+  ctx.fillStyle = '#ffffff'; ctx.fillText('slope here = ' + m.toFixed(2), 12, H - 16);
+});
+</script>
+</div>
+
+<h2>Tangents and normals</h2>
+<p>For a curve drawn from a parameter, <code>(x(t), y(t))</code>, take the derivative of each coordinate. Together they form a vector that points <strong>along</strong> the curve at that spot: the <strong>tangent</strong>. Turn it a quarter turn (Maths 2) and you have the <strong>normal</strong>, pointing straight out sideways.</p>
+<p>The normal is one of the most useful things in line-based art. With it you can:</p>
+<ul>
+  <li>give a line a <strong>thickness that varies</strong>, like a brush or a nib,</li>
+  <li>draw <strong>parallel offset curves</strong>, like contour lines round a shape,</li>
+  <li>place <strong>hatching, bristles or leaves</strong> at right angles to a stem,</li>
+  <li>wobble a line sideways without changing where it is going (Lesson 10's sketchy line did this).</li>
+</ul>
+
+<div class="example" data-title="M3.2 A ribbon built from normals">
+<script type="text/plain">
+// the centre line: any parametric curve
+const curve = (t) => [
+  W / 2 + Math.sin(t * 2) * 215,
+  H / 2 + Math.sin(t * 3 + 0.6) * 215,
+];
+
+function normalAt(t) {
+  const h = 0.0005;
+  const [x1, y1] = curve(t - h), [x2, y2] = curve(t + h);
+  const dx = x2 - x1, dy = y2 - y1;          // the derivative: direction of travel (tangent)
+  const len = Math.hypot(dx, dy);
+  return [-dy / len, dx / len];              // quarter turn: the normal, length 1
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+const left = [], right = [];
+const steps = 900;
+for (let i = 0; i <= steps; i++) {
+  const t = (i / steps) * PA.TAU;
+  const [x, y] = curve(t);
+  const [nx, ny] = normalAt(t);
+  const width = 3 + 15 * (0.5 + 0.5 * Math.sin(t * 5));     // the nib swells and thins
+  left.push([x + nx * width, y + ny * width]);
+  right.push([x - nx * width, y - ny * width]);
+
+  if (i % 6 === 0) {                                        // bristles along the normal
+    ctx.strokeStyle = 'rgba(29, 53, 87, 0.35)';
+    ctx.beginPath();
+    ctx.moveTo(x + nx * (width + 3), y + ny * (width + 3));
+    ctx.lineTo(x + nx * (width + 12), y + ny * (width + 12));
+    ctx.stroke();
+  }
+}
+
+// the ribbon: up the left edge, back down the right edge
+ctx.beginPath();
+for (const [x, y] of left) ctx.lineTo(x, y);
+for (const [x, y] of right.reverse()) ctx.lineTo(x, y);
+ctx.closePath();
+ctx.fillStyle = 'rgba(230, 57, 70, 0.85)';
+ctx.fill();
+</script>
+</div>
+
+<p>The derivative of the derivative, the <strong>second derivative</strong>, measures how quickly the direction itself is changing. For a curve that is its <strong>curvature</strong>: large in tight bends, zero on straights. Use it to colour a line by how sharply it turns, to thicken it in the corners, or to slow a moving point through bends as a driver would.</p>
+
+<h2>The gradient: slope of a surface</h2>
+<p>A field (Lesson 1) gives a number for every point of the plane. Picture it as a landscape where the number is height. Now the slope has a direction as well as a size. Measure the slope in <code>x</code> and the slope in <code>y</code> separately, by finite differences, and put the two together as a vector:</p>
+<p class="formula">∇f = ( ∂f/∂x , ∂f/∂y )</p>
+<p>This is the <strong>gradient</strong>. It points in the direction of steepest ascent, and its length says how steep. Three large techniques hang on it.</p>
+
+<h3>1. Lighting a surface</h3>
+<p>A slope facing the light is bright and a slope facing away is dark. So brightness is the dot product (Maths 2) of the gradient with the light direction. This is how terrain maps get their relief, how shaders light a raymarched scene (Lesson 9's <code>normalAt</code> is a gradient), and how to make any noise look three-dimensional.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="M3.3 Relief shading (the mouse is the sun)">
+<script type="text/plain">
+const N = PA.noise('hills');
+
+// work the heights out once
+const height = new Float32Array(W * H);
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    height[y * W + x] = N.fbm(x * 0.015, y * 0.015, { octaves: 5 });
+  }
+}
+
+const img = ctx.createImageData(W, H);
+
+loop(() => {
+  let lx = mouse.x - W / 2, ly = mouse.y - H / 2;      // direction toward the light
+  if (Math.hypot(lx, ly) < 2) { lx = -1; ly = -1; }    // until the mouse moves: light from the top left
+  const len = Math.hypot(lx, ly);
+  lx /= len; ly /= len;
+
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const slopeX = (height[i + 1] - height[i - 1]) / 2;     // the gradient, by finite differences
+      const slopeY = (height[i + W] - height[i - W]) / 2;
+
+      // ground that rises toward the light faces away from it, hence the minus
+      const shade = PA.clamp(0.55 - (slopeX * lx + slopeY * ly) * 55);
+
+      const k = i * 4;
+      const high = height[i] > 0.5;
+      img.data[k]     = (high ? 190 : 110) * shade + 30;
+      img.data[k + 1] = (high ? 175 : 150) * shade + 30;
+      img.data[k + 2] = (high ? 140 : 110) * shade + 30;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h3>2. Flowing downhill</h3>
+<p>Step repeatedly in the direction <em>opposite</em> to the gradient and you roll downhill to the nearest low point. This is <strong>gradient descent</strong>, the same idea that trains neural networks. On a noise landscape, hundreds of raindrops doing this converge into the valleys and draw a river system that nobody designed.</p>
+
+<div class="example" data-title="M3.4 Rain finds the rivers">
+<script type="text/plain">
+const N = PA.noise('rivers'), R = PA.rng('rivers');
+const heightAt = (x, y) => N.fbm(x * 0.004, y * 0.004, { octaves: 4 });
+
+function gradient(x, y) {
+  const e = 1;
+  return [
+    (heightAt(x + e, y) - heightAt(x - e, y)) / (2 * e),
+    (heightAt(x, y + e) - heightAt(x, y - e)) / (2 * e),
+  ];
+}
+
+ctx.fillStyle = '#efe6d5';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = 'rgba(29, 78, 137, 0.22)';      // faint, so that shared paths build up
+ctx.lineWidth = 1.2;
+
+for (let k = 0; k < 600; k++) {
+  let x = R.range(W), y = R.range(H);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  for (let s = 0; s < 220; s++) {
+    const [gx, gy] = gradient(x, y);
+    const steep = Math.hypot(gx, gy);
+    if (steep < 0.00002) break;          // flat ground: the bottom of a basin
+    x -= (gx / steep) * 2;               // minus the gradient = downhill
+    y -= (gy / steep) * 2;
+    ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+</script>
+</div>
+
+<p>Try it: change the two minus signs to plus. The drops now climb, and trace the ridgelines instead.</p>
+
+<h3>3. Following the contours</h3>
+<p>Turn the gradient a quarter turn and you get the direction in which height does not change at all: along the contour line. A flow field built this way never converges or spreads out, which is exactly the <strong>curl noise</strong> of Lesson 5. So the three classic things to do with a noise landscape are the same vector used three ways: along it (ridges), against it (rivers), and across it (contours).</p>
+
+<h2>The integral: adding up</h2>
+<p>Integration is accumulation. If the derivative turns position into speed, the integral turns speed back into position, by adding up many small steps:</p>
+<p class="formula">total ≈ f(x₀)·h + f(x₁)·h + f(x₂)·h + …</p>
+<p>You have been integrating since Lesson 5. The line <code>position += velocity</code>, repeated every frame, <em>is</em> a numerical integral of velocity over time. Maths 4 builds on exactly that.</p>
+
+<h3>Arc length</h3>
+<p>A direct design use is measuring the <strong>length of a curve</strong>: break it into tiny straight pieces and add their lengths. Why would you want that? Because the parameter of a curve usually does not move at constant speed. Dots placed at equal steps of <code>t</code> bunch up where the parameter moves slowly and spread out where it races. To space things evenly along a path (beads, dashes, text, leaves on a stem) you place them at equal steps of <em>distance</em> instead, which requires the running total of length.</p>
+
+<div class="example" data-title="M3.5 Equal steps of t versus equal steps of distance">
+<script type="text/plain">
+function curve(t, baseY) {
+  const u = t * t * t;                       // this parameter crawls at first and races at the end
+  return [50 + u * 500, baseY - Math.sin(u * PA.TAU * 1.5) * 80];
+}
+
+// integrate: add up the lengths of many tiny straight pieces
+const samples = 2000;
+const lengthAt = [0];                        // running total of length at each sample
+for (let i = 1; i <= samples; i++) {
+  const [x1, y1] = curve((i - 1) / samples, 0);
+  const [x2, y2] = curve(i / samples, 0);
+  lengthAt.push(lengthAt[i - 1] + Math.hypot(x2 - x1, y2 - y1));
+}
+const total = lengthAt[samples];
+
+// invert the table: which t puts us a given distance along?
+function tAtDistance(d) {
+  let i = 0;
+  while (i < samples && lengthAt[i] < d) i++;
+  return i / samples;
+}
+
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+for (const baseY of [170, 430]) {            // the faint curve itself, twice
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) { const [x, y] = curve(i / 300, baseY); ctx.lineTo(x, y); }
+  ctx.strokeStyle = '#333c48';
+  ctx.stroke();
+}
+
+const count = 50;
+for (let k = 0; k <= count; k++) {
+  let [x, y] = curve(k / count, 170);                               // equal steps of t
+  ctx.fillStyle = '#ef476f';
+  ctx.beginPath(); ctx.arc(x, y, 4, 0, PA.TAU); ctx.fill();
+
+  [x, y] = curve(tAtDistance((k / count) * total), 430);            // equal steps of distance
+  ctx.fillStyle = '#06d6a0';
+  ctx.beginPath(); ctx.arc(x, y, 4, 0, PA.TAU); ctx.fill();
+}
+
+ctx.font = '13px monospace';
+ctx.fillStyle = '#ef476f'; ctx.fillText('equal steps of t: bunched', 14, 40);
+ctx.fillStyle = '#06d6a0'; ctx.fillText('equal steps of distance: even', 14, 300);
+ctx.fillStyle = '#cfd6dd'; ctx.fillText('curve length = ' + total.toFixed(0) + ' px', 14, H - 16);
+</script>
+</div>
+
+<p>The same running-total trick solves a problem from Lesson 2. To draw random numbers with <em>any</em> distribution you like, add up the distribution to get its running total, then look up a uniform random number in that table. It is called inverse transform sampling, and <code>R.weighted</code> is a small case of it.</p>
+
+<h2>From formula to design</h2>
+<table>
+  <thead><tr><th>If you want…</th><th>Reach for…</th></tr></thead>
+  <tbody>
+    <tr><td>A brush stroke, a ribbon, a road with width</td><td>The normal of the centre line</td></tr>
+    <tr><td>Hatching, fur, leaves or ticks along a path</td><td>Short lines along the normal</td></tr>
+    <tr><td>Arrowheads and oriented stamps</td><td>The tangent, via <code>Math.atan2</code></td></tr>
+    <tr><td>Emphasis in corners</td><td>Curvature (the second derivative)</td></tr>
+    <tr><td>Relief, embossing, a 3D look for any texture</td><td>Gradient, then a dot product with a light</td></tr>
+    <tr><td>Rivers, drips, erosion, cracks seeking low ground</td><td>Stepping against the gradient</td></tr>
+    <tr><td>Contour lines and non-converging flow</td><td>Stepping across the gradient</td></tr>
+    <tr><td>Even spacing of beads, dashes or text on a path</td><td>Arc length by accumulation</td></tr>
+    <tr><td>Random values with a custom distribution</td><td>A running total, inverted</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>The derivative is slope. Numerically it is the difference between two nearby values.</li>
+  <li>For a curve, the derivative is the tangent. A quarter turn gives the normal.</li>
+  <li>For a field, the derivative is the gradient: a vector pointing uphill.</li>
+  <li>Along the gradient is ridges, against it is rivers, across it is contours, and its dot product with a light is shading.</li>
+  <li>The integral is a running total. <code>position += velocity</code> is one.</li>
+  <li>Arc length lets you place things at even distances along any path.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <p>Do these in the <a href="../challenges/math-sandbox.html">maths sandbox file</a>, or by editing the examples above.</p>
+  <ul>
+    <li><strong>Calligraphy.</strong> Using normals, draw a flow-field streamline from Lesson 5 as a ribbon whose width is greatest in the middle of the stroke and tapers to nothing at both ends.</li>
+    <li><strong>Embossed noise.</strong> Take the domain-warped noise from Lesson 3 and light it with a gradient and a dot product, so that it looks like a carved surface.</li>
+    <li><strong>Text on a path.</strong> Place the letters of a word at even distances along a spiral, each rotated to follow the tangent.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="02-vectors-and-transformations.html">← Maths 2</a><a href="04-differential-equations.html">Maths 4: Differential Equations →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

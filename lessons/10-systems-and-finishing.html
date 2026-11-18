@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 · Systems and Finishing</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="09-shaders-and-distance-fields.html">← Lesson 9</a><span>Lesson 10 of 19</span><a href="11-colour.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 10</p>
+  <h1>Systems and Finishing</h1>
+  <p class="lede">You now have the techniques. What separates a technical demo from a piece of art is everything else: colour, composition, texture, and the discipline of designing a system whose every output is worth keeping.</p>
+</header>
+
+<h2>From technique to artwork</h2>
+<p>Every example so far demonstrated one algorithm. Finished work rarely does that. It combines two or three techniques, restrains them with a palette and a layout, and adds surface texture so that the image feels made instead of calculated. This lesson covers those finishing skills and then the craft of building a <strong>generative system</strong>: one program that produces a whole collection.</p>
+
+<h2>Colour</h2>
+<p>Colour is where most beginner work falls down, and the fix is restraint.</p>
+<ul>
+  <li><strong>Use a small fixed palette.</strong> A background and three to five inks. Do not pick random hues from the whole wheel.</li>
+  <li><strong>Use weights.</strong> One dominant colour, one or two supporting, one rare accent. Roughly 60, 30 and 10 per cent is the designer's rule of thumb. <code>R.weighted</code> exists for this.</li>
+  <li><strong>Contrast in lightness matters more than hue.</strong> If your image is unreadable in greyscale, no choice of hue will rescue it.</li>
+  <li><strong>Avoid pure black and pure white.</strong> An off-white paper tone and a deep navy or brown-black look far less digital.</li>
+  <li><strong>Vary within a colour.</strong> Shifting each use of an ink slightly in lightness makes flat fills feel alive.</li>
+</ul>
+<p>When you need a continuous range instead of a fixed set, use a cosine palette (Lesson 9), or blend between two palette colours with <code>PA.mix</code>.</p>
+
+<h2>Composition</h2>
+<ul>
+  <li><strong>Margins.</strong> A clean border round the work makes almost anything look intentional.</li>
+  <li><strong>Hierarchy of scale.</strong> A few large elements, some medium, many small. Sizes all alike read as wallpaper.</li>
+  <li><strong>Density contrast.</strong> Crowded areas need empty areas beside them. Negative space is part of the picture.</li>
+  <li><strong>A focal point.</strong> Give the eye somewhere to land: the largest shape, the single accent colour, the one break in a pattern.</li>
+  <li><strong>Structure first, variation second.</strong> Decide the big arrangement, then let randomness work within it.</li>
+</ul>
+
+<div class="example" data-title="10.1 Palette weights, scale hierarchy, margin and grain">
+<script type="text/plain">
+const R = PA.rng();          // run again: the principles hold for every output
+const paper = '#efe6d5';
+const inks = ['#457b9d', '#e63946', '#f1a208', '#2a9d8f'];
+const weights = [6, 2, 1, 2];            // dominant, accent, rare, support
+
+ctx.fillStyle = paper;
+ctx.fillRect(0, 0, W, H);
+
+const margin = 60;
+ctx.globalCompositeOperation = 'multiply';      // overlapping inks darken, like print
+
+// three scales: [how many, smallest radius, largest radius]
+const scales = [[2, 90, 140], [9, 30, 60], [60, 4, 12]];
+for (const [count, rMin, rMax] of scales) {
+  for (let i = 0; i < count; i++) {
+    const r = R.range(rMin, rMax);
+    const x = R.range(margin + r, W - margin - r);     // keep everything inside the margin
+    const y = R.range(margin + r, H - margin - r);
+    ctx.fillStyle = R.weighted(inks, weights);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, PA.TAU);
+    ctx.fill();
+  }
+}
+
+// grain: thousands of faint specks break up the flat digital surface
+ctx.globalCompositeOperation = 'source-over';
+for (let i = 0; i < 50000; i++) {
+  ctx.fillStyle = R.chance(0.5) ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)';
+  ctx.fillRect(R.range(W), R.range(H), 1, 1);
+}
+</script>
+</div>
+
+<p>Try it: make the weights equal, then make all three scales the same size, then remove the grain loop. Each change takes away one reason the image looks designed.</p>
+
+<h2>Texture and imperfection</h2>
+<p>Computers draw perfectly straight lines and perfectly flat fills, and the eye reads that perfection as cold. Much of the finishing craft is adding controlled imperfection:</p>
+<ul>
+  <li><strong>Wobbly lines.</strong> Displace points along a line with low-frequency noise.</li>
+  <li><strong>Repeated strokes.</strong> Draw each line two or three times with slight differences, at low opacity, as a pencil would.</li>
+  <li><strong>Hatching.</strong> Shade with parallel lines instead of flat colour, with density standing in for darkness.</li>
+  <li><strong>Grain and paper.</strong> Specks, as above, or a faint noise layer over everything.</li>
+  <li><strong>Blend modes.</strong> <code>ctx.globalCompositeOperation = 'multiply'</code> makes layers behave like ink. <code>'screen'</code> and <code>'lighter'</code> behave like light.</li>
+</ul>
+
+<div class="example" data-title="10.2 A hand-drawn line">
+<script type="text/plain">
+const R = PA.rng(), N = PA.noise();
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = 'rgba(30, 30, 40, 0.55)';
+ctx.lineWidth = 1;
+
+function sketchLine(x1, y1, x2, y2, wobble) {
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  const steps = Math.max(2, Math.floor(len / 6));
+  const nx = -(y2 - y1) / len, ny = (x2 - x1) / len;      // the direction at right angles to the line
+
+  for (let pass = 0; pass < 2; pass++) {                  // two passes, each slightly different
+    const offset = R.range(1000);
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const push = (N.get(offset + t * len * 0.02) - 0.5) * 4 * wobble;
+      ctx.lineTo(PA.lerp(x1, x2, t) + nx * push, PA.lerp(y1, y2, t) + ny * push);
+    }
+    ctx.stroke();
+  }
+}
+
+const n = 5, cell = (W - 80) / n;
+for (let j = 0; j < n; j++) {
+  for (let i = 0; i < n; i++) {
+    const x = 50 + i * cell, y = 50 + j * cell, s = cell - 20;
+
+    sketchLine(x, y, x + s, y, 1.5);             // the four sides of a square
+    sketchLine(x + s, y, x + s, y + s, 1.5);
+    sketchLine(x + s, y + s, x, y + s, 1.5);
+    sketchLine(x, y + s, x, y, 1.5);
+
+    const lines = 2 + i + j;                     // hatching gets denser toward the bottom right
+    for (let k = 1; k < lines; k++) {
+      const u = k / lines;
+      sketchLine(x + u * s, y, x, y + u * s, 1);
+      sketchLine(x + s, y + u * s, x + u * s, y + s, 1);
+    }
+  }
+}
+</script>
+</div>
+
+<h2>Designing a system: seeds and traits</h2>
+<p><strong>Long-form generative art</strong> is the practice of releasing an algorithm instead of an image. Collectors or viewers each receive whatever the program produces from a seed that the artist never saw in advance. The form was popularised by platforms such as Art Blocks from 2020 onward. It imposes a hard discipline: you cannot pick favourites. <em>Every</em> output must be good.</p>
+<p>The standard structure is to have the seed first choose a small set of named <strong>traits</strong>, and then have the traits drive the drawing:</p>
+<pre><code>seed  →  traits (palette, structure, density, rare features…)  →  render</code></pre>
+<p>Traits are chosen by weighted chance, so some are common and some rare. Getting the balance right is the art: enough variety that the collection is interesting, enough consistency that it is recognisably one body of work.</p>
+
+<div class="example" data-title="10.3 Seed to traits to picture">
+<script type="text/plain">
+const seed = Math.floor(Math.random() * 1e6);    // put a fixed number here to lock one output
+const R = PA.rng(seed);
+
+// 1. the seed chooses the traits
+const traits = {
+  palette:   R.weighted(['dusk', 'citrus', 'riso', 'mono'], [4, 3, 3, 1]),
+  structure: R.weighted(['rings', 'grid', 'scatter'], [3, 4, 3]),
+  density:   R.weighted([40, 120, 320], [2, 5, 3]),
+  outlined:  R.chance(0.25),
+};
+
+const [paper, ...inks] = PA.palettes[traits.palette];
+ctx.fillStyle = paper;
+ctx.fillRect(0, 0, W, H);
+
+// 2. structure decides WHERE things go
+const points = [];
+for (let i = 0; i < traits.density; i++) {
+  if (traits.structure === 'rings') {
+    const ring = R.int(1, 5), a = R.range(PA.TAU);
+    points.push([W / 2 + Math.cos(a) * ring * 48, H / 2 + Math.sin(a) * ring * 48]);
+  } else if (traits.structure === 'grid') {
+    points.push([60 + R.int(0, 8) * 60, 60 + R.int(0, 8) * 60]);
+  } else {
+    points.push([R.gauss(W / 2, 110), R.gauss(H / 2, 110)]);
+  }
+}
+
+// 3. the remaining traits decide HOW they look
+for (const [x, y] of points) {
+  ctx.beginPath();
+  ctx.arc(x, y, R.range(4, 26), 0, PA.TAU);
+  if (traits.outlined) {
+    ctx.strokeStyle = R.pick(inks); ctx.lineWidth = 2; ctx.stroke();
+  } else {
+    ctx.fillStyle = R.pick(inks); ctx.globalAlpha = 0.8; ctx.fill();
+  }
+}
+
+ctx.globalAlpha = 1;
+ctx.fillStyle = inks[0];
+ctx.font = '12px monospace';
+ctx.fillText('seed ' + seed + ' · ' + traits.palette + ' · ' + traits.structure + ' · ' +
+  traits.density + (traits.outlined ? ' · outlined' : ''), 14, H - 14);
+</script>
+</div>
+
+<h2>Testing a system: the contact sheet</h2>
+<p>You cannot judge a generative system from one output. Render many at once, small, side by side, and look for:</p>
+<ul>
+  <li><strong>Failures.</strong> Any output that is empty, muddy, broken or ugly. Fix the rule or narrow the parameter range until none remain.</li>
+  <li><strong>Sameness.</strong> If you cannot tell outputs apart at a glance, widen the variety.</li>
+  <li><strong>Incoherence.</strong> If outputs look like they come from different artists, tighten it.</li>
+</ul>
+<p>The contact sheet also demonstrates <strong>resolution independence</strong>. The artwork function below draws in a <em>unit square</em>, with all coordinates and line widths between 0 and 1. A scale transform maps that square to any size. Sixteen thumbnails or one poster-size print come from the same code and the same seed.</p>
+
+<div class="example" data-title="10.4 Sixteen seeds, one system">
+<script type="text/plain">
+// draws inside the unit square: every coordinate and width is a fraction of the whole
+function artwork(seed) {
+  const R = PA.rng(seed), N = PA.noise(seed);
+  const [paper, ...inks] = PA.palettes[R.pick(['dusk', 'citrus', 'riso'])];
+  const freq = R.range(1.5, 5), twist = R.range(1, 3);
+
+  ctx.fillStyle = paper;
+  ctx.fillRect(0, 0, 1, 1);
+  ctx.lineCap = 'round';
+
+  for (let k = 0; k < 90; k++) {
+    let x = R.range(0.1, 0.9), y = R.range(0.1, 0.9);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let s = 0; s < 40; s++) {
+      const a = N.get(x * freq, y * freq) * PA.TAU * twist;
+      x += Math.cos(a) * 0.01;
+      y += Math.sin(a) * 0.01;
+      if (x < 0.08 || x > 0.92 || y < 0.08 || y > 0.92) break;      // margin
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = R.pick(inks);
+    ctx.lineWidth = R.pick([0.004, 0.008, 0.02]);
+    ctx.stroke();
+  }
+}
+
+const n = 4, size = W / n, gap = 5;
+ctx.fillStyle = '#111';
+ctx.fillRect(0, 0, W, H);
+
+for (let k = 0; k < n * n; k++) {
+  ctx.save();
+  ctx.translate((k % n) * size + gap, Math.floor(k / n) * size + gap);
+  ctx.scale(size - gap * 2, size - gap * 2);        // unit square -> thumbnail
+  artwork(100 + k);
+  ctx.restore();
+}
+</script>
+</div>
+
+<p>Try it: change <code>n</code> to 1 to see seed 100 at full size, or to 6 for thirty-six thumbnails.</p>
+
+<h2>Getting work out of the browser</h2>
+<dl class="vocab">
+  <dt>PNG, high resolution</dt><dd>Create a large canvas (for example 4000 × 4000 pixels, about 33 cm square at 300 dpi), render at that size, and save with <code>canvas.toBlob</code>. This only works if your sketch is resolution independent.</dd>
+  <dt>SVG</dt><dd>A vector format: shapes described as text, sharp at any size. Needed for pen plotters, laser cutters and vinyl cutters, and good for print.</dd>
+  <dt>Video or GIF</dt><dd>For animated work, save frames one by one and assemble them, or record the canvas with <code>canvas.captureStream()</code> and a <code>MediaRecorder</code>.</dd>
+</dl>
+<p>SVG is easier than it sounds, because an SVG path is just a string. Build your geometry as path strings; the canvas can preview them through <code>Path2D</code>, and the same strings go into the file.</p>
+
+<div class="example" data-title="10.5 One geometry, two outputs (click the canvas to download the SVG)">
+<script type="text/plain">
+// 1. build the geometry as SVG path strings: M = move to, L = line to, Z = close
+const paths = [];
+for (let k = 0; k < 60; k++) {
+  const r = 20 + k * 4.2;
+  let d = '';
+  for (let i = 0; i < 120; i++) {
+    const a = (i / 120) * PA.TAU;
+    const rr = r + Math.sin(a * 6 + k * 0.25) * k * 0.25;
+    const x = (W / 2 + Math.cos(a) * rr).toFixed(1);
+    const y = (H / 2 + Math.sin(a) * rr).toFixed(1);
+    d += (i === 0 ? 'M' : 'L') + x + ' ' + y;
+  }
+  paths.push(d + 'Z');
+}
+
+// 2. preview on the canvas
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#1d3557';
+ctx.lineWidth = 1;
+for (const d of paths) ctx.stroke(new Path2D(d));
+
+// 3. the same strings, wrapped up as an SVG file
+const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '">' +
+  paths.map((d) => '<path d="' + d + '" fill="none" stroke="black"/>').join('') +
+  '</svg>';
+
+canvas.onclick = () => {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  link.download = 'rings.svg';
+  link.click();
+};
+
+ctx.fillStyle = '#555';
+ctx.font = '12px monospace';
+ctx.fillText('SVG ready: ' + (svg.length / 1024).toFixed(1) + ' kB. Click to download.', 14, H - 14);
+</script>
+</div>
+
+<h2>A working process</h2>
+<ol>
+  <li><strong>Start from a question,</strong> not a technique. "What if hatching followed a flow field?" leads somewhere. "I will use Voronoi" does not.</li>
+  <li><strong>Get something on screen in ten minutes,</strong> however crude.</li>
+  <li><strong>Explore.</strong> Change one thing at a time. Save every output that surprises you, along with its seed and settings.</li>
+  <li><strong>Notice the happy accidents.</strong> Bugs are a major source of ideas in this medium. Before you fix one, look at what it drew.</li>
+  <li><strong>Constrain.</strong> Fix the palette, the margin, the ranges. Remove options that do not earn their place.</li>
+  <li><strong>Test in bulk</strong> with a contact sheet and eliminate failures.</li>
+  <li><strong>Finish.</strong> Add texture, check it at full size, export.</li>
+</ol>
+
+<h2>Where to go next</h2>
+<table>
+  <thead><tr><th>Direction</th><th>What to look at</th></tr></thead>
+  <tbody>
+    <tr><td>Friendlier tools</td><td>p5.js and Processing wrap everything in this course in a simpler interface and have a huge community. Having done it by hand, you will understand what they are doing.</td></tr>
+    <tr><td>Simulation in depth</td><td><em>The Nature of Code</em> by Daniel Shiffman, free online, and his Coding Train videos.</td></tr>
+    <tr><td>Shaders in depth</td><td><em>The Book of Shaders</em> by Patricio Gonzalez Vivo and Jen Lowe, Inigo Quilez's articles on distance functions, and Shadertoy for thousands of live examples.</td></tr>
+    <tr><td>Craft and theory</td><td>Tyler Hobbs's essays on flow fields and long-form design. Matt DesLauriers's writing on creative coding workflow. The books <em>Generative Design</em> and <em>Form+Code</em>.</td></tr>
+    <tr><td>Physical output</td><td>Pen plotters (the AxiDraw is the common one), risograph printing, laser cutting, CNC, embroidery machines. All take vector files.</td></tr>
+    <tr><td>Three dimensions</td><td>three.js in the browser, Blender's Geometry Nodes, and Houdini, the film industry's procedural tool.</td></tr>
+    <tr><td>Live and interactive work</td><td>TouchDesigner, openFrameworks, and Hydra for live-coded visuals.</td></tr>
+    <tr><td>Procedural content for games</td><td>Red Blob Games's interactive articles on maps, noise and grids, and Wave Function Collapse.</td></tr>
+    <tr><td>History</td><td>Vera Molnár, Manfred Mohr, Frieder Nake, Georg Nees, Lillian Schwartz, Harold Cohen, Sol LeWitt's instruction pieces, and the book <em>10 PRINT</em>.</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Limit the palette and weight it. Check contrast in lightness.</li>
+  <li>Compose with margins, a hierarchy of scale, contrast in density, and a focal point.</li>
+  <li>Add controlled imperfection: wobble, repeated strokes, hatching, grain.</li>
+  <li>Structure a system as seed, then traits, then render.</li>
+  <li>Judge a system by many outputs at once, and remove every failure.</li>
+  <li>Draw in unit coordinates so the same seed renders at any size.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Challenge 10 · Capstone</p>
+  <h2>Your Long-Form Collection</h2>
+  <p>Design and build a complete generative system: one program that turns any whole-number seed into a finished artwork in a style that is recognisably yours. This is the piece that goes in a portfolio.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li><strong>One seed controls everything.</strong> The same seed always produces the identical image.</li>
+    <li><strong>At least two techniques from different lessons, combined</strong> so that one affects the other. Examples: circles packed along flow-field streamlines, L-system plants growing on noise terrain, a subdivision layout whose cells each contain a different curve, a reaction–diffusion pattern used as a mask for hatching.</li>
+    <li><strong>At least four named traits</strong> chosen by weighted chance, including one rare trait that appears in fewer than one output in ten. Log the traits to the console.</li>
+    <li><strong>Resolution independent.</strong> A single <code>SIZE</code> constant can be changed from 1000 to 4000 and the composition is identical, only sharper.</li>
+    <li><strong>A contact-sheet mode</strong> showing 25 different seeds in a 5 × 5 grid.</li>
+    <li><strong>Finishing:</strong> a margin, a weighted palette, and at least one texture technique.</li>
+    <li><strong>Keys:</strong> one for a new seed, one to toggle the contact sheet, one to save a PNG named after the seed.</li>
+    <li>A title for the collection, and three or four sentences in a comment at the top saying what the system is about.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write <code>render(ctx, seed)</code> so that it draws into a unit square and knows nothing about the canvas size. Single view and contact sheet then differ only in the transform applied before calling it.</li>
+    <li>Build the simplest version of the whole pipeline first: seed, one trait, a plain render, contact sheet. Then improve the drawing. A working contact sheet early on will guide every later decision.</li>
+    <li>Use separate random generators for traits and for drawing, such as <code>PA.rng(seed + '-traits')</code>, so that adding a trait later does not change every existing output.</li>
+    <li>If one trait combination looks bad, either fix it or make the system unable to produce it.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>SVG export for a pen plotter.</li>
+    <li>An animated variant in which each piece loops.</li>
+    <li>Read the seed from the page address (<code>location.hash</code>), so every output has a link you can share.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You generate 25 outputs and would happily frame any one of them.</li>
+    <li>Someone shown three outputs could pick a fourth out of a line-up of other people's work.</li>
+    <li>You can name the trait combination of an output by looking at it.</li>
+  </ul>
+  <a class="start" href="../challenges/10-long-form-collection.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="09-shaders-and-distance-fields.html">← Lesson 9</a><a href="11-colour.html">Lesson 11: Colour →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

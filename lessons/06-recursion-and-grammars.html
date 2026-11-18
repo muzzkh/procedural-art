@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 6 · Recursion, Fractals and L-systems</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="05-particles-and-flow-fields.html">← Lesson 5</a><span>Lesson 6 of 19</span><a href="07-packing-and-partitioning.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 6</p>
+  <h1>Recursion, Fractals and L-systems</h1>
+  <p class="lede">A branch looks like a small tree. A coastline looks the same from a plane as from a cliff. Shapes built from smaller copies of themselves are called fractals, and the way to draw them is a function that calls itself.</p>
+</header>
+
+<h2>Recursion</h2>
+<p>A <strong>recursive</strong> function solves a problem by doing a small piece of it and then calling itself to do the rest on a smaller scale. Every recursive function needs two parts:</p>
+<ul>
+  <li>a <strong>recursive step</strong>, where it calls itself with a smaller problem, and</li>
+  <li>a <strong>base case</strong>, where it stops. Leave it out and the function calls itself until the browser gives up.</li>
+</ul>
+<p>The usual way to guarantee a stop is to pass a <code>depth</code> number that goes down by one on each call.</p>
+
+<div class="example" data-title="6.1 Circles inside circles">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+
+function circles(x, y, r, depth) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, PA.TAU);
+  ctx.stroke();
+
+  if (depth === 0) return;                    // base case
+
+  circles(x - r / 2, y, r / 2, depth - 1);    // recursive step: two half-size copies
+  circles(x + r / 2, y, r / 2, depth - 1);
+  // circles(x, y - r / 2, r / 2, depth - 1);   // try enabling these two as well
+  // circles(x, y + r / 2, r / 2, depth - 1);
+}
+
+circles(W / 2, H / 2, 280, 6);
+</script>
+</div>
+
+<div class="note"><p><strong>Recursion grows fast.</strong> With two calls per level, depth 6 draws 127 circles. With four calls per level it draws 5,461. Each extra level multiplies the work, so raise depth one step at a time.</p></div>
+
+<h2>Fractal trees</h2>
+<p>A tree is a branch with smaller trees on the end of it. Written as code that sentence is almost the whole program. The strictly regular version looks artificial, so each child branch gets a random angle and a random length ratio: structure from recursion, life from Lesson 2.</p>
+
+<div class="example" data-title="6.2 A tree">
+<script type="text/plain">
+const R = PA.rng();          // run again for another tree
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.lineCap = 'round';
+
+function branch(x, y, angle, length, depth) {
+  const x2 = x + Math.cos(angle) * length;
+  const y2 = y + Math.sin(angle) * length;
+
+  ctx.strokeStyle = depth > 2 ? '#3b2f2f' : '#4a7c59';    // twigs are green
+  ctx.lineWidth = depth * 1.2;                             // thinner toward the tips
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  if (depth <= 1) return;
+
+  const children = R.chance(0.2) ? 3 : 2;
+  for (let i = 0; i < children; i++) {
+    branch(x2, y2,
+      angle + R.range(-0.6, 0.6),          // each child turns a little
+      length * R.range(0.65, 0.82),        // and is a little shorter
+      depth - 1);
+  }
+}
+
+branch(W / 2, H - 20, -Math.PI / 2, 120, 9);     // -90 degrees points up
+</script>
+</div>
+
+<p>Try it: narrow the angle range to <code>±0.25</code> for a poplar, widen it to <code>±1.1</code> for a thorn bush. Add a constant to every angle to make the wind blow.</p>
+
+<h2>Replacing lines with shapes</h2>
+<p>Another family of fractals starts with a simple shape and repeatedly replaces every straight segment with a more detailed one. The <strong>Koch curve</strong> replaces each segment with four shorter ones that include a triangular bump. Three Koch curves joined make the Koch snowflake: a shape with a finite area and, in the limit, an infinitely long outline.</p>
+
+<div class="example" data-title="6.3 Koch snowflake">
+<script type="text/plain">
+ctx.fillStyle = '#0d1b2a';
+ctx.fillRect(0, 0, W, H);
+
+function koch(ax, ay, bx, by, depth) {
+  if (depth === 0) { ctx.lineTo(bx, by); return; }
+
+  const dx = (bx - ax) / 3, dy = (by - ay) / 3;
+  const p1x = ax + dx,     p1y = ay + dy;            // one third along
+  const p2x = ax + 2 * dx, p2y = ay + 2 * dy;        // two thirds along
+
+  // the peak: the middle third rotated by -60 degrees about p1
+  const c = Math.cos(-Math.PI / 3), s = Math.sin(-Math.PI / 3);
+  const px = p1x + dx * c - dy * s;
+  const py = p1y + dx * s + dy * c;
+
+  koch(ax, ay, p1x, p1y, depth - 1);
+  koch(p1x, p1y, px, py, depth - 1);
+  koch(px, py, p2x, p2y, depth - 1);
+  koch(p2x, p2y, bx, by, depth - 1);
+}
+
+const depth = 4;                     // try 0, 1, 2, 3, 5
+const A = [100, 190], B = [500, 190], C = [300, 536];
+
+ctx.beginPath();
+ctx.moveTo(A[0], A[1]);
+koch(A[0], A[1], B[0], B[1], depth);
+koch(B[0], B[1], C[0], C[1], depth);
+koch(C[0], C[1], A[0], A[1], depth);
+ctx.fillStyle = '#e0fbfc';
+ctx.fill();
+</script>
+</div>
+
+<h2>Fractals from repeated random jumps</h2>
+<p>There is a quite different route to a fractal. Take a handful of simple transformations, each of which shrinks and shifts the whole plane. Start at any point, pick one transformation at random, apply it, plot the result, and repeat tens of thousands of times. The points settle onto a shape that is made of shrunken copies of itself. This is an <strong>iterated function system</strong>. Michael Barnsley's fern uses four transformations: one for the stem, one for the main body (a slightly smaller, slightly rotated copy of the whole fern), and one each for the lowest left and right leaflets.</p>
+
+<div class="example" data-title="6.4 Barnsley's fern">
+<script type="text/plain">
+const R = PA.rng();
+ctx.fillStyle = '#08130c';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = 'rgba(120, 220, 140, 0.6)';
+
+let x = 0, y = 0;
+for (let i = 0; i < 80000; i++) {
+  const r = R();
+  let nx, ny;
+  if (r < 0.01) {                    // stem (1% of the time)
+    nx = 0;
+    ny = 0.16 * y;
+  } else if (r < 0.86) {             // the whole fern, a bit smaller and turned (85%)
+    nx = 0.85 * x + 0.04 * y;
+    ny = -0.04 * x + 0.85 * y + 1.6;
+  } else if (r < 0.93) {             // lower-left leaflet (7%)
+    nx = 0.2 * x - 0.26 * y;
+    ny = 0.23 * x + 0.22 * y + 1.6;
+  } else {                           // lower-right leaflet (7%)
+    nx = -0.15 * x + 0.28 * y;
+    ny = 0.26 * x + 0.24 * y + 0.44;
+  }
+  x = nx; y = ny;
+  ctx.fillRect(W / 2 + x * 55, H - 20 - y * 55, 1, 1);
+}
+</script>
+</div>
+
+<p>Try it: change <code>0.04</code> and <code>-0.04</code> in the second rule to <code>0.1</code> and <code>-0.1</code>. That one pair of numbers controls how much the fern curls.</p>
+
+<h2>L-systems: grammar that grows</h2>
+<p>In 1968 the biologist Aristid Lindenmayer devised a way to describe plant growth as text rewriting. An <strong>L-system</strong> has:</p>
+<dl class="vocab">
+  <dt>An axiom</dt><dd>The starting string, for example <code>X</code>.</dd>
+  <dt>Rules</dt><dd>Replacements applied to every character at once, for example <code>F → FF</code>.</dd>
+  <dt>Generations</dt><dd>How many times to apply the rules. The string grows quickly.</dd>
+</dl>
+<p>The finished string is then read as instructions for a <strong>turtle</strong>, a pen with a position and a heading:</p>
+<table>
+  <thead><tr><th>Symbol</th><th>Turtle action</th></tr></thead>
+  <tbody>
+    <tr><td><code>F</code></td><td>Move forward, drawing a line</td></tr>
+    <tr><td><code>+</code> and <code>-</code></td><td>Turn right or left by a fixed angle</td></tr>
+    <tr><td><code>[</code></td><td>Remember the current position and heading (start a branch)</td></tr>
+    <tr><td><code>]</code></td><td>Go back to the last remembered state (end the branch)</td></tr>
+    <tr><td>Anything else</td><td>No drawing. Symbols like <code>X</code> exist only to control growth.</td></tr>
+  </tbody>
+</table>
+<p>The bracket pair is what makes branching possible. Remembered states are kept on a <strong>stack</strong>: <code>[</code> pushes, <code>]</code> pops.</p>
+
+<div class="example" data-title="6.5 An L-system plant">
+<script type="text/plain">
+// 1. grow the string
+const rules = { X: 'F+[[X]-X]-F[-FX]+X', F: 'FF' };
+let s = 'X';
+for (let gen = 0; gen < 5; gen++) {
+  let next = '';
+  for (const ch of s) next += rules[ch] || ch;      // replace, or keep unchanged
+  s = next;
+}
+
+// 2. let a turtle draw it
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#2d6a4f';
+ctx.lineWidth = 1;
+
+const step = 6.2;
+const turn = 25 * Math.PI / 180;       // try 15, 20, 35
+let x = W * 0.24, y = H - 15, a = -Math.PI / 2 + 0.3;
+const stack = [];
+
+ctx.beginPath();
+for (const ch of s) {
+  if (ch === 'F') {
+    ctx.moveTo(x, y);
+    x += Math.cos(a) * step;
+    y += Math.sin(a) * step;
+    ctx.lineTo(x, y);
+  }
+  else if (ch === '+') a += turn;
+  else if (ch === '-') a -= turn;
+  else if (ch === '[') stack.push({ x, y, a });
+  else if (ch === ']') ({ x, y, a } = stack.pop());
+}
+ctx.stroke();
+
+ctx.fillStyle = '#555';
+ctx.font = '13px monospace';
+ctx.fillText('string length: ' + s.length, 14, 24);
+</script>
+</div>
+
+<p>The rule string is the plant's genetic code. Small edits give entirely different species. Two extensions matter in practice:</p>
+<ul>
+  <li><strong>Stochastic L-systems</strong> give a symbol several possible replacements, chosen by weighted chance, so every plant from the same grammar is different.</li>
+  <li><strong>Parametric L-systems</strong> attach numbers to symbols, so that segments can get shorter and thinner as they are generated.</li>
+</ul>
+
+<h2>The Mandelbrot set</h2>
+<p>The most famous fractal comes from asking one question about every point of the plane. Take the point as a constant <code>c</code>, start with <code>z = 0</code>, and repeat <code>z = z² + c</code>. Does <code>z</code> stay small for ever, or shoot off? Points where it stays small are in the set and are painted black. The others are coloured by how many steps they took to escape. All of its endless detail comes from that single line.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="6.6 Escape time">
+<script type="text/plain">
+const img = ctx.createImageData(W, H);
+const maxIter = 80;
+
+// the window onto the plane. try: centre -0.745, 0.11 with span 0.02
+const cx0 = -0.7, cy0 = 0, span = 3;
+
+for (let py = 0; py < H; py++) {
+  for (let px = 0; px < W; px++) {
+    const cx = cx0 + (px / W - 0.5) * span;
+    const cy = cy0 + (py / H - 0.5) * span;
+
+    let x = 0, y = 0, i = 0;
+    while (x * x + y * y < 4 && i < maxIter) {
+      const xt = x * x - y * y + cx;      // z squared plus c, written out for x and y
+      y = 2 * x * y + cy;
+      x = xt;
+      i++;
+    }
+
+    const k = (py * W + px) * 4;
+    const [r, g, b] = i === maxIter
+      ? [0, 0, 0]
+      : PA.cosPaletteRGB(0.6 + Math.sqrt(i / maxIter) * 0.8, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [1, 1, 1], [0, 0.1, 0.2]);
+    img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b;
+    img.data[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+</script>
+</div>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Recursion is a step plus a base case. Depth controls detail, and cost multiplies with every level.</li>
+  <li>A fractal is self-similar: its parts resemble the whole.</li>
+  <li>Strict recursion looks mechanical. Randomising angles, ratios and branch counts makes it look grown.</li>
+  <li>An iterated function system builds a fractal by applying randomly chosen shrinking transformations over and over.</li>
+  <li>An L-system separates <em>growth</em> (rewriting a string) from <em>drawing</em> (a turtle reading it). Brackets and a stack give branching.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>No base case, or a depth that never decreases.</li>
+  <li>Too many L-system generations. The string can reach millions of characters; print its length while you experiment.</li>
+  <li>Unbalanced brackets in a rule, which makes <code>stack.pop()</code> fail.</li>
+  <li>Using the same line width at every depth, which flattens the image. Taper it.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 6</p>
+  <h2>The Grammar Garden</h2>
+  <p>Write your own L-system engine and use it to grow a garden: several species of plant, each defined by a grammar you designed, planted along a ground line from a single seed.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A reusable engine: one function that expands an axiom through rules, and one that draws a string with a turtle.</li>
+    <li><strong>Stochastic rules.</strong> A symbol may have several replacements with weights, for example <code>F: [['F[+F]F', 2], ['F[-F]F', 2], ['FF', 1]]</code>.</li>
+    <li>At least <strong>three species</strong>, each with its own rules, turn angle and step length, and visibly different in character.</li>
+    <li>A garden of at least <strong>seven plants</strong> of varying size along a ground line, all from one seed.</li>
+    <li>Line width <strong>tapers</strong> with branch depth. The length of the turtle's stack tells you how deep you are.</li>
+    <li>Something is drawn at <strong>branch tips</strong>: a leaf, a flower or a berry.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Get the engine working with the grammar from example 6.5 before inventing your own.</li>
+    <li>A tip is the position just before a <code>]</code>. Add a new symbol of your own, such as <code>L</code>, to the rules wherever a leaf should appear, and teach the turtle to draw it.</li>
+    <li>Use <code>ctx.translate</code> and <code>ctx.scale</code> to place each plant, so the turtle can always start at the origin.</li>
+    <li>Because line width changes, stroke each segment separately instead of building one long path.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add a small random wobble to every turn so no two branches are quite parallel.</li>
+    <li>Make segments shorter with depth.</li>
+    <li>Animate growth by drawing a little more of the string each frame.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You can add a fourth species by writing only a new rule set, without touching the engine.</li>
+    <li>Two plants of the same species in the same garden are recognisably related but not identical.</li>
+  </ul>
+  <a class="start" href="../challenges/06-grammar-garden.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="05-particles-and-flow-fields.html">← Lesson 5</a><a href="07-packing-and-partitioning.html">Lesson 7: Packing and Partitioning →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

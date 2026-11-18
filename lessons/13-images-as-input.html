@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 · Images as Input</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="12-typography.html">← Lesson 12</a><span>Lesson 13 of 19</span><a href="14-wave-function-collapse.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 13</p>
+  <h1>Images as Input</h1>
+  <p class="lede">A photograph is a field: a brightness for every point. Feed that field into any of the systems you have built, in place of noise, and the system draws the photograph in its own handwriting. This lesson covers halftones, engraving, dithering, stippling, edge detection and pixel sorting.</p>
+</header>
+
+<h2>An image is a field</h2>
+<p>Since Lesson 1 a field has meant a rule that gives a number for every position. Until now the rule was a formula or noise. An image is the same thing with the numbers stored instead of computed: ask for the brightness at <code>(x, y)</code> and you get a value from 0 to 1.</p>
+<p>So nothing new is needed. Wherever a sketch said <code>N.get(x, y)</code>, it can say <code>image.at(x, y)</code>, and the output takes on the shape of the picture.</p>
+<p>The examples use <code>PA.testImage(size)</code>, which generates a small greyscale "photograph" of a lit ball on a floor, so that the course needs no image files. It returns the pixel data plus an <code>at(x, y)</code> function. Swapping in your own photo is covered at the end.</p>
+
+<h2>Halftone: brightness as size</h2>
+<p>Printing presses cannot print grey, only ink or no ink. Newspapers solved this in the 1880s with the halftone: a regular grid of dots whose <em>size</em> varies. Large dots read as dark, small as light. It is Lesson 1's grid with the image as the field.</p>
+
+<div class="example" data-title="13.1 A halftone">
+<script type="text/plain">
+const spacing = ui.slider('dot spacing', 5, 24, 10, 1);
+const angle = ui.slider('screen angle', 0, 90, 45, 1);
+const image = PA.testImage(300);
+
+function draw() {
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1d2433';
+  const s = spacing(), a = angle() * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+
+  // a grid of dots, rotated about the centre so that the rows are not horizontal
+  for (let j = -60; j < 60; j++) {
+    for (let i = -60; i < 60; i++) {
+      const x = W / 2 + (i * cos - j * sin) * s, y = H / 2 + (i * sin + j * cos) * s;
+      if (x < 0 || x > W || y < 0 || y > H) continue;
+      const dark = 1 - image.at(x / 2, y / 2);            // the image is 300 px, the canvas 600
+      const r = Math.sqrt(dark) * s * 0.7;                // square root, so that AREA follows darkness
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, PA.TAU);
+      ctx.fill();
+    }
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>The square root matters. Ink coverage is the dot's <em>area</em>, which grows with the square of the radius, so the radius must follow the square root of darkness for tones to come out right. The screen is rotated because a pattern at 45° is much less noticeable to the eye than a horizontal one.</p>
+
+<h2>Engraving: brightness as line weight</h2>
+<p>Banknotes and old book illustrations shade with lines that swell and thin. Draw rows of lines across the image and set each short piece's width from the darkness beneath it. Give the lines a wave and the result looks cut by hand.</p>
+
+<div class="example" data-title="13.2 Lines that swell in the shadows">
+<script type="text/plain">
+const image = PA.testImage(300);
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#1b3a2f';
+ctx.lineCap = 'round';
+
+const ROWS = 62;
+for (let j = 0; j < ROWS; j++) {
+  const baseY = (j + 0.5) * (H / ROWS);
+  for (let x = 0; x < W; x += 3) {
+    const y1 = baseY + Math.sin(x * 0.02 + j * 0.3) * 4;                 // a gentle wave
+    const y2 = baseY + Math.sin((x + 3) * 0.02 + j * 0.3) * 4;
+    const dark = 1 - image.at(x / 2, y1 / 2);
+    ctx.lineWidth = 0.3 + dark * dark * 8;                               // thin in light, heavy in shadow
+    ctx.beginPath();
+    ctx.moveTo(x, y1);
+    ctx.lineTo(x + 3, y2);
+    ctx.stroke();
+  }
+}
+</script>
+</div>
+
+<h2>Dithering: only black and white</h2>
+<p>Dithering reduces an image to pure black and pure white pixels while keeping the impression of grey. It was essential for early screens and printers, and is used now for its look. Three methods, in rising quality:</p>
+<dl class="vocab">
+  <dt>Threshold</dt><dd>Black if darker than half, otherwise white. All the mid-tones are lost.</dd>
+  <dt>Ordered</dt><dd>Compare each pixel with a threshold that varies in a small repeating pattern, the Bayer matrix. Gives a regular cross-hatch texture.</dd>
+  <dt>Error diffusion</dt><dd>Decide each pixel in turn, then pass the error you just made on to the neighbours not yet decided, so that it averages out. Floyd and Steinberg's 1976 method is the classic. It gives the most faithful, organic result.</dd>
+</dl>
+
+<div class="example" data-pixel data-w="390" data-h="130" data-title="13.3 Threshold, ordered, error diffusion">
+<script type="text/plain">
+const S = 130;
+const image = PA.testImage(S);
+const out = ctx.createImageData(W, H);
+const set = (x, y, on) => {
+  const k = (y * W + x) * 4, v = on ? 240 : 20;
+  out.data[k] = v; out.data[k + 1] = v; out.data[k + 2] = v - (on ? 12 : 0); out.data[k + 3] = 255;
+};
+
+// 1. plain threshold
+for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) set(x, y, image.at(x, y) > 0.5);
+
+// 2. ordered: the threshold comes from a 4 x 4 pattern that repeats across the image
+const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) set(S + x, y, image.at(x, y) > (bayer[(y % 4) * 4 + (x % 4)] + 0.5) / 16);
+}
+
+// 3. Floyd-Steinberg error diffusion
+const grey = new Float32Array(S * S);
+for (let i = 0; i < S * S; i++) grey[i] = image.at(i % S, Math.floor(i / S));
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) {
+    const i = y * S + x;
+    const on = grey[i] > 0.5;
+    const error = grey[i] - (on ? 1 : 0);            // how wrong was that decision?
+    set(2 * S + x, y, on);
+    if (x + 1 < S) grey[i + 1] += error * 7 / 16;                 // share the error out
+    if (y + 1 < S) {
+      if (x > 0) grey[i + S - 1] += error * 3 / 16;
+      grey[i + S] += error * 5 / 16;
+      if (x + 1 < S) grey[i + S + 1] += error * 1 / 16;
+    }
+  }
+}
+ctx.putImageData(out, 0, 0);
+</script>
+</div>
+
+<h2>Stippling: brightness as probability</h2>
+<p>Maths 5 showed that keeping random points with a probability equal to darkness turns chance into shading. With an image as the darkness function, that is a stipple portrait. It looks better still when the dots are evenly spaced, which is what Lesson 7's Poisson-disc sampling is for: allow the minimum spacing to shrink where the image is dark.</p>
+
+<div class="example" data-title="13.4 A stipple drawing">
+<script type="text/plain">
+const image = PA.testImage(300);
+const R = PA.rng('stipple');
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#20242c';
+
+// candidates from the even sequence of Maths 5, kept with a probability set by darkness
+const g = 1.32471795724474602596, a1 = 1 / g, a2 = 1 / (g * g);
+let kept = 0;
+for (let i = 0; i < 60000; i++) {
+  const x = PA.fract(0.5 + i * a1) * W, y = PA.fract(0.5 + i * a2) * H;
+  const dark = 1 - image.at(x / 2, y / 2);
+  if (R() < dark ** 1.8) {                       // the exponent is the contrast control
+    ctx.beginPath();
+    ctx.arc(x, y, 1.1, 0, PA.TAU);
+    ctx.fill();
+    kept++;
+  }
+}
+ctx.font = '12px monospace';
+ctx.fillText(kept + ' dots', 12, H - 10);
+</script>
+</div>
+
+<h2>Reading structure: gradients and edges</h2>
+<p>Brightness is not the only thing an image can tell a system. Its <strong>gradient</strong> (Maths 3) says where brightness is changing and in which direction, and that reveals structure:</p>
+<ul>
+  <li>Where the gradient is <strong>large</strong> there is an edge. Measuring it at every pixel is edge detection. The Sobel operator does it with a weighted difference of the pixel's neighbours.</li>
+  <li>The gradient's <strong>direction</strong> points across an edge. Turned a quarter turn, it runs along the form, which is the direction a draughtsman's hatching follows.</li>
+</ul>
+<p>The left panel shows the strength of the gradient: an edge map. The right panel draws short strokes along the contours, with length and weight set by darkness. That is a flow field (Lesson 5) whose angles come from an image instead of from noise.</p>
+
+<div class="example" data-h="300" data-title="13.5 Edges, and strokes that follow the form">
+<script type="text/plain">
+const image = PA.testImage(300);
+const R = PA.rng('hatch');
+
+// the gradient at a point, by differences between neighbours (the Sobel operator)
+function gradient(x, y) {
+  const gx = (image.at(x + 1, y - 1) + 2 * image.at(x + 1, y) + image.at(x + 1, y + 1))
+           - (image.at(x - 1, y - 1) + 2 * image.at(x - 1, y) + image.at(x - 1, y + 1));
+  const gy = (image.at(x - 1, y + 1) + 2 * image.at(x, y + 1) + image.at(x + 1, y + 1))
+           - (image.at(x - 1, y - 1) + 2 * image.at(x, y - 1) + image.at(x + 1, y - 1));
+  return [gx, gy];
+}
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, 300, H);
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(300, 0, 300, H);
+
+// left: edge strength at every pixel
+for (let y = 0; y < 300; y++) {
+  for (let x = 0; x < 300; x++) {
+    const [gx, gy] = gradient(x, y);
+    const edge = PA.clamp(Math.hypot(gx, gy) * 2.2);
+    if (edge < 0.08) continue;
+    ctx.fillStyle = 'rgba(255, 214, 102, ' + edge.toFixed(2) + ')';
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+// right: strokes drawn along the contours
+ctx.strokeStyle = '#1d2433';
+ctx.lineCap = 'round';
+for (let i = 0; i < 4200; i++) {
+  const x = R.range(300), y = R.range(300);
+  const dark = 1 - image.at(x, y);
+  if (R() > dark * 1.1 + 0.05) continue;
+  const [gx, gy] = gradient(x, y);
+  const a = Math.hypot(gx, gy) > 0.02 ? Math.atan2(gy, gx) + Math.PI / 2 : 0.6;     // along the edge, or a default angle on flat areas
+  const len = 2 + dark * 7;
+  ctx.lineWidth = 0.4 + dark * 1.2;
+  ctx.beginPath();
+  ctx.moveTo(300 + x - Math.cos(a) * len, y - Math.sin(a) * len);
+  ctx.lineTo(300 + x + Math.cos(a) * len, y + Math.sin(a) * len);
+  ctx.stroke();
+}
+</script>
+</div>
+
+<h2>Pixel sorting</h2>
+<p>Some image effects rearrange the pixels themselves. In pixel sorting, popularised by the artist Kim Asendorf around 2010, each row or column is scanned for runs of pixels brighter than a threshold, and each run is sorted by brightness. Detailed areas dissolve into smooth streaks while dark areas stay intact, as if the picture were melting.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="13.6 Sorting the bright runs of every column">
+<script type="text/plain">
+const threshold = ui.slider('threshold', 0.1, 0.9, 0.35, 0.01);
+const image = PA.testImage(300);
+
+function draw() {
+  const out = ctx.createImageData(W, H);
+  for (let x = 0; x < W; x++) {
+    const column = [];
+    for (let y = 0; y < H; y++) column.push(image.at(x, y));
+
+    let y = 0;
+    while (y < H) {
+      if (column[y] < threshold()) { y++; continue; }            // dark pixels are left alone
+      let end = y;
+      while (end < H && column[end] >= threshold()) end++;       // find the end of this bright run
+      const run = column.slice(y, end).sort((a, b) => b - a);    // sort it from light to dark
+      for (let i = y; i < end; i++) column[i] = run[i - y];
+      y = end;
+    }
+
+    for (let y2 = 0; y2 < H; y2++) {
+      const k = (y2 * W + x) * 4, v = column[y2];
+      out.data[k] = 30 + v * 225; out.data[k + 1] = 20 + v * 200; out.data[k + 2] = 60 + v * 150; out.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Using your own photograph</h2>
+<p>Any image can replace the test picture. Draw it onto a hidden canvas and read the pixels, which is all <code>PA.testImage</code> does. The simplest reliable way to load a file in a page opened from your own disk is a file picker:</p>
+<pre><code>&lt;input type="file" id="pick" accept="image/*"&gt;
+
+document.getElementById('pick').addEventListener('change', (e) =&gt; {
+  const photo = new Image();
+  photo.onload = () =&gt; {
+    const hidden = document.createElement('canvas');
+    hidden.width = hidden.height = 300;
+    const g = hidden.getContext('2d');
+    g.drawImage(photo, 0, 0, 300, 300);                       // scaled to 300 x 300
+    const pixels = g.getImageData(0, 0, 300, 300).data;
+
+    // brightness from 0 to 1, weighting green most, as the eye does
+    const at = (x, y) =&gt; {
+      const k = (Math.floor(y) * 300 + Math.floor(x)) * 4;
+      return (0.2126 * pixels[k] + 0.7152 * pixels[k + 1] + 0.0722 * pixels[k + 2]) / 255;
+    };
+    draw(at);                                                 // your sketch, given the new field
+  };
+  photo.src = URL.createObjectURL(e.target.files[0]);
+});</code></pre>
+<p>Loading an image by its file name instead (<code>photo.src = 'portrait.jpg'</code>) works when the page is served by a web server. Opened straight from disk, browsers refuse to let a script read the pixels of such an image, as a security measure. The file picker avoids the problem.</p>
+<p>Choose source images with strong, simple tones. Most of these techniques throw away detail, and a photograph with a clear subject against a plain background survives best. Raise the contrast before sampling.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>An image is a field of brightness. Use it wherever you used noise.</li>
+  <li>Halftone maps darkness to dot size, by area. Engraving maps it to line weight.</li>
+  <li>Dithering represents grey with black and white. Error diffusion passes each mistake on to its neighbours.</li>
+  <li>Stippling keeps points with a probability equal to darkness.</li>
+  <li>The image's gradient gives edges, and the direction for strokes that follow form.</li>
+  <li>Read a photo's pixels by drawing it to a hidden canvas.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Sampling a huge photo at full size. Scale it down first: 300 pixels across is plenty for most treatments.</li>
+  <li>Forgetting the square root in a halftone, which makes mid-tones too light.</li>
+  <li>Marks so fine or so coarse that the image is lost. Squint at the result: the subject should still be there.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 13</p>
+  <h2>A Portrait in Marks</h2>
+  <p>Build a tool that redraws any photograph in a mark-making style of your own invention, good enough to print.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>file picker</strong> loads the user's own image. Until one is chosen, the tool shows a generated test image.</li>
+    <li>The image drives <strong>at least two different properties</strong> of your marks: for example size and angle, or density and colour.</li>
+    <li>At least one property uses the image's <strong>gradient</strong>, not just its brightness.</li>
+    <li>The marks are <strong>your own design</strong>, not plain dots: strokes, small shapes, letters, loops.</li>
+    <li>A <strong>contrast control</strong> and a <strong>density control</strong>, as sliders or keys.</li>
+    <li>Seeded, so that the same photo and seed always give the same drawing.</li>
+    <li>Output at <strong>print resolution</strong>: the drawing is produced at 2400 pixels or more, or as SVG.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Get it working on the test image first. Its simple tones make problems obvious.</li>
+    <li>Work in unit coordinates so that the preview and the print render come from the same code.</li>
+    <li>Blur the source slightly before taking gradients. Photographs are noisy, and noise makes stroke directions jitter.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Use colour: sample the photo's hue and map it onto a limited palette from Lesson 11.</li>
+    <li>Plotter output: lines only, sorted to reduce pen travel (Special Topic 3).</li>
+    <li>Animate the drawing being made, stroke by stroke.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Three very different photographs all give a recognisable, attractive result.</li>
+    <li>People ask what technique it is.</li>
+  </ul>
+  <a class="start" href="../challenges/13-portrait-in-marks.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="12-typography.html">← Lesson 12</a><a href="14-wave-function-collapse.html">Lesson 14: Wave Function Collapse →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

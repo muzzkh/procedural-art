@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 13 · A Portrait in Marks</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #111; color: #cfd6dd; font: 14px system-ui, sans-serif; }
+  body { display: grid; place-items: center; gap: 12px; padding: 16px; }
+  canvas { max-width: 90vmin; max-height: 82vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<label>Choose a photograph: <input type="file" id="pick" accept="image/*"></label>
+<canvas id="canvas" width="1200" height="1200"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 13 — A PORTRAIT IN MARKS
+   Full brief: ../lessons/13-images-as-input.html
+
+   Checklist
+   [ ] A file picker loads the user's own image; a generated test image shows until then
+   [ ] The image drives at least two different properties of your marks
+   [ ] At least one property uses the image's gradient
+   [ ] The marks are your own design, not plain dots
+   [ ] A contrast control and a density control
+   [ ] Seeded: the same photo and seed always give the same drawing
+   [ ] Output at print resolution (2400 px or more), or as SVG
+   [ ] Three very different photographs all give a recognisable, attractive result */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const SIZE = 300;                         // the source is always sampled at 300 x 300
+let seed = 1;
+let at = PA.testImage(SIZE).at;           // brightness 0..1 at (x, y), with x and y from 0 to 300
+
+function gradient(x, y) {
+  // ---- how brightness changes in x and in y at this point (Lesson 13, example 13.5) ----
+  return [0, 0];
+}
+
+function draw() {
+  const R = PA.rng(seed);
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+
+  // ---- your marks here. sample with at(u * SIZE, v * SIZE) for u, v from 0 to 1 ----
+
+}
+
+draw();
+
+document.getElementById('pick').addEventListener('change', (e) => {
+  const photo = new Image();
+  photo.onload = () => {
+    const hidden = document.createElement('canvas');
+    hidden.width = hidden.height = SIZE;
+    const g = hidden.getContext('2d');
+    g.drawImage(photo, 0, 0, SIZE, SIZE);
+    const pixels = g.getImageData(0, 0, SIZE, SIZE).data;
+    at = (x, y) => {
+      const ix = Math.min(SIZE - 1, Math.max(0, Math.floor(x))), iy = Math.min(SIZE - 1, Math.max(0, Math.floor(y)));
+      const k = (iy * SIZE + ix) * 4;
+      return (0.2126 * pixels[k] + 0.7152 * pixels[k + 1] + 0.0722 * pixels[k + 2]) / 255;
+    };
+    draw();
+  };
+  photo.src = URL.createObjectURL(e.target.files[0]);
+});
+
+// TODO: contrast and density controls, a key for a new seed, and print-size export
+</script>
+</body>
+</html>

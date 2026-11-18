@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 9 · Shaders and Distance Fields</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="08-simulation-and-emergence.html">← Lesson 8</a><span>Lesson 9 of 19</span><a href="10-systems-and-finishing.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 9</p>
+  <h1>Shaders and Distance Fields</h1>
+  <p class="lede">So far you have told the computer which shapes to draw. A shader turns the question round: for this one pixel, what colour should it be? Answer that with a formula and the graphics card will evaluate it for every pixel at once, sixty times a second.</p>
+</header>
+
+<h2>Thinking per pixel</h2>
+<p>You have already written per-pixel code: the terrain in Lesson 3, the Mandelbrot set in Lesson 6. The pattern was a double loop over <code>x</code> and <code>y</code>, with a function inside that computed a colour from the position. A <strong>fragment shader</strong> is exactly that inner function. You never write the loop. The function has no memory and cannot see other pixels: it receives a coordinate and returns a colour.</p>
+<p>The first step in almost every shader is to convert the pixel coordinate into a convenient one, usually with the origin at the centre and the vertical range running from −1 to 1.</p>
+
+<h2>Signed distance functions</h2>
+<p>If a pixel cannot draw a circle, how do you get one? By asking of every pixel: <em>how far am I from the edge of the circle?</em></p>
+<p>A <strong>signed distance function</strong> (SDF) returns the distance from a point to the nearest edge of a shape: negative inside, zero exactly on the edge, positive outside. For a circle of radius <code>r</code> centred on the origin it is one line: the distance from the origin, minus <code>r</code>.</p>
+<p>Here is that idea in ordinary JavaScript first, so that nothing new is involved except the idea itself.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="9.1 A distance field, computed in JavaScript">
+<script type="text/plain">
+const img = ctx.createImageData(W, H);
+
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    // pixel coordinate -> centred coordinate, -1 to 1
+    const u = (x / W) * 2 - 1;
+    const v = (y / H) * 2 - 1;
+
+    // signed distance to a circle of radius 0.5
+    const d = Math.hypot(u, v) - 0.5;
+
+    // what to do with the distance is up to you:
+    const bands = Math.sin(d * 50) * 0.5 + 0.5;       // rings at equal distances
+    const k = (y * W + x) * 4;
+    if (d < 0) {                                      // inside: warm
+      img.data[k] = 255; img.data[k + 1] = 150 + bands * 80; img.data[k + 2] = 60;
+    } else {                                          // outside: cool
+      img.data[k] = 20; img.data[k + 1] = 40 + bands * 60; img.data[k + 2] = 90 + bands * 90;
+    }
+    img.data[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+</script>
+</div>
+
+<p>The distance gives you more than inside or outside. You get the outline (where <code>d</code> is near zero), a glow (brightness falling with <code>d</code>), contour rings (a sine of <code>d</code>), and soft edges, all from one number.</p>
+
+<h2>GLSL in five minutes</h2>
+<p>Shaders are written in GLSL, a small language that looks like C. The differences from JavaScript that matter:</p>
+<ul>
+  <li><strong>Types are declared</strong>: <code>float d = 0.5;</code>. Decimal numbers must have a decimal point: write <code>2.0</code>, not <code>2</code>.</li>
+  <li><strong>Vectors are built in</strong>: <code>vec2</code>, <code>vec3</code>, <code>vec4</code>. Arithmetic works on all components at once, and you can pick components by name: <code>p.x</code>, <code>p.xy</code>, <code>col.rgb</code>.</li>
+  <li><strong>Useful functions are built in</strong>, and are the vocabulary of shader writing:</li>
+</ul>
+<table>
+  <thead><tr><th>Function</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>length(v)</code></td><td>Length of a vector, so distance from the origin</td></tr>
+    <tr><td><code>mix(a, b, t)</code></td><td>The same as <code>lerp</code></td></tr>
+    <tr><td><code>step(edge, x)</code></td><td>0 if <code>x</code> is below the edge, otherwise 1. A hard threshold.</td></tr>
+    <tr><td><code>smoothstep(a, b, x)</code></td><td>A smooth ramp from 0 to 1 as <code>x</code> goes from <code>a</code> to <code>b</code>. A soft threshold.</td></tr>
+    <tr><td><code>fract(x)</code></td><td>The fractional part. Makes anything repeat.</td></tr>
+    <tr><td><code>abs</code>, <code>min</code>, <code>max</code>, <code>clamp</code>, <code>sin</code>, <code>cos</code>, <code>atan</code>, <code>pow</code>, <code>exp</code>, <code>dot</code></td><td>As you would expect</td></tr>
+  </tbody>
+</table>
+<p>In the shader examples on this page, three inputs are provided: <code>u_res</code> (the canvas size in pixels), <code>u_time</code> (seconds) and <code>u_mouse</code> (pixels). <code>gl_FragCoord.xy</code> is the current pixel's position, and you set <code>gl_FragColor</code> to the colour you want, as red, green, blue and alpha from 0 to 1.</p>
+
+<div class="example" data-mode="shader" data-title="9.2 The same circle as a shader">
+<script type="text/plain">
+void main() {
+  // pixel position -> centred coordinates, y from -1 to 1
+  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  float d = length(uv) - 0.5;                    // signed distance to a circle
+
+  vec3 col = vec3(0.07, 0.09, 0.12);             // background
+
+  // fill: 1 inside, 0 outside, with a soft edge 0.01 wide
+  float inside = 1.0 - smoothstep(0.0, 0.01, d);
+  col = mix(col, vec3(1.0, 0.82, 0.4), inside);
+
+  // ripples outside the circle, fading with distance
+  float ripple = sin(d * 60.0 - u_time * 3.0) * exp(-3.0 * d);
+  col += 0.2 * ripple * step(0.0, d);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<p>Try it: change <code>0.01</code> in the <code>smoothstep</code> to <code>0.3</code> for a blurred edge. Replace <code>length(uv)</code> with <code>max(abs(uv.x), abs(uv.y))</code> and the circle becomes a square, because that expression is the distance in a different sense.</p>
+
+<h2>Combining shapes</h2>
+<p>The real power of distance functions is that shapes combine with arithmetic:</p>
+<table>
+  <thead><tr><th>Operation</th><th>Formula</th></tr></thead>
+  <tbody>
+    <tr><td>Union (either shape)</td><td><code>min(a, b)</code></td></tr>
+    <tr><td>Intersection (both)</td><td><code>max(a, b)</code></td></tr>
+    <tr><td>Subtraction (a with b cut out)</td><td><code>max(a, -b)</code></td></tr>
+    <tr><td>Outline or ring</td><td><code>abs(a) - thickness</code></td></tr>
+    <tr><td>Grow or round the corners</td><td><code>a - amount</code></td></tr>
+    <tr><td>Smooth union (shapes melt together)</td><td><code>smin(a, b, k)</code>, defined below</td></tr>
+  </tbody>
+</table>
+<p>The smooth union is the one that makes SDF art look the way it does: shapes that approach each other reach out and merge like drops of liquid.</p>
+
+<div class="example" data-mode="shader" data-title="9.3 Shapes that melt together">
+<script type="text/plain">
+float sdCircle(vec2 p, float r) {
+  return length(p) - r;
+}
+
+float sdBox(vec2 p, vec2 halfSize) {
+  vec2 q = abs(p) - halfSize;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+}
+
+// smooth minimum: like min(), but blends when a and b are within k of each other
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  float t = u_time;
+
+  // to move a shape, subtract its position from the coordinate
+  float d = sdBox(uv, vec2(0.25));
+  d = smin(d, sdCircle(uv - 0.6 * vec2(cos(t), sin(t * 1.3)), 0.2), 0.25);
+  d = smin(d, sdCircle(uv - 0.6 * vec2(cos(t * 0.7 + 2.0), sin(t * 0.9 + 1.0)), 0.15), 0.25);
+
+  vec3 col = d < 0.0 ? vec3(0.95, 0.45, 0.3) : vec3(0.1, 0.13, 0.2);
+  col *= 0.8 + 0.2 * cos(d * 90.0);                              // contour bands
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.0, 0.012, abs(d)));   // white outline at d = 0
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<p>Try it: replace each <code>smin(..., 0.25)</code> with plain <code>min(...)</code> to see the hard union. Then try <code>max(d, -sdCircle(...))</code> to make the circles carve holes.</p>
+
+<h2>Bending space</h2>
+<p>A shape is a function of position. So if you alter the position <em>before</em> handing it to the shape, the shape changes. This is called a <strong>domain operation</strong>, and one line can have a dramatic effect:</p>
+<table>
+  <thead><tr><th>Change to the coordinate</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>p - offset</code></td><td>Moves the shape</td></tr>
+    <tr><td><code>p * rotation matrix</code></td><td>Rotates it</td></tr>
+    <tr><td><code>abs(p)</code></td><td>Mirrors it across both axes</td></tr>
+    <tr><td><code>fract(p) - 0.5</code></td><td>Repeats it for ever in a grid</td></tr>
+    <tr><td><code>p + noise(p)</code></td><td>Warps it (Lesson 3's domain warping)</td></tr>
+  </tbody>
+</table>
+<p>The repetition trick is worth understanding. <code>fract</code> throws away the whole-number part of a coordinate, so every unit square of the plane ends up with the same local coordinates and draws the same shape. The whole-number part, <code>floor(p)</code>, tells you <em>which</em> cell you are in, which you can use to make each copy a little different.</p>
+<p>This example also introduces the <strong>cosine palette</strong>, the same one behind <code>PA.cosPalette</code>. Three cosine waves, one per colour channel, slightly out of phase, give a smooth endless colour ramp from a single number. Changing the phase offsets changes the whole colour scheme.</p>
+
+<div class="example" data-mode="shader" data-title="9.4 Infinite repetition from one shape">
+<script type="text/plain">
+float sdBox(vec2 p, vec2 halfSize) {
+  vec2 q = abs(p) - halfSize;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+}
+
+mat2 rotate(float a) {
+  float c = cos(a), s = sin(a);
+  return mat2(c, -s, s, c);
+}
+
+// cosine palette: three waves, out of phase. change the three offsets for new schemes
+vec3 palette(float t) {
+  return 0.5 + 0.5 * cos(6.28318 * (t + vec3(0.0, 0.33, 0.67)));
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  vec2 grid = uv * 4.0;
+  vec2 id = floor(grid);              // which cell am I in?
+  vec2 p = fract(grid) - 0.5;         // where am I inside that cell? (-0.5 to 0.5)
+
+  p *= rotate(u_time * 0.6 + (id.x + id.y) * 0.4);      // each cell turns with its own delay
+  float size = 0.18 + 0.1 * sin(u_time + length(id) * 0.8);
+  float d = sdBox(p, vec2(size));
+
+  vec3 col = palette(length(id) * 0.12 + u_time * 0.1);
+  col *= 1.0 - smoothstep(0.0, 0.02, d);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Noise in a shader</h2>
+<p>GLSL has no random or noise function, so shader writers build their own, usually the value noise you wrote in Lesson 3. The hash is a notorious one-liner: take a sine, multiply by a huge number, and keep the fractional part. With noise available, fBm and domain warping follow exactly as before, and because they now run on the graphics card they can animate at full speed.</p>
+
+<div class="example" data-mode="shader" data-title="9.5 Animated domain warping">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {                 // value noise, as in Lesson 3
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i),                  hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+float fbm(vec2 p) {
+  float sum = 0.0, amp = 0.5;
+  for (int i = 0; i < 5; i++) {
+    sum += amp * noise(p);
+    p *= 2.0;
+    amp *= 0.5;
+  }
+  return sum;
+}
+
+vec3 palette(float t) {
+  return 0.5 + 0.5 * cos(6.28318 * (t + vec3(0.0, 0.1, 0.2)));
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res.y * 3.0;
+
+  vec2 q = vec2(fbm(uv + u_time * 0.10), fbm(uv + vec2(5.2, 1.3) - u_time * 0.07));
+  float v = fbm(uv + 2.5 * q);                    // noise sampled at a warped position
+
+  vec3 col = palette(v * 0.9 + length(q) * 0.4 + 0.55);
+  col *= 0.35 + v * 1.1;
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>A glimpse of three dimensions</h2>
+<p>Distance functions work in 3D without change: a sphere is still <code>length(p) - r</code>, with <code>p</code> now a <code>vec3</code>. To render a 3D scene, each pixel fires a ray from a camera and walks along it. At every stop it asks the scene's distance function how far the nearest surface is, and steps forward by exactly that much, since it cannot hit anything sooner. When the distance becomes tiny it has arrived. This is <strong>raymarching</strong>, also called sphere tracing. Everything from this lesson (smooth unions, repetition, warping) carries straight over, which is how single-shader 3D worlds are made.</p>
+
+<div class="example" data-mode="shader" data-title="9.6 Raymarching a tiny scene">
+<script type="text/plain">
+// the whole 3D scene is this one distance function
+float scene(vec3 p) {
+  float sphere = length(p - vec3(0.0, 0.25 * sin(u_time), 0.0)) - 1.0;
+  float ground = p.y + 1.0;
+  return min(sphere, ground);
+}
+
+// surface direction: which way does the distance increase fastest?
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(
+    scene(p + e.xyy) - scene(p - e.xyy),
+    scene(p + e.yxy) - scene(p - e.yxy),
+    scene(p + e.yyx) - scene(p - e.yyx)));
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  vec3 origin = vec3(0.0, 0.5, -4.0);              // camera position
+  vec3 dir = normalize(vec3(uv, 1.5));             // one ray per pixel
+
+  float t = 0.0;                                   // distance travelled along the ray
+  for (int i = 0; i < 80; i++) {
+    float d = scene(origin + dir * t);
+    if (d < 0.001 || t > 30.0) break;              // hit something, or gone too far
+    t += d;                                        // safe to step this far
+  }
+
+  vec3 col = vec3(0.55, 0.7, 0.9) - dir.y * 0.4;   // sky
+  if (t < 30.0) {
+    vec3 p = origin + dir * t;
+    vec3 n = normalAt(p);
+    vec3 light = normalize(vec3(0.6, 0.8, -0.5));
+    float diffuse = max(dot(n, light), 0.0);       // brighter where the surface faces the light
+
+    vec3 surface = vec3(0.9, 0.5, 0.3);
+    if (p.y < -0.99) {                             // the ground gets a checker pattern
+      surface = vec3(0.35 + 0.3 * mod(floor(p.x) + floor(p.z), 2.0));
+    }
+    col = surface * (0.25 + 0.75 * diffuse);
+    col = mix(col, vec3(0.55, 0.7, 0.9), 1.0 - exp(-0.02 * t * t));    // distance fog
+  }
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A fragment shader is a function from pixel position to colour, run for all pixels in parallel.</li>
+  <li>A signed distance function returns how far a point is from a shape's edge. Negative means inside.</li>
+  <li><code>smoothstep</code> on a distance gives clean anti-aliased edges.</li>
+  <li>Shapes combine with <code>min</code>, <code>max</code> and <code>smin</code>.</li>
+  <li>Changing the coordinate before evaluating a shape moves, rotates, mirrors, repeats or warps it.</li>
+  <li>A cosine palette turns one number into a smooth colour ramp.</li>
+  <li>The same toolkit extends to 3D through raymarching.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Writing <code>2</code> where GLSL wants <code>2.0</code>. Whole-number and decimal types do not mix.</li>
+  <li>Forgetting the aspect-ratio correction, so circles come out as ovals on a non-square canvas.</li>
+  <li>Trying to remember things between frames. A shader has no state; everything must be computed from position and time.</li>
+  <li>Using <code>step</code> for edges and getting jagged outlines. Use <code>smoothstep</code> across a pixel's width.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 9</p>
+  <h2>The Shader Sigil</h2>
+  <p>Design an animated emblem, a single symbol that could stand for you, written entirely as one fragment shader. No shapes are drawn: every pixel computes its own colour from distance functions.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>At least <strong>three SDF primitives</strong>, with at least one that you worked out yourself beyond the circle and box (a ring, a line segment, a triangle, a star).</li>
+    <li>At least <strong>two different combining operations</strong>, one of which is a smooth union or a subtraction.</li>
+    <li>At least <strong>one domain operation</strong>: mirroring, rotation, repetition or warping.</li>
+    <li>Colour from a <strong>cosine palette</strong> whose phases you chose.</li>
+    <li>Animation that <strong>loops seamlessly</strong>. Drive everything from <code>sin</code> and <code>cos</code> of time multiplied by whole-number multiples of one base speed.</li>
+    <li>All edges anti-aliased with <code>smoothstep</code>.</li>
+    <li>Written by you. Use the examples above as a reference for technique, not as a template to recolour.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Build one shape at a time and view its distance as contour bands (as in example 9.3) until it looks right.</li>
+    <li>For a kaleidoscope, convert to polar coordinates with <code>atan(uv.y, uv.x)</code> and <code>length(uv)</code>, fold the angle with <code>mod</code>, then convert back.</li>
+    <li>A ring is <code>abs(sdCircle(p, r)) - thickness</code>.</li>
+    <li>A glow is <code>0.01 / abs(d)</code>, or <code>exp(-k * abs(d))</code>, added to the colour.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Make it respond to <code>u_mouse</code>.</li>
+    <li>Add a fine noise grain so it looks printed, not rendered.</li>
+    <li>Rebuild it in 3D with raymarching.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>A still frame would work as a logo, and the motion has no visible jump when it loops.</li>
+    <li>You can explain what every line contributes to the final colour.</li>
+  </ul>
+  <a class="start" href="../challenges/09-shader-sigil.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="08-simulation-and-emergence.html">← Lesson 8</a><a href="10-systems-and-finishing.html">Lesson 10: Systems and Finishing →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

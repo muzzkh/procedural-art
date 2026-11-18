@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 4 · Sound and Generative Music</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-into-the-real-world.html">← Special 3</a><span>Special topic 4 of 9</span><a href="05-live-hardware.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 4</p>
+  <h1>Sound and Generative Music</h1>
+  <p class="lede">Sound is made by rules as readily as pictures are. The browser has a complete synthesiser built in, and every idea in this course, seeds, weighted choice, noise, automata, physics, makes music when it is pointed at pitch and time instead of position and colour.</p>
+</header>
+
+<div class="note"><p><strong>About the examples.</strong> Each one is silent until you click its canvas, and plays quietly. Browsers do not allow a page to make sound before the visitor has interacted with it, so starting on a click is required as well as polite. Press Run again on an example to stop it.</p></div>
+
+<h2>How sound is made in the browser</h2>
+<p>The Web Audio API works by connecting small processing units, called <strong>nodes</strong>, into a chain that ends at the speakers. Three are enough to make music:</p>
+<dl class="vocab">
+  <dt>Oscillator</dt><dd>Produces a steady tone at a frequency you set. Its wave shape sets the character: a sine is pure, a triangle is soft, a sawtooth is bright and buzzy, a square is hollow.</dd>
+  <dt>Gain</dt><dd>A volume control. Changing it over time gives a note its shape.</dd>
+  <dt>Destination</dt><dd>The speakers.</dd>
+</dl>
+<p>A raw oscillator switched on and off clicks unpleasantly. A note needs an <strong>envelope</strong>: the volume rises quickly (the attack) and then dies away (the decay). A fast attack and long decay sounds plucked or struck. A slow attack sounds bowed or blown.</p>
+<h3>Pitch</h3>
+<p>Pitch is frequency, in cycles per second. Musical pitch is exponential, like the growth in Maths 1: each octave doubles the frequency, and each of the twelve semitones in an octave multiplies it by the twelfth root of two. Numbering the notes (middle C is 60, the A above it is 69 and sounds at 440) gives:</p>
+<p class="formula">frequency = 440 × 2<sup>(note − 69) / 12</sup></p>
+<p>Choosing notes at random from all twelve semitones sounds like a cat on a piano. Restricting them to a <strong>scale</strong>, a subset of the twelve, makes almost anything sound intentional. The five-note pentatonic scale is the most forgiving: no two of its notes clash.</p>
+
+<h2>A melody from a rule</h2>
+<p>The simplest generative melody is a random walk (Lesson 2) along a scale: each note is the previous one, moved up or down by a small weighted step. Small steps are common and leaps are rare, as in sung melodies. Note lengths come from a weighted choice too.</p>
+<p>Timing matters. Sound must be scheduled precisely, and the animation loop is not precise. So the code looks a little way ahead and books each note in advance on the audio clock, <code>audio.currentTime</code>, which is exact.</p>
+
+<div class="example" data-title="S4.1 A wandering melody (click the canvas to start)">
+<script type="text/plain">
+const R = PA.rng();
+const SCALE = [0, 2, 4, 7, 9];                       // pentatonic: steps above the root, in semitones
+const ROOT = 57;                                     // the A below middle C
+let audio = null, master = null, nextTime = 0, degree = 7;
+const played = [];                                   // for the picture: { time, degree, length }
+
+canvas.onclick = () => {
+  if (audio) return;
+  audio = new AudioContext();
+  master = audio.createGain();
+  master.gain.value = 0.25;                          // overall volume: quiet
+  master.connect(audio.destination);
+  nextTime = audio.currentTime + 0.1;
+};
+cleanup(() => { if (audio) audio.close(); });
+
+function play(note, when, length) {
+  const osc = audio.createOscillator(), gain = audio.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = 440 * 2 ** ((note - 69) / 12);
+  gain.gain.setValueAtTime(0, when);
+  gain.gain.linearRampToValueAtTime(0.5, when + 0.01);                     // attack: 10 milliseconds
+  gain.gain.exponentialRampToValueAtTime(0.001, when + length);            // decay
+  osc.connect(gain);
+  gain.connect(master);
+  osc.start(when);
+  osc.stop(when + length + 0.05);
+}
+
+loop(() => {
+  ctx.fillStyle = '#12151c';
+  ctx.fillRect(0, 0, W, H);
+  if (!audio) {
+    ctx.fillStyle = '#cfd6dd'; ctx.font = '16px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('click to start (quiet)', W / 2, H / 2);
+    return;
+  }
+
+  // book notes a little ahead of time, on the audio clock
+  while (nextTime < audio.currentTime + 0.2) {
+    degree = PA.clamp(degree + R.weighted([-2, -1, 0, 1, 2, 4], [1, 4, 1, 4, 1, 0.5]), 0, 14);     // mostly small steps
+    const note = ROOT + SCALE[degree % 5] + 12 * Math.floor(degree / 5);
+    const length = R.weighted([0.2, 0.4, 0.8], [4, 3, 1]);
+    play(note, nextTime, length * 1.5);
+    played.push({ time: nextTime, degree, length });
+    nextTime += length;
+  }
+
+  // the picture: a piano roll scrolling to the left
+  const now = audio.currentTime;
+  for (const n of played) {
+    const x = W - 80 - (now - n.time) * 120;
+    if (x < -100) continue;
+    ctx.fillStyle = PA.oklch(0.75, 0.15, 200 + n.degree * 14);
+    ctx.fillRect(x, H - 60 - n.degree * 32, n.length * 120 - 3, 14);
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(W - 80, 30, 1, H - 60);               // now
+});
+</script>
+</div>
+
+<h2>Rhythm from a rule</h2>
+<p>Rhythm is a pattern of hits and rests on a grid of steps. A remarkably musical way to generate one is to spread a number of hits <em>as evenly as possible</em> over a number of steps. Three hits over eight steps gives the pattern heard across Cuban, West African and rock music. Five over eight, seven over sixteen and others are equally familiar. Godfried Toussaint described these as <strong>Euclidean rhythms</strong> in 2005.</p>
+<p>One line decides whether step <code>i</code> is a hit:</p>
+<pre><code>const isHit = (i, hits, steps) =&gt; (i * hits) % steps &lt; hits;</code></pre>
+<p>Layering several such patterns with different numbers, each on its own sound, gives a groove. The drums are synthesised as well: a kick is a sine wave whose pitch drops quickly, and a hi-hat is a very short burst of noise.</p>
+
+<div class="example" data-title="S4.2 Three rings of rhythm (click the canvas to start)">
+<script type="text/plain">
+const kick = ui.slider('kick hits', 1, 8, 4, 1);
+const snare = ui.slider('snare hits', 1, 8, 3, 1);
+const hat = ui.slider('hat hits', 1, 16, 7, 1);
+const STEPS = 16, STEP_TIME = 0.13;
+const isHit = (i, hits, steps) => (i * hits) % steps < hits;       // spread the hits evenly
+
+let audio = null, master = null, noise = null, nextTime = 0, step = 0;
+
+canvas.onclick = () => {
+  if (audio) return;
+  audio = new AudioContext();
+  master = audio.createGain();
+  master.gain.value = 0.25;
+  master.connect(audio.destination);
+  noise = audio.createBuffer(1, audio.sampleRate * 0.2, audio.sampleRate);        // a fifth of a second of noise
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  nextTime = audio.currentTime + 0.1;
+};
+cleanup(() => { if (audio) audio.close(); });
+
+function drum(kind, when) {
+  const gain = audio.createGain();
+  gain.connect(master);
+  if (kind === 'hat' || kind === 'snare') {            // noise, cut short
+    const src = audio.createBufferSource();
+    src.buffer = noise;
+    const length = kind === 'hat' ? 0.04 : 0.15;
+    gain.gain.setValueAtTime(kind === 'hat' ? 0.25 : 0.5, when);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + length);
+    src.connect(gain);
+    src.start(when);
+    src.stop(when + length);
+  } else {                                             // kick: a sine falling from 150 to 40 cycles per second
+    const osc = audio.createOscillator();
+    osc.frequency.setValueAtTime(150, when);
+    osc.frequency.exponentialRampToValueAtTime(40, when + 0.12);
+    gain.gain.setValueAtTime(1, when);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + 0.3);
+    osc.connect(gain);
+    osc.start(when);
+    osc.stop(when + 0.32);
+  }
+}
+
+loop(() => {
+  ctx.fillStyle = '#12151c';
+  ctx.fillRect(0, 0, W, H);
+  const parts = [['kick', kick(), '#ef476f', 230], ['snare', snare(), '#ffd166', 170], ['hat', hat(), '#06d6a0', 110]];
+
+  if (audio) {
+    while (nextTime < audio.currentTime + 0.2) {
+      for (const [kind, hits] of parts) if (isHit(step % STEPS, hits, STEPS)) drum(kind, nextTime);
+      nextTime += STEP_TIME;
+      step++;
+    }
+  }
+  const current = audio ? (step - 2 + STEPS * 100) % STEPS : -1;
+
+  for (const [kind, hits, colour, radius] of parts) {
+    for (let i = 0; i < STEPS; i++) {
+      const a = (i / STEPS) * PA.TAU - Math.PI / 2, on = isHit(i, hits, STEPS);
+      ctx.fillStyle = on ? colour : '#2a313c';
+      ctx.beginPath();
+      ctx.arc(W / 2 + Math.cos(a) * radius, H / 2 + Math.sin(a) * radius, on ? (i === current ? 17 : 11) : 5, 0, PA.TAU);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(audio ? 'kick ' + kick() + ' · snare ' + snare() + ' · hat ' + hat() + ' over 16 steps' : 'click to start (quiet)', W / 2, H / 2 + 5);
+});
+</script>
+</div>
+
+<h2>One system, heard and seen</h2>
+<p>The most satisfying audio-visual work does not add sound to a picture or a picture to sound. A single system produces <strong>events</strong>, and each event is both drawn and played. Because they have one cause, the eye and ear agree completely.</p>
+<p>Any simulation from this course generates events: a collision, a cell coming alive, a branch splitting, a particle crossing a line. Here balls bounce inside a circle. Each bounce is one event. It plays a note whose pitch comes from the ball's size, and it draws a ripple where the ball struck. Small balls are high and frequent, large balls low and slow, and the music is whatever the physics happens to do.</p>
+
+<div class="example" data-title="S4.3 Collisions you can hear (click the canvas to start)">
+<script type="text/plain">
+const R = PA.rng();
+const SCALE = [0, 3, 5, 7, 10, 12, 15, 17];          // a minor pentatonic, over two octaves
+const RADIUS = 250;
+const balls = [], ripples = [];
+for (let i = 0; i < 8; i++) {
+  const a = R.range(PA.TAU);
+  balls.push({ x: W / 2 + Math.cos(a) * 100, y: H / 2 + Math.sin(a) * 100, vx: R.range(-3, 3), vy: R.range(-3, 3), size: 26 - i * 2.4, note: 48 + SCALE[i] });
+}
+
+let audio = null, master = null;
+canvas.onclick = () => {
+  if (audio) return;
+  audio = new AudioContext();
+  master = audio.createGain();
+  master.gain.value = 0.2;
+  master.connect(audio.destination);
+};
+cleanup(() => { if (audio) audio.close(); });
+
+// one event: a sound AND a mark
+function strike(ball, x, y) {
+  ripples.push({ x, y, age: 0, hue: 200 + ball.note * 6 });
+  if (!audio) return;
+  const when = audio.currentTime, osc = audio.createOscillator(), gain = audio.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 440 * 2 ** ((ball.note - 69) / 12);
+  gain.gain.setValueAtTime(0, when);
+  gain.gain.linearRampToValueAtTime(0.6, when + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.001, when + 1.2);          // a long, bell-like decay
+  osc.connect(gain);
+  gain.connect(master);
+  osc.start(when);
+  osc.stop(when + 1.3);
+}
+
+loop(() => {
+  ctx.fillStyle = 'rgba(13, 17, 28, 0.35)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#3a4252';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, RADIUS, 0, PA.TAU); ctx.stroke();
+
+  for (const b of balls) {
+    b.x += b.vx; b.y += b.vy;
+    const dx = b.x - W / 2, dy = b.y - H / 2, d = Math.hypot(dx, dy);
+    if (d > RADIUS - b.size) {                                         // it has hit the wall
+      const nx = dx / d, ny = dy / d, dot = b.vx * nx + b.vy * ny;
+      b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny;                      // reflect the velocity
+      b.x = W / 2 + nx * (RADIUS - b.size); b.y = H / 2 + ny * (RADIUS - b.size);
+      strike(b, W / 2 + nx * RADIUS, H / 2 + ny * RADIUS);
+    }
+    ctx.fillStyle = PA.oklch(0.78, 0.15, 200 + b.note * 6);
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, PA.TAU); ctx.fill();
+  }
+  for (const r of ripples) {
+    r.age++;
+    ctx.strokeStyle = PA.oklch(0.8, 0.15, r.hue, 1 - r.age / 50);
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.age * 2.2, 0, PA.TAU); ctx.stroke();
+  }
+  while (ripples.length && ripples[0].age > 50) ripples.shift();
+
+  if (!audio) {
+    ctx.fillStyle = '#cfd6dd'; ctx.font = '15px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('click to hear it (quiet)', W / 2, H - 16);
+  }
+});
+</script>
+</div>
+
+<h2>Rule systems for music</h2>
+<table>
+  <thead><tr><th>System</th><th>From</th><th>Musical use</th></tr></thead>
+  <tbody>
+    <tr><td>Random walk on a scale</td><td>Lesson 2</td><td>Melodies that move by step</td></tr>
+    <tr><td>Weighted choice</td><td>Lesson 2</td><td>Note lengths, rests, which instrument plays</td></tr>
+    <tr><td>Markov chain</td><td>A table of "after this, probably that"</td><td>Melodies and chord sequences in the style of an example</td></tr>
+    <tr><td>Euclidean patterns</td><td>This page</td><td>Drum patterns, repeating bass figures</td></tr>
+    <tr><td>Noise</td><td>Lesson 3</td><td>Slow drift of volume, brightness and tempo. Makes machine music breathe.</td></tr>
+    <tr><td>Cellular automata</td><td>Lesson 8</td><td>Each row is a bar, each live cell a note</td></tr>
+    <tr><td>L-systems</td><td>Lesson 6</td><td>Phrases that develop by rewriting, with self-similar structure</td></tr>
+    <tr><td>Physics and flocking</td><td>Lessons 8 and 17</td><td>Events from collisions and crossings</td></tr>
+    <tr><td>Phasing</td><td>Two loops of slightly different lengths</td><td>Patterns that slowly drift apart and realign, as in the music of Steve Reich</td></tr>
+    <tr><td>Canons and transformations</td><td>Symmetry, Maths 2</td><td>A theme played against itself delayed, reversed or turned upside down</td></tr>
+  </tbody>
+</table>
+<p>The lesson of Lesson 2 holds here too: <strong>structure with a measured amount of chance</strong>. Fix the scale, the tempo and the form, and let randomness choose within them. Brian Eno, who coined the term generative music in the 1990s, built pieces from a few loops of unequal length that never line up the same way twice.</p>
+
+<h2>More of the audio toolkit</h2>
+<table>
+  <thead><tr><th>Node or technique</th><th>What it adds</th></tr></thead>
+  <tbody>
+    <tr><td><code>BiquadFilterNode</code></td><td>Removes high or low frequencies. Sweeping a low-pass filter is the classic synthesiser sound.</td></tr>
+    <tr><td><code>DelayNode</code> with feedback</td><td>Echoes</td></tr>
+    <tr><td><code>ConvolverNode</code></td><td>Reverb: the sound of a room</td></tr>
+    <tr><td><code>StereoPannerNode</code></td><td>Left and right placement. Tie it to an object's x position.</td></tr>
+    <tr><td>Detuned pairs of oscillators</td><td>A richer, warmer tone</td></tr>
+    <tr><td>Frequency modulation</td><td>One oscillator varying another's pitch very fast: bells and metallic tones</td></tr>
+    <tr><td><code>AnalyserNode</code></td><td>Reads the sound back as numbers, to drive visuals (Special Topic 1)</td></tr>
+    <tr><td>Tone.js</td><td>A library that wraps all of this with instruments, timing and effects</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Sound is a chain of nodes: oscillator, gain, destination.</li>
+  <li>A note needs an envelope. Its shape is the instrument's character.</li>
+  <li>Pitch is exponential. Restrict notes to a scale and randomness sounds deliberate.</li>
+  <li>Schedule sounds ahead of time on the audio clock, not in the animation loop.</li>
+  <li>Spreading hits evenly over steps gives rhythms found all over the world.</li>
+  <li>Let one system emit events, and both draw and play each one.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 4</p>
+  <h2>A Piece for Eyes and Ears</h2>
+  <p>Build a system that generates music and image together, from one seed, in which every sound has a visible cause.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Silent until clicked, and <strong>quiet</strong>: a master volume no higher than 0.3.</li>
+    <li>One <strong>simulation or rule system</strong> from the course produces events. Each event both makes a sound and leaves a mark.</li>
+    <li>At least <strong>two voices</strong> with different envelopes and wave shapes.</li>
+    <li>Pitches come from a <strong>scale</strong>, and rhythm has a <strong>pulse</strong>: events are aligned to a grid of steps, or the system itself is periodic.</li>
+    <li>Slow change over a minute or more, driven by <strong>noise</strong>, so that it does not simply repeat.</li>
+    <li><strong>Seeded</strong>: the same seed plays the same piece.</li>
+    <li>Keys to stop, restart and change seed.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Get the simulation running and drawing first, with a <code>console.log</code> where each event happens. Then replace the log with a sound.</li>
+    <li>Fewer notes sound better. If it is a blur, raise the threshold for what counts as an event.</li>
+    <li>Low notes should be long and rare, high notes short and frequent.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add a filter or an echo, with its settings driven by the picture.</li>
+    <li>Record it: connect the master gain to a <code>MediaStreamDestination</code> and use a <code>MediaRecorder</code>, together with the canvas stream from Lesson 15.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>With your eyes shut it sounds like music, and with the sound off it looks like a piece.</li>
+    <li>Someone watching can tell which thing on screen made which sound.</li>
+  </ul>
+  <a class="start" href="../challenges/s4-eyes-and-ears.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="03-into-the-real-world.html">← Special Topic 3</a><a href="05-live-hardware.html">Special Topic 5: Live Hardware →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

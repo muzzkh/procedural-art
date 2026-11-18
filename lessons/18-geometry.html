@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 18 · Geometry Utilities</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="17-physics.html">← Lesson 17</a><span>Lesson 18 of 19</span><a href="19-performance.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 18</p>
+  <h1>Geometry Utilities</h1>
+  <p class="lede">On a screen, a filled shape hides whatever is behind it and a clip region trims whatever sticks out. A pen plotter, a laser cutter and an SVG file have no such luxuries: every line you send is drawn. This lesson builds the small geometric tools that produce clean vector output.</p>
+</header>
+
+<h2>Why vector work needs its own tools</h2>
+<p>Pixels forgive. Paint a rectangle over a line and the line is gone. In vector output the line is still there: the plotter draws it, the laser cuts it. So operations that the canvas does for you by painting have to be done properly, on the geometry itself:</p>
+<table>
+  <thead><tr><th>On a canvas you…</th><th>In vector work you must…</th></tr></thead>
+  <tbody>
+    <tr><td>Call <code>ctx.clip()</code></td><td>Cut each line where it crosses the boundary, and keep the inside part</td></tr>
+    <tr><td>Fill a shape with a colour</td><td>Fill it with lines: hatching, or nested outlines</td></tr>
+    <tr><td>Draw shapes back to front</td><td>Remove the hidden parts of every line</td></tr>
+    <tr><td>Set <code>lineWidth</code></td><td>Offset the path by half the width on each side</td></tr>
+  </tbody>
+</table>
+<p>Throughout this lesson a point is a pair <code>[x, y]</code>, a segment is two points, and a polygon is a list of points in order round its edge.</p>
+
+<h2>Clipping lines to a shape</h2>
+<p>To clip a segment to a convex polygon, think of each edge of the polygon as a boundary line with an inside and an outside. Walk along the segment from its start (<code>t = 0</code>) to its end (<code>t = 1</code>). Each boundary either lets you <em>in</em> at some value of <code>t</code> or puts you <em>out</em> at some value. The part of the segment inside the polygon runs from the latest entry to the earliest exit. If the latest entry comes after the earliest exit, the segment misses the polygon altogether.</p>
+<p>With that one function you can <strong>hatch</strong> any convex shape: generate parallel lines across it and clip each. Hatching is how plotter drawings and engravings shade, with the spacing and angle standing in for tone.</p>
+
+<div class="example" data-title="18.1 Hatching by clipping">
+<script type="text/plain">
+const R = PA.rng();           // run again for a new arrangement
+
+// the part of segment a-b inside a convex polygon, or null
+function clipToConvex(a, b, poly) {
+  let area = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    area += p[0] * q[1] - q[0] * p[1];
+  }
+  const turn = area > 0 ? 1 : -1;                  // which way round the polygon is listed
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  let enter = 0, exit = 1;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    const nx = -(q[1] - p[1]) * turn, ny = (q[0] - p[0]) * turn;      // this edge's inward direction
+    const side = (a[0] - p[0]) * nx + (a[1] - p[1]) * ny;             // positive: a is on the inside of this edge
+    const along = dx * nx + dy * ny;                                  // positive: the segment is heading inward
+    if (along === 0) { if (side < 0) return null; continue; }         // parallel to the edge, and outside it
+    const t = -side / along;
+    if (along > 0) enter = Math.max(enter, t); else exit = Math.min(exit, t);
+    if (enter > exit) return null;
+  }
+  return [[a[0] + dx * enter, a[1] + dy * enter], [a[0] + dx * exit, a[1] + dy * exit]];
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#1d2433';
+ctx.lineCap = 'round';
+let segments = 0;
+
+for (let k = 0; k < 9; k++) {
+  // a convex polygon: a squashed, turned regular polygon
+  const cx = R.range(110, W - 110), cy = R.range(110, H - 110), size = R.range(50, 110), sides = R.int(3, 7), spin = R.range(PA.TAU);
+  const poly = [];
+  for (let i = 0; i < sides; i++) {
+    const a = spin + (i / sides) * PA.TAU;
+    poly.push([cx + Math.cos(a) * size, cy + Math.sin(a) * size * R.range(0.6, 1)]);
+  }
+
+  // parallel lines at this shape's own angle and spacing, each clipped to it
+  const angle = R.range(Math.PI), gap = R.pick([3, 5, 8, 12]);
+  const ux = Math.cos(angle), uy = Math.sin(angle);
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  for (let d = -160; d <= 160; d += gap) {
+    const mx = cx - uy * d, my = cy + ux * d;                          // a point on this hatch line
+    const piece = clipToConvex([mx - ux * 200, my - uy * 200], [mx + ux * 200, my + uy * 200], poly);
+    if (piece) { ctx.moveTo(piece[0][0], piece[0][1]); ctx.lineTo(piece[1][0], piece[1][1]); segments++; }
+  }
+  ctx.stroke();
+
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (const p of poly) ctx.lineTo(p[0], p[1]);
+  ctx.closePath();
+  ctx.stroke();
+}
+ctx.fillStyle = '#555';
+ctx.font = '12px monospace';
+ctx.fillText(segments + ' hatch segments, every one a plain line', 12, H - 12);
+</script>
+</div>
+
+<p>Shapes overlap here, and their hatching crosses. That is cross-hatching for free on a plotter, or a problem to solve with hidden-line removal, depending on what you want. For shapes that are not convex, clip against each convex piece, or use the sampling method later in this lesson.</p>
+
+<h2>Offsetting a polygon</h2>
+<p>To <strong>offset</strong> a polygon is to move its outline inward or outward by a fixed distance. It is one of the most used operations in fabrication: it compensates for the width of a cutter or laser beam (Special Topic 3), it turns a line into a shape with thickness, and repeated inward offsets fill a shape with nested outlines, which plots more smoothly than hatching.</p>
+<p>The method: slide every edge sideways by the offset distance along its inward direction, then find where each pair of neighbouring edges now cross. Those crossings are the corners of the new polygon.</p>
+
+<div class="example" data-title="18.2 Nested outlines by repeated offsetting">
+<script type="text/plain">
+const R = PA.rng();
+const gap = ui.slider('gap', 3, 20, 7, 1);
+
+// where the line through p1-p2 crosses the line through p3-p4
+function cross(p1, p2, p3, p4) {
+  const d = (p1[0] - p2[0]) * (p3[1] - p4[1]) - (p1[1] - p2[1]) * (p3[0] - p4[0]);
+  const a = p1[0] * p2[1] - p1[1] * p2[0], b = p3[0] * p4[1] - p3[1] * p4[0];
+  return [(a * (p3[0] - p4[0]) - (p1[0] - p2[0]) * b) / d, (a * (p3[1] - p4[1]) - (p1[1] - p2[1]) * b) / d];
+}
+const areaOf = (poly) => {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; s += p[0] * q[1] - q[0] * p[1]; }
+  return s / 2;
+};
+
+function offset(poly, distance) {
+  const turn = areaOf(poly) > 0 ? 1 : -1, n = poly.length;
+  // 1. slide every edge inward
+  const moved = [];
+  for (let i = 0; i < n; i++) {
+    const p = poly[i], q = poly[(i + 1) % n];
+    const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    const nx = (-(q[1] - p[1]) / len) * turn * distance, ny = ((q[0] - p[0]) / len) * turn * distance;
+    moved.push([[p[0] + nx, p[1] + ny], [q[0] + nx, q[1] + ny]]);
+  }
+  // 2. new corners are where neighbouring moved edges cross
+  return moved.map((edge, i) => { const prev = moved[(i - 1 + n) % n]; return cross(prev[0], prev[1], edge[0], edge[1]); });
+}
+
+// two starting shapes
+const shapes = [[], []];
+for (let i = 0; i < 9; i++) {
+  const a = (i / 9) * PA.TAU;
+  shapes[0].push([165 + Math.cos(a) * 135 * R.range(0.8, 1), 300 + Math.sin(a) * 200 * R.range(0.8, 1)]);
+}
+for (let i = 0; i < 12; i++) {
+  const a = (i / 12) * PA.TAU, r = i % 2 ? 150 : 110;                  // a gentle star: not convex
+  shapes[1].push([440 + Math.cos(a) * r, 300 + Math.sin(a) * r * 1.3]);
+}
+
+function draw() {
+  ctx.fillStyle = '#12202e';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineWidth = 1.3;
+  shapes.forEach((start, s) => {
+    let poly = start, ring = 0;
+    while (ring < 60) {
+      ctx.beginPath();
+      for (const p of poly) ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.strokeStyle = PA.oklch(0.8 - ring * 0.02, 0.13, (s ? 60 : 200) + ring * 6);
+      ctx.stroke();
+      const next = offset(poly, gap());
+      if (Math.abs(areaOf(next)) >= Math.abs(areaOf(poly)) || Math.abs(areaOf(next)) < 60) break;   // it has collapsed: stop
+      if (Math.sign(areaOf(next)) !== Math.sign(areaOf(poly))) break;
+      poly = next;
+      ring++;
+    }
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<div class="note"><p><strong>This simple method has limits.</strong> It is exact for convex shapes. On a shape with inward corners, a large enough offset makes the outline cross itself, and deciding which loops to keep is a hard problem in general. The stopping test above ends the rings when that begins. For serious work, use a library built for it: Clipper (and its JavaScript ports) is the standard for robust offsetting and for combining polygons.</p></div>
+
+<h2>Removing hidden lines</h2>
+<p>A drawing of overlapping objects, sent to a plotter as outlines, shows every edge of every object, including the ones that should be behind something. <strong>Hidden-line removal</strong> deletes the parts of each line that are covered by a nearer object.</p>
+<p>There is an exact way, which computes every intersection, and a simple way that is good enough for most art: <strong>sampling</strong>. Walk along each edge in small steps. At each step, ask whether the point lies inside any shape that is nearer than the one this edge belongs to. Consecutive visible steps join up into the segments that survive.</p>
+<p>The test underneath is <strong>point in polygon</strong>: shoot a ray from the point to the right, and count how many polygon edges it crosses. An odd count means inside. It works for any polygon, convex or not.</p>
+
+<div class="example" data-title="18.3 The same shapes, before and after">
+<script type="text/plain">
+const R = PA.rng();
+
+function insidePolygon(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    // does a horizontal ray from pt cross the edge a-b?
+    if ((a[1] > pt[1]) !== (b[1] > pt[1]) && pt[0] < ((b[0] - a[0]) * (pt[1] - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
+// some overlapping shapes. later in the list = nearer the viewer
+const shapes = [];
+for (let k = 0; k < 11; k++) {
+  const cx = R.range(60, 220), cy = R.range(90, 500), sides = R.pick([3, 4, 4, 5, 24]), size = R.range(35, 80), spin = R.range(PA.TAU);
+  const poly = [];
+  for (let i = 0; i < sides; i++) { const a = spin + (i / sides) * PA.TAU; poly.push([cx + Math.cos(a) * size, cy + Math.sin(a) * size]); }
+  shapes.push(poly);
+}
+
+function visibleSegments() {
+  const out = [];
+  shapes.forEach((poly, index) => {
+    const nearer = shapes.slice(index + 1);
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.5);
+      let start = null, last = null;
+      for (let s = 0; s <= steps; s++) {
+        const p = [PA.lerp(a[0], b[0], s / steps), PA.lerp(a[1], b[1], s / steps)];
+        const hidden = nearer.some((other) => insidePolygon(p, other));
+        if (!hidden) { if (!start) start = p; last = p; }               // extend the current visible run
+        if ((hidden || s === steps) && start) { out.push([start, last]); start = null; }     // a run has ended: keep it
+      }
+    }
+  });
+  return out;
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#1d2433';
+ctx.lineWidth = 1.4;
+ctx.lineCap = 'round';
+
+let all = 0;
+ctx.beginPath();                                   // left: every edge, as a plotter would draw them
+for (const poly of shapes) {
+  for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); all++; }
+}
+ctx.stroke();
+
+const kept = visibleSegments();
+ctx.beginPath();                                   // right: only what can be seen
+for (const [a, b] of kept) { ctx.moveTo(a[0] + 300, a[1]); ctx.lineTo(b[0] + 300, b[1]); }
+ctx.stroke();
+
+ctx.fillStyle = '#555';
+ctx.font = '12px monospace';
+ctx.fillText('all ' + all + ' edges', 14, 30);
+ctx.fillText(kept.length + ' visible segments', 314, 30);
+</script>
+</div>
+
+<p>The same idea handles 3D. Project the triangles of a mesh to the page, sort them by distance, and treat each as a shape that hides whatever is behind it. That is how plotted landscapes and wireframe objects are made to look solid.</p>
+
+<h2>Triangulation</h2>
+<p>Given a scatter of points, a <strong>triangulation</strong> joins them into triangles that cover the area with no gaps or overlaps. Among all the ways to do it, the <strong>Delaunay triangulation</strong> is the one that avoids thin, sliver-like triangles as far as possible. Its rule: no point may lie inside the circle drawn through the three corners of any triangle.</p>
+<p>It is the basis of low-polygon art, of terrain meshes from scattered heights, and of Lesson 7's Voronoi cells, which are its mirror image: connect the centres of neighbouring triangles' circles and the Voronoi diagram appears.</p>
+<p>The Bowyer–Watson algorithm builds it by adding one point at a time. Find every triangle whose circle contains the new point, and delete them. That leaves a hole shaped like a polygon. Join each edge of the hole to the new point.</p>
+
+<div class="example" data-title="18.4 Delaunay triangulation, one point at a time">
+<script type="text/plain">
+const R = PA.rng(), N = PA.noise();
+
+// is p inside the circle through the triangle's three corners?
+function inCircle(p, [a, b, c]) {
+  const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+  const a2 = a[0] ** 2 + a[1] ** 2, b2 = b[0] ** 2 + b[1] ** 2, c2 = c[0] ** 2 + c[1] ** 2;
+  const ux = (a2 * (b[1] - c[1]) + b2 * (c[1] - a[1]) + c2 * (a[1] - b[1])) / d;       // the circle's centre
+  const uy = (a2 * (c[0] - b[0]) + b2 * (a[0] - c[0]) + c2 * (b[0] - a[0])) / d;
+  return Math.hypot(p[0] - ux, p[1] - uy) < Math.hypot(a[0] - ux, a[1] - uy);
+}
+
+function delaunay(points) {
+  const big = [[-3000, -3000], [4000, -3000], [300, 5000]];          // one huge triangle containing everything
+  let triangles = [big];
+  for (const p of points) {
+    const bad = triangles.filter((t) => inCircle(p, t));               // triangles the new point spoils
+    const hole = [];                                                    // edges used by only one bad triangle
+    for (const t of bad) {
+      for (let k = 0; k < 3; k++) {
+        const a = t[k], b = t[(k + 1) % 3];
+        if (!bad.some((o) => o !== t && o.includes(a) && o.includes(b))) hole.push([a, b]);
+      }
+    }
+    triangles = triangles.filter((t) => !bad.includes(t));
+    for (const [a, b] of hole) triangles.push([a, b, p]);              // re-fill the hole round the new point
+  }
+  return triangles.filter((t) => !t.some((v) => big.includes(v)));     // drop the scaffolding
+}
+
+// points: an even scatter, plus the corners and edges so the picture is filled
+const points = [];
+const g = 1.32471795724474602596;
+for (let i = 0; i < 240; i++) points.push([PA.fract(0.5 + i / g) * W, PA.fract(0.5 + i / (g * g)) * H]);
+for (let k = 0; k <= 8; k++) { const u = (k / 8) * W; points.push([u, 0], [u, H], [0, u], [W, u]); }
+
+const triangles = delaunay(points);
+for (const [a, b, c] of triangles) {
+  const mx = (a[0] + b[0] + c[0]) / 3, my = (a[1] + b[1] + c[1]) / 3;  // colour each triangle from a field at its centre
+  const n = N.fbm(mx * 0.004, my * 0.004);
+  ctx.fillStyle = PA.oklch(0.35 + n * 0.5, 0.13, 220 + n * 160);
+  ctx.strokeStyle = ctx.fillStyle;
+  ctx.beginPath();
+  ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+ctx.fillStyle = '#fff';
+ctx.font = '12px monospace';
+ctx.fillText(points.length + ' points, ' + triangles.length + ' triangles', 12, H - 12);
+</script>
+</div>
+
+<p>This version compares every new point with every triangle, which is fine for a few hundred points. For tens of thousands, use a library: Delaunator is small, fast and the usual choice, and d3-delaunay adds the Voronoi diagram.</p>
+
+<h2>More tools for the kit</h2>
+<table>
+  <thead><tr><th>Tool</th><th>What it does</th><th>When you need it</th></tr></thead>
+  <tbody>
+    <tr><td>Segment intersection</td><td>Where two segments cross, if they do</td><td>Trimming, weaving, collision</td></tr>
+    <tr><td>Simplification (Ramer–Douglas–Peucker)</td><td>Removes points from a path while keeping its shape within a tolerance</td><td>Smaller files, faster plots</td></tr>
+    <tr><td>Smoothing (Chaikin's corner cutting)</td><td>Replaces each corner with two points a quarter of the way along its edges, repeatedly</td><td>Turning a jagged path into a flowing one</td></tr>
+    <tr><td>Convex hull</td><td>The tightest convex outline round a set of points</td><td>Bounding shapes, wrapping</td></tr>
+    <tr><td>Polygon boolean operations</td><td>Union, intersection and difference of polygons</td><td>Combining shapes for cutting. Use a library.</td></tr>
+    <tr><td>Path joining</td><td>Merges paths whose ends touch into one continuous line</td><td>Fewer pen lifts (Special Topic 3)</td></tr>
+    <tr><td>Resampling</td><td>Re-spaces the points of a path at equal distances</td><td>Even dashes, consistent texture (Maths 3)</td></tr>
+  </tbody>
+</table>
+
+<h3>Writing clean SVG</h3>
+<ul>
+  <li>Give the file real units: <code>width="210mm"</code> and a <code>viewBox</code> in the same numbers.</li>
+  <li>Round coordinates to two decimal places. More is wasted on any machine.</li>
+  <li>Use <code>fill="none"</code> and a stroke. Plotters and cutters ignore fills or misread them.</li>
+  <li>Put each pen or each operation in its own group, so that layers can be sent separately.</li>
+  <li>Remove duplicate lines. A plotter will draw them twice and the line gets darker.</li>
+  <li>Drop segments shorter than the pen is wide.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Vector output draws everything it is given. Clipping, filling and hiding must be done on the geometry.</li>
+  <li>Clip a segment to a convex polygon by tracking the latest entry and earliest exit.</li>
+  <li>Offset a polygon by sliding its edges and intersecting neighbours. Use a library for difficult shapes.</li>
+  <li>Hide lines by sampling along them and testing each sample against nearer shapes.</li>
+  <li>Point in polygon: count how many edges a ray crosses.</li>
+  <li>Delaunay triangulation avoids thin triangles, and is the partner of the Voronoi diagram.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Assuming polygons are listed in a particular direction. Check the sign of the area and adapt.</li>
+  <li>Comparing decimal numbers for exact equality. Two "identical" points often differ in the fifteenth digit. Compare within a small tolerance.</li>
+  <li>Writing your own boolean operations for anything important. This is the classic place to use a tested library.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 18</p>
+  <h2>A Drawing for the Plotter</h2>
+  <p>Make a composition of overlapping, shaded forms that consists of nothing but clean lines, and export it as an SVG that a pen plotter could draw without a single wasted stroke.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>At least <strong>twelve overlapping shapes</strong> in a seeded arrangement, with a clear front-to-back order.</li>
+    <li><strong>Hidden lines are removed</strong>: no outline is drawn where a nearer shape covers it.</li>
+    <li>Shapes are <strong>shaded with lines</strong>, by hatching or by nested offsets, and the shading is clipped both to its own shape and by the shapes in front.</li>
+    <li>Tone varies: at least <strong>three densities</strong> of shading, chosen by a rule such as depth or a light direction.</li>
+    <li>The result is held as <strong>data</strong>, a list of segments or paths, and both the screen preview and the file are drawn from that list.</li>
+    <li>An <strong>SVG export</strong> with millimetre units, no fills, coordinates rounded, and no segment shorter than 0.3 mm.</li>
+    <li>A readout of the number of paths and the total drawn length in metres.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Build one function that takes a segment and returns its visible pieces. Send every outline and every hatch line through it.</li>
+    <li>Preview with a line width equal to the real pen, so that shading which would blot together is obvious.</li>
+    <li>Sort the paths as in Special Topic 3 before exporting.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Project a 3D scene of boxes or a terrain and remove its hidden lines.</li>
+    <li>Two pens: export the outlines and the shading as separate layers.</li>
+    <li>Join segments that meet end to end into continuous paths, and report how many pen lifts that saves.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The SVG, opened in a browser, is indistinguishable from the preview.</li>
+    <li>Zooming in anywhere shows no line passing behind another shape and no doubled lines.</li>
+  </ul>
+  <a class="start" href="../challenges/18-plotter-drawing.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="17-physics.html">← Lesson 17</a><a href="19-performance.html">Lesson 19: Performance →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

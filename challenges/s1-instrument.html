@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 1 · The Instrument</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 1 — THE INSTRUMENT
+   Full brief: ../special/01-interactivity.html
+
+   An interactive generative piece someone could play with for five minutes without instructions.
+
+   Checklist
+   [ ] At least three input channels of different kinds
+   [ ] At least one indirect mapping (input as a force on a simulation)
+   [ ] All continuous inputs are smoothed
+   [ ] An attract mode that hands over as soon as someone interacts
+   [ ] No sequence of inputs produces an ugly or broken picture
+   [ ] Keys: reset, save PNG, new seed
+   [ ] The seed lives in the page address (location.hash)
+   [ ] A stranger finds all the inputs without help
+
+   Already set up below: a canvas that fills the window, pointer and keyboard state,
+   and a frame loop. Everything else is yours. */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+
+function resize() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);     // draw in CSS pixels: W by H
+}
+addEventListener('resize', resize);
+resize();
+
+// raw input state
+const pointer = { x: W / 2, y: H / 2, down: false, active: false };
+canvas.addEventListener('pointermove', (e) => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
+canvas.addEventListener('pointerdown', () => { pointer.down = true; });
+addEventListener('pointerup', () => { pointer.down = false; });
+
+const keys = {};
+addEventListener('keydown', (e) => {
+  keys[e.key.toLowerCase()] = true;
+  // TODO: one-off actions go here (reset, save, new seed)
+});
+addEventListener('keyup', (e) => { delete keys[e.key.toLowerCase()]; });
+
+// TODO: read the seed from location.hash, or make one and write it there
+let seed = 'instrument-1';
+let R = PA.rng(seed), N = PA.noise(seed);
+
+function reset() {
+  // ---- set up your system's state here ----
+}
+
+function frame(ms) {
+  const t = ms / 1000;
+
+  // ---- 1. read and smooth the inputs ----
+  // ---- 2. update the system ----
+  // ---- 3. draw ----
+
+  requestAnimationFrame(frame);
+}
+
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

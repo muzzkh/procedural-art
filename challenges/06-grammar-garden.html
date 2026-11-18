@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 6 · The Grammar Garden</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 96vw; max-height: 94vh; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1600" height="900"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 6 — THE GRAMMAR GARDEN
+   Full brief: ../lessons/06-recursion-and-grammars.html
+
+   Your own L-system engine, three species, one garden.
+
+   Checklist
+   [ ] expand(axiom, rules, generations, R) returns the grown string
+   [ ] Rules may be stochastic: several weighted replacements for one symbol
+   [ ] drawPlant(string, species, R) interprets the string with a turtle
+   [ ] At least three species with their own rules, angle and step length
+   [ ] At least seven plants of varying size along a ground line, from one seed
+   [ ] Line width tapers with branch depth
+   [ ] Something is drawn at branch tips
+   [ ] A fourth species could be added by writing only a new rule set
+
+   Rule format suggestion
+     F: 'FF'                                         one fixed replacement
+     F: [['F[+F]F', 2], ['F[-F]F', 2], ['FF', 1]]    weighted alternatives  */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const seed = 'garden-1';
+const R = PA.rng(seed);
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+function expand(axiom, rules, generations, R) {
+  // ---- your code here ----
+  return axiom;
+}
+
+function drawPlant(string, species, R) {
+  // ---- your turtle here ----
+}
+
+const speciesList = [
+  // { name: '...', axiom: '...', rules: { ... }, angle: ..., step: ..., generations: ... },
+];
+
+// ---- plant the garden here ----
+
+</script>
+</body>
+</html>

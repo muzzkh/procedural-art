@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 14 · Your Own Tileset</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 14 — YOUR OWN TILESET
+   Full brief: ../lessons/14-wave-function-collapse.html
+
+   Checklist
+   [ ] At least eight tile shapes you designed and draw in code, expanded by rotation
+   [ ] At least three socket types
+   [ ] At least one rare tile, by weight, that gives the output its points of interest
+   [ ] A border rule or pre-set cells
+   [ ] Your own solver or PA.wfc, with the number of restarts reported
+   [ ] Seeded; a key for a new seed; a grid of at least 20 x 20
+   [ ] A key that shows the tileset itself, with sockets marked
+   [ ] Ten seeds all solve, and all look like the same world
+
+   A tile is { edges: [top, right, bottom, left], weight }. Two tiles fit when the meeting edges are equal.
+   PA.wfc({ tiles, cols, rows, rng, border }) returns { ok, grid, restarts }. */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const COLS = 24, ROWS = 24;
+let seed = 1;
+
+// ---- your shapes: sockets in the order top, right, bottom, left, then a weight ----
+const shapes = [
+  { edges: ['a', 'a', 'a', 'a'], weight: 1 },
+];
+
+// expand each shape into its distinct rotations
+const tiles = [];
+for (const shape of shapes) {
+  let e = shape.edges;
+  for (let turn = 0; turn < 4; turn++) {
+    if (!tiles.some((t) => t.edges.join() === e.join())) tiles.push({ edges: e, weight: shape.weight, turn, shape });
+    e = [e[3], e[0], e[1], e[2]];
+  }
+}
+
+// Draw one tile in the square at (x, y) with side s.
+function drawTile(tile, x, y, s) {
+  // ---- your drawing here. tile.edges tells you what crosses each side ----
+}
+
+function draw() {
+  ctx.fillStyle = '#12202e';
+  ctx.fillRect(0, 0, W, H);
+  const result = PA.wfc({ tiles, cols: COLS, rows: ROWS, rng: PA.rng(seed) });
+  if (!result.ok) { console.log('no solution after', result.restarts, 'restarts'); return; }
+  const s = W / COLS;
+  result.grid.forEach((k, i) => drawTile(tiles[k], (i % COLS) * s, Math.floor(i / COLS) * s, s));
+  console.log('seed', seed, 'restarts', result.restarts);
+}
+
+draw();
+
+// TODO: keys for a new seed and for showing the tileset
+</script>
+</body>
+</html>

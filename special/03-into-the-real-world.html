@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 3 · Into the Real World</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-practical-uses.html">← Special 2</a><span>Special topic 3 of 9</span><a href="04-sound-and-music.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 3</p>
+  <h1>Into the Real World</h1>
+  <p class="lede">A screen forgives everything. Paper, plywood, steel and plastic do not. This page is about turning procedural designs into physical things: prints for a wall, drawings from a pen plotter, parts from a laser cutter or a mill, and objects from a 3D printer.</p>
+</header>
+
+<h2>What changes when it becomes physical</h2>
+<table>
+  <thead><tr><th>On screen</th><th>In the world</th></tr></thead>
+  <tbody>
+    <tr><td>Units are pixels</td><td>Units are millimetres. Everything must have a real size.</td></tr>
+    <tr><td>A line can be any width, even zero</td><td>A line has the width of the pen, the laser beam or the cutter</td></tr>
+    <tr><td>Shapes can overlap and float</td><td>Parts must hold together. Cut out a ring and its centre falls out.</td></tr>
+    <tr><td>Millions of colours, glowing</td><td>The inks, threads or materials you actually have, lit by the room</td></tr>
+    <tr><td>Detail is free</td><td>Detail costs machine time, and below a certain size it breaks or vanishes</td></tr>
+    <tr><td>Undo</td><td>Material, and sometimes a tool, is used up</td></tr>
+  </tbody>
+</table>
+<p>The good news is that procedural design is unusually well suited to fabrication. Machines want exact geometry, and that is what your code already produces. And physical limits are just more constraints: a minimum line spacing or wall thickness goes into the rules like a margin does.</p>
+
+<h3>The formats</h3>
+<table>
+  <thead><tr><th>Format</th><th>Holds</th><th>Used for</th></tr></thead>
+  <tbody>
+    <tr><td>PNG, TIFF</td><td>Pixels</td><td>Printing images. Needs enough resolution for the print size.</td></tr>
+    <tr><td>SVG, PDF, DXF</td><td>2D paths, exact at any size</td><td>Pen plotters, laser cutters, vinyl cutters, CNC routers, screen printing</td></tr>
+    <tr><td>STL, 3MF, OBJ</td><td>A 3D surface made of triangles</td><td>3D printing</td></tr>
+    <tr><td>STEP</td><td>Exact 3D solids</td><td>Engineering CAD and machining</td></tr>
+    <tr><td>G-code</td><td>Step-by-step machine movements</td><td>What 3D printers and CNC machines finally run</td></tr>
+  </tbody>
+</table>
+<p>The rule that follows from this table: <strong>design in real units from the start</strong>. Decide that your drawing is 200 mm wide, write every size in millimetres, and convert to pixels only for the on-screen preview. Lesson 10's unit-square method is the same idea.</p>
+
+<h2>Prints, posters and wall art</h2>
+<h3>Resolution</h3>
+<p>A print viewed at arm's length needs about 300 pixels per inch (dpi). Large pieces seen from further away can drop to 150. The arithmetic is short:</p>
+<p class="formula">pixels = millimetres ÷ 25.4 × dpi</p>
+<p>An A2 poster (420 × 594 mm) at 300 dpi is 4961 × 7016 pixels. This is why resolution independence matters: a sketch written in fixed pixels cannot be printed large. Browsers also limit canvas size, so very large prints are rendered as several tiles and joined, or exported as vector files instead.</p>
+
+<h3>Colour and paper</h3>
+<ul>
+  <li>Screens mix light (red, green, blue). Printers mix ink (cyan, magenta, yellow, black). Bright saturated screen colours, especially greens, blues and oranges, cannot all be printed. Ask for a proof before a large run.</li>
+  <li>Leave a <strong>bleed</strong>: extend the artwork about 3 mm past the trim line on every side if it should run to the edge, and keep anything important at least 5 mm inside.</li>
+  <li>For wall art, <strong>giclée</strong> (archival inkjet on cotton paper) is the standard. It reproduces grain and fine lines well and suits editions of one.</li>
+  <li>Sign and number editions, and keep the seed with your records. A generative print's "negative" is its seed and code.</li>
+</ul>
+
+<h3>Printing with separate inks</h3>
+<p>Screen printing and risograph printing lay down one ink at a time, each from its own plate. They cannot print a full-colour image directly. You supply one black-and-white image per ink, and the colours appear where the inks overlap. This suits generative work very well, because you already build your image in layers: export each layer as its own plate.</p>
+
+<div class="example" data-title="S3.1 Three plates make one print">
+<script type="text/plain">
+const inks = ['#ff48b0', '#0078bf', '#ffe800'];
+const names = ['fluorescent pink', 'blue', 'yellow'];
+
+// everything that will be printed in ink number k, drawn in unit coordinates
+function plate(k, colour) {
+  const R = PA.rng('plate-' + k);
+  ctx.fillStyle = colour;
+  for (let i = 0; i < 9; i++) {
+    ctx.beginPath();
+    ctx.arc(R.range(0.15, 0.85), R.range(0.15, 0.85), R.range(0.05, 0.2), 0, PA.TAU);
+    ctx.fill();
+  }
+}
+
+function panel(col, row, draw, label) {
+  const x = col * 300, y = row * 300;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x + 8, y + 8, 284, 268); ctx.clip();
+  ctx.fillStyle = '#f6f1e4';
+  ctx.fillRect(x, y, 300, 300);
+  ctx.translate(x + 16, y + 8);
+  ctx.scale(268, 268);
+  draw();
+  ctx.restore();
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '12px monospace';
+  ctx.fillText(label, x + 10, y + 292);
+}
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+
+// the finished print: inks overlap and darken, like real translucent ink
+panel(0, 0, () => {
+  ctx.globalCompositeOperation = 'multiply';
+  inks.forEach((colour, k) => plate(k, colour));
+}, 'the print');
+
+// what you send to the printer: one black image per ink
+inks.forEach((colour, k) => {
+  panel((k + 1) % 2, Math.floor((k + 1) / 2), () => plate(k, '#111'), 'plate ' + (k + 1) + ': ' + names[k]);
+});
+</script>
+</div>
+
+<h2>Pen plotters</h2>
+<p>A pen plotter moves a real pen over real paper. It is the machine the first computer artists used in the 1960s, and it has had a revival because the results look hand-made: ink pools, lines vary, paper has tooth. A plotter takes an SVG and draws each path in order.</p>
+<p>Plotters impose a particular discipline:</p>
+<ul>
+  <li><strong>Lines only.</strong> There are no fills. Tone comes from hatching, stippling or line density (Lesson 10, Maths 5).</li>
+  <li><strong>The pen has a width</strong>, typically 0.3 to 0.5 mm. Lines closer together than that merge into a blot. Many overlapping lines in one spot will soak through or tear the paper.</li>
+  <li><strong>Hidden lines must be removed by you.</strong> On screen, a filled shape hides what is behind it. A pen cannot do that, so overlaps have to be clipped away in the geometry.</li>
+  <li><strong>One pen at a time.</strong> For several colours, export one file or layer per pen and swap pens between them.</li>
+  <li><strong>Time is real.</strong> A dense drawing can take hours. Path order matters a great deal.</li>
+</ul>
+<h3>Ordering the paths</h3>
+<p>Your code generates paths in whatever order the algorithm produced them, often scattered all over the page. Between paths the plotter lifts the pen and travels, drawing nothing. Sorting the paths so that each begins near where the previous one ended can cut plotting time in half. The simplest good method is greedy: from where the pen is, always go to the nearest unvisited path, drawing it backwards if its far end is closer.</p>
+
+<div class="example" data-title="S3.2 The same drawing, in two orders">
+<script type="text/plain">
+const R = PA.rng(4);
+const MM = 210 / 270;                       // the preview box is 270 px wide and stands for 210 mm
+
+// 150 short strokes, in the order an algorithm might produce them: random
+const strokes = [];
+for (let i = 0; i < 150; i++) {
+  const x = R.range(15, 255), y = R.range(15, 255), a = R.range(PA.TAU), len = R.range(8, 26);
+  strokes.push({ x1: x, y1: y, x2: x + Math.cos(a) * len, y2: y + Math.sin(a) * len });
+}
+
+function sortGreedy(list) {
+  const left = list.slice();
+  const out = [left.shift()];
+  while (left.length > 0) {
+    const pen = out[out.length - 1];
+    let best = 0, bestD = Infinity, flip = false;
+    for (let i = 0; i < left.length; i++) {
+      const dStart = Math.hypot(left[i].x1 - pen.x2, left[i].y1 - pen.y2);
+      const dEnd = Math.hypot(left[i].x2 - pen.x2, left[i].y2 - pen.y2);
+      if (dStart < bestD) { bestD = dStart; best = i; flip = false; }
+      if (dEnd < bestD) { bestD = dEnd; best = i; flip = true; }       // nearer if drawn backwards
+    }
+    const s = left.splice(best, 1)[0];
+    out.push(flip ? { x1: s.x2, y1: s.y2, x2: s.x1, y2: s.y1 } : s);
+  }
+  return out;
+}
+
+function show(list, ox, label) {
+  let travel = 0;
+  ctx.fillStyle = '#f6f1e4';
+  ctx.fillRect(ox, 120, 270, 270);
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (i > 0) {                               // pen-up travel: wasted time
+      const p = list[i - 1];
+      travel += Math.hypot(s.x1 - p.x2, s.y1 - p.y2);
+      ctx.strokeStyle = 'rgba(230, 57, 70, 0.45)';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.moveTo(ox + p.x2, 120 + p.y2); ctx.lineTo(ox + s.x1, 120 + s.y1); ctx.stroke();
+    }
+    ctx.strokeStyle = '#1d2433';               // pen-down: the drawing
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(ox + s.x1, 120 + s.y1); ctx.lineTo(ox + s.x2, 120 + s.y2); ctx.stroke();
+  }
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '13px monospace';
+  ctx.fillText(label, ox, 100);
+  ctx.fillStyle = '#ff8a94';
+  ctx.fillText('pen-up travel: ' + (travel * MM / 1000).toFixed(2) + ' m', ox, 415);
+}
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+show(strokes, 20, 'as generated');
+show(sortGreedy(strokes), 310, 'sorted: nearest next');
+</script>
+</div>
+
+<p>Other steps plotter artists apply before sending a file: joining paths whose ends touch into one continuous line, removing duplicate lines, dropping paths too short to see, and simplifying curves that have more points than the machine can resolve. Free tools exist that do all of this to an SVG, so you only need to produce clean paths.</p>
+
+<h2>Laser cutting and engraving</h2>
+<p>A laser cutter follows vector paths with a beam that burns through sheet material: plywood, acrylic, card, leather, fabric. The same machine can <strong>cut</strong> (all the way through), <strong>score</strong> (a shallow line) or <strong>engrave</strong> (burn away an area). By convention the file tells them apart by colour: for example red hairlines to cut, blue to score, black fills to engrave. Check the convention for the machine you use.</p>
+<p>The rules that catch people out:</p>
+<ul>
+  <li><strong>Kerf.</strong> The beam removes a strip about 0.1 to 0.3 mm wide. Parts come out slightly small and holes slightly large. For pieces that slot together, offset the paths by half the kerf.</li>
+  <li><strong>Islands fall out.</strong> Cut the letter O and its middle drops away. Any enclosed region is a separate piece. Either accept that, or add small <strong>bridges</strong> that keep it attached, as a stencil does.</li>
+  <li><strong>Minimum web.</strong> The material left between two cuts must be wide enough to survive: a rule of thumb is at least the thickness of the sheet for wood, more for brittle acrylic.</li>
+  <li><strong>Closed paths.</strong> A shape to be cut out must be one closed loop, not a set of separate segments that happen to meet.</li>
+  <li><strong>Cut order.</strong> Inner holes before outer outlines, so the part does not shift before its details are cut.</li>
+  <li><strong>Material safety.</strong> Some plastics must never be laser cut. PVC and vinyl release chlorine gas that harms people and destroys the machine. Use only materials the workshop has approved.</li>
+</ul>
+<h3>A panel with rules built in</h3>
+<p>Perforated panels are a staple of architecture and product design: screens, speaker grilles, lampshades, ventilation covers. A field decides how large each hole is, so that a pattern appears across the sheet. The engineering lives in the constraints. Below, the largest hole is capped so that the web between neighbours never falls under the minimum you set, whatever the field asks for. The export is an SVG in true millimetres, ready for a laser cutter.</p>
+
+<div class="example" data-title="S3.3 A perforated panel (click the canvas to download the SVG)">
+<script type="text/plain">
+const pitch = ui.slider('pitch mm', 6, 16, 9, 0.5);
+const dMax  = ui.slider('max hole mm', 2, 14, 7, 0.5);
+const dMin  = ui.slider('min hole mm', 0.5, 4, 1.5, 0.5);
+const web   = ui.slider('min web mm', 0.5, 3, 1.2, 0.1);
+
+const N = PA.noise('panel');
+const SHEET = 200;                  // a 200 x 200 mm sheet
+const S = W / (SHEET + 20);         // preview scale: pixels per millimetre
+let svg = '';
+
+function draw() {
+  const p = pitch();
+  // the manufacturing rule: never leave less than "web" of material between two holes
+  const biggest = Math.max(0.2, Math.min(dMax(), p - web()));
+  const smallest = Math.min(dMin(), biggest);
+
+  const rowStep = p * 0.866;        // staggered rows: every hole has six equally distant neighbours
+  const holes = [];
+  for (let j = 0; 12 + j * rowStep <= SHEET - 12; j++) {
+    for (let i = 0; 12 + i * p + (j % 2) * p / 2 <= SHEET - 12; i++) {
+      const x = 12 + i * p + (j % 2) * p / 2, y = 12 + j * rowStep;
+      const field = N.fbm(x * 0.012, y * 0.012, { octaves: 2 });        // the design
+      const t = PA.clamp(PA.map(field, 0.35, 0.65, 0, 1));
+      holes.push({ x, y, d: PA.lerp(smallest, biggest, t) });
+    }
+  }
+
+  // preview
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#9aa3ad';
+  ctx.fillRect(10 * S, 10 * S, SHEET * S, SHEET * S);
+  ctx.fillStyle = '#16181d';
+  let open = 0;
+  for (const h of holes) {
+    ctx.beginPath();
+    ctx.arc((10 + h.x) * S, (10 + h.y) * S, (h.d / 2) * S, 0, PA.TAU);
+    ctx.fill();
+    open += Math.PI * h.d * h.d / 4;
+  }
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.fillText(holes.length + ' holes · ' + (100 * open / (SHEET * SHEET)).toFixed(1) + '% open area · web ≥ ' +
+    (p - biggest).toFixed(1) + ' mm', 12, H - 8);
+
+  // the real file: sizes in millimetres, red hairlines for cutting
+  svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + SHEET + 'mm" height="' + SHEET + 'mm" viewBox="0 0 ' + SHEET + ' ' + SHEET + '">' +
+    '<g fill="none" stroke="red" stroke-width="0.1">' +
+    holes.map((h) => '<circle cx="' + h.x.toFixed(2) + '" cy="' + h.y.toFixed(2) + '" r="' + (h.d / 2).toFixed(2) + '"/>').join('') +
+    '<rect x="0" y="0" width="' + SHEET + '" height="' + SHEET + '"/>' +
+    '</g></svg>';
+}
+
+draw();
+ui.onChange(draw);
+
+canvas.onclick = () => {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  link.download = 'panel-200mm.svg';
+  link.click();
+};
+</script>
+</div>
+
+<p>Notice the readout of <strong>open area</strong>. For a ventilation grille or an acoustic panel that percentage is the specification, and the pattern is free to be anything that meets it. That is the general shape of procedural design in engineering: a number or a rule is required, and the designer has all the remaining freedom.</p>
+
+<h2>CNC routing and milling</h2>
+<p>A CNC router or mill carves material with a spinning cutter. Compared with a laser it adds two things: the cutter is far wider than a beam, and it can cut to any depth, so it can make reliefs and true 3D surfaces.</p>
+<ul>
+  <li><strong>Tool radius.</strong> A 6 mm cutter cannot make an inside corner sharper than a 3 mm radius. Either design with rounded inside corners, or add small relief notches ("dog-bones") where a square part must fit.</li>
+  <li><strong>Tool offset.</strong> To cut a shape to size, the centre of the cutter must travel half a tool-width outside the line. That offset path is built from normals, exactly as in Maths 3. CAM software normally does this for you.</li>
+  <li><strong>Depth per pass.</strong> Material is removed in layers, typically no deeper than half the cutter's diameter each time.</li>
+  <li><strong>Holding the work.</strong> A part cut completely free will be thrown by the cutter. Leave small <strong>tabs</strong> joining it to the sheet and trim them afterwards.</li>
+  <li><strong>Reliefs from height maps.</strong> A greyscale image in which brightness means height can be carved directly. Any field from this course, noise terrain, reaction–diffusion, a wave pattern, becomes a carved panel this way.</li>
+</ul>
+
+<h3>G-code</h3>
+<p>Every CNC machine and 3D printer is finally driven by G-code: a plain text list of moves, one per line. Normally a CAM program or slicer writes it for you. It is still worth being able to read, and for simple 2D work you can generate it directly.</p>
+<table>
+  <thead><tr><th>Command</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>G21</code>, <code>G90</code></td><td>Use millimetres. Coordinates are absolute positions.</td></tr>
+    <tr><td><code>G0 X10 Y20</code></td><td>Move quickly to (10, 20) without cutting</td></tr>
+    <tr><td><code>G1 X30 Y20 F600</code></td><td>Move in a straight line to (30, 20), cutting, at 600 mm per minute</td></tr>
+    <tr><td><code>G1 Z-0.5 F150</code></td><td>Plunge the tool 0.5 mm into the material, slowly</td></tr>
+    <tr><td><code>M3 S12000</code>, <code>M5</code></td><td>Spindle on at 12,000 rpm, spindle off</td></tr>
+  </tbody>
+</table>
+
+<div class="example" data-title="S3.4 A toolpath and its G-code (click the canvas to download)">
+<script type="text/plain">
+// an engraving for a 100 x 100 mm blank, 0.5 mm deep. all values in millimetres
+const SAFE_Z = 5, DEPTH = -0.5, FEED = 600, PLUNGE = 150;
+
+const path = [];
+for (let i = 0; i <= 720; i++) {
+  const a = (i / 720) * PA.TAU;
+  const r = 28 + 16 * Math.cos(5 * a) + 4 * Math.cos(15 * a);       // the design: a polar curve (Lesson 4)
+  path.push([50 + Math.cos(a) * r, 50 + Math.sin(a) * r]);
+}
+
+const g = [];
+g.push('G21 ; millimetres');
+g.push('G90 ; absolute positions');
+g.push('G0 Z' + SAFE_Z + ' ; lift clear');
+g.push('M3 S12000 ; spindle on');
+g.push('G0 X' + path[0][0].toFixed(3) + ' Y' + path[0][1].toFixed(3));
+g.push('G1 Z' + DEPTH + ' F' + PLUNGE + ' ; plunge');
+path.slice(1).forEach(([x, y], i) => {
+  g.push('G1 X' + x.toFixed(3) + ' Y' + y.toFixed(3) + (i === 0 ? ' F' + FEED : ''));
+});
+g.push('G0 Z' + SAFE_Z + ' ; lift clear');
+g.push('M5 ; spindle off');
+g.push('G0 X0 Y0 ; go home');
+g.push('M2 ; end of program');
+
+// preview: 3 px per mm. machines measure y upward, canvases downward, so flip it
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#b08d57';
+ctx.fillRect(15, 150, 300, 300);
+ctx.strokeStyle = '#3b2a12';
+ctx.lineWidth = 2;
+ctx.beginPath();
+for (const [x, y] of path) ctx.lineTo(15 + x * 3, 150 + (100 - y) * 3);
+ctx.stroke();
+
+ctx.font = '11px monospace';
+ctx.fillStyle = '#9fe0c4';
+g.slice(0, 30).forEach((line, i) => ctx.fillText(line, 335, 40 + i * 17));
+ctx.fillStyle = '#cfd6dd';
+ctx.fillText('… ' + g.length + ' lines in all', 335, 40 + 30 * 17);
+ctx.fillText('100 x 100 mm blank', 15, 140);
+
+canvas.onclick = () => {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([g.join('\n')], { type: 'text/plain' }));
+  link.download = 'rosette.gcode';
+  link.click();
+};
+</script>
+</div>
+
+<div class="note"><p><strong>Before running G-code you wrote yourself.</strong> Machines differ: the commands above are common but not universal, and feeds, speeds and depths depend on the material and cutter. Always load the file in a G-code simulator first, check where the machine's origin is, run it once above the work ("air cutting"), and follow the workshop's safety rules. A wrong number in G-code can break a cutter or injure someone.</p></div>
+
+<h2>3D printing</h2>
+<p>A 3D printer builds an object in thin horizontal layers. It needs a closed 3D surface, and a program called a <strong>slicer</strong> turns that into G-code. Getting from a 2D procedural habit to a 3D object is easier than it sounds, because most routes start from techniques you already have.</p>
+<table>
+  <thead><tr><th>Route</th><th>How</th><th>Makes</th></tr></thead>
+  <tbody>
+    <tr><td>Extrude</td><td>Give a 2D outline a thickness</td><td>Coasters, pendants, stamps, cookie cutters, signs</td></tr>
+    <tr><td>Height map</td><td>Raise each point of a grid by a field's value</td><td>Terrain models, textured tiles, lithophanes (reliefs that show an image when lit from behind)</td></tr>
+    <tr><td>Revolve or stack</td><td>Sweep a radius function round an axis, level by level</td><td>Vases, lampshades, cups, planters</td></tr>
+    <tr><td>Implicit surface</td><td>Define a 3D distance function, as in Lesson 9, and extract its zero surface as triangles</td><td>Blobby organic forms, lattices, anything made with smooth unions</td></tr>
+    <tr><td>Grown geometry</td><td>Run a 3D simulation and thicken the result</td><td>Coral, branching structures, cellular forms</td></tr>
+  </tbody>
+</table>
+
+<h3>What the printer needs</h3>
+<ul>
+  <li><strong>A watertight mesh.</strong> The surface must be closed with no holes, with every triangle facing outward. A shape with zero thickness, or one open at an end, cannot be printed.</li>
+  <li><strong>Overhangs.</strong> Each layer rests on the one below. Surfaces that lean out more than about 45° from vertical need support material, which leaves scars. Designing within 45° avoids it.</li>
+  <li><strong>Wall thickness.</strong> Walls should be at least two nozzle widths: about 0.8 mm for the usual 0.4 mm nozzle. Thinner features disappear.</li>
+  <li><strong>A flat base.</strong> The first layer must grip the bed.</li>
+  <li><strong>Size.</strong> The object must fit the printer's build volume, commonly around 200 mm in each direction.</li>
+  <li><strong>Layer lines.</strong> Detail is finest across the layers (about 0.4 mm) and coarser between them (0.1 to 0.3 mm). Orient the object so the detail that matters lies in the fine direction.</li>
+</ul>
+
+<h3>A generative vase</h3>
+<p>The vase is the classic first generative print. The whole design is one function: the radius at a given height and angle. A silhouette curve gives the overall form, and a ripple that twists with height gives the surface. Slicers have a "vase mode" that prints such a shape as a single continuous spiral with no seams.</p>
+<p>The example checks the steepest overhang against the 45° rule and reports it, then builds the triangles and writes them as an STL file. Note the order of the three corners of each triangle. It is anticlockwise when seen from outside, which is how the file says which side is the outside.</p>
+
+<div class="example" data-title="S3.5 A vase from one function (click the canvas to download the STL)">
+<script type="text/plain">
+const BASE = 30, HEIGHT = 120;             // millimetres
+const RINGS = 60, SEGS = 72;
+
+// the whole design. v: 0 at the base, 1 at the lip.  a: angle round the vase
+function radius(v, a) {
+  const profile = 0.75 + 0.35 * Math.sin(v * 3.2 + 0.4) - 0.15 * v;      // the silhouette
+  const ribs = 0.06 * Math.sin((a + v * 1.6) * 9);                       // nine ribs that spiral upward
+  return BASE * (profile + ribs);
+}
+
+function point(i, j) {
+  const v = i / RINGS, a = ((j % SEGS) / SEGS) * PA.TAU, r = radius(v, a);      // j wraps, so the seam closes exactly
+  return [r * Math.cos(a), r * Math.sin(a), v * HEIGHT];
+}
+
+// engineering check: how far does the wall lean, in or out, between one ring and the next?
+let worst = 0, widest = 0;
+for (let i = 0; i < RINGS; i++) {
+  for (let j = 0; j < SEGS; j++) {
+    const a = (j / SEGS) * PA.TAU;
+    const lean = (radius((i + 1) / RINGS, a) - radius(i / RINGS, a)) / (HEIGHT / RINGS);
+    worst = Math.max(worst, Math.atan(Math.abs(lean)) * 180 / Math.PI);
+    widest = Math.max(widest, radius(i / RINGS, a) * 2);
+  }
+}
+
+loop((t) => {
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+
+  // a simple turntable view: rotate about the vertical axis, then tilt slightly
+  const spin = t * 0.4, c = Math.cos(spin), s = Math.sin(spin), K = 3.6;
+  const project = ([x, y, z]) => {
+    const rx = x * c - y * s, depth = x * s + y * c;
+    return [W / 2 + rx * K, H - 70 - z * K + depth * K * 0.28];
+  };
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255, 190, 110, 0.55)';
+  for (let i = 0; i <= RINGS; i += 2) {                 // horizontal rings
+    ctx.beginPath();
+    for (let j = 0; j <= SEGS; j++) { const [px, py] = project(point(i, j)); ctx.lineTo(px, py); }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255, 190, 110, 0.25)';
+  for (let j = 0; j < SEGS; j += 4) {                   // vertical lines
+    ctx.beginPath();
+    for (let i = 0; i <= RINGS; i++) { const [px, py] = project(point(i, j)); ctx.lineTo(px, py); }
+    ctx.stroke();
+  }
+
+  ctx.font = '13px monospace';
+  ctx.fillStyle = '#cfd6dd';
+  ctx.fillText('height ' + HEIGHT + ' mm · widest ' + widest.toFixed(0) + ' mm', 12, 24);
+  ctx.fillStyle = worst <= 45 ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText('steepest overhang ' + worst.toFixed(0) + '°  ' + (worst <= 45 ? '(prints without support)' : '(needs support)'), 12, 44);
+});
+
+function buildSTL() {
+  const out = ['solid vase'];
+  const tri = (p, q, r) => {
+    out.push('facet normal 0 0 0', ' outer loop',
+      '  vertex ' + p.map((n) => n.toFixed(3)).join(' '),
+      '  vertex ' + q.map((n) => n.toFixed(3)).join(' '),
+      '  vertex ' + r.map((n) => n.toFixed(3)).join(' '),
+      ' endloop', 'endfacet');
+  };
+  for (let i = 0; i < RINGS; i++) {
+    for (let j = 0; j < SEGS; j++) {                    // each wall patch is two triangles, anticlockwise from outside
+      const a = point(i, j), b = point(i, j + 1), c = point(i + 1, j + 1), d = point(i + 1, j);
+      tri(a, b, c);
+      tri(a, c, d);
+    }
+  }
+  for (let j = 0; j < SEGS; j++) {                      // close the bottom and the top so the solid is watertight
+    tri([0, 0, 0], point(0, j + 1), point(0, j));
+    tri([0, 0, HEIGHT], point(RINGS, j), point(RINGS, j + 1));
+  }
+  out.push('endsolid vase');
+  return out.join('\n');
+}
+
+canvas.onclick = () => {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([buildSTL()], { type: 'model/stl' }));
+  link.download = 'vase.stl';
+  link.click();
+};
+</script>
+</div>
+
+<p>Try it: raise the <code>0.35</code> in the profile to <code>0.9</code> and watch the overhang check fail. Change the nine ribs to five, or replace the sine with noise sampled round a circle (Lesson 3) for an organic surface. Open the STL in any slicer to see it as a solid.</p>
+
+<h2>Procedural design in engineering</h2>
+<p>In engineering the word is usually <strong>parametric</strong> or <strong>generative design</strong>, and the aim is performance: lighter, stiffer, cooler, quieter. The methods are the ones in this course.</p>
+<table>
+  <thead><tr><th>Engineering use</th><th>Procedural idea behind it</th></tr></thead>
+  <tbody>
+    <tr><td>Parametric CAD: a part defined by dimensions and rules, regenerated when a number changes</td><td>Every value is a dial (Lesson 1)</td></tr>
+    <tr><td>Lattices and infill that make parts light but stiff</td><td>Periodic implicit surfaces such as the gyroid, below</td></tr>
+    <tr><td>Topology optimisation: material is removed wherever it carries little load</td><td>An iterated simulation on a grid (Lesson 8), driven by a stress field</td></tr>
+    <tr><td>Voronoi and honeycomb lightening of panels and shells</td><td>Space partitioning (Lesson 7)</td></tr>
+    <tr><td>Perforated, acoustic and ventilation panels</td><td>A field driving hole size, under constraints</td></tr>
+    <tr><td>Grip textures, knurling, tyre treads</td><td>Tiling and displacement patterns</td></tr>
+    <tr><td>Heat sinks and cooling channels</td><td>Branching and space-filling growth (Lesson 6), reaction–diffusion fins</td></tr>
+    <tr><td>Flexible hinges cut into rigid sheet ("living hinges")</td><td>Repeating cut patterns whose spacing sets the stiffness</td></tr>
+    <tr><td>Gears, cams and springs</td><td>Parametric curves (Lesson 4): a gear tooth is an involute curve</td></tr>
+    <tr><td>Custom-fit products from a body scan</td><td>Personalisation: the scan is the input, the rules are fixed</td></tr>
+  </tbody>
+</table>
+
+<h3>A formula as a structure</h3>
+<p>The <strong>gyroid</strong> is a surface defined by one line of trigonometry:</p>
+<p class="formula">sin x · cos y + sin y · cos z + sin z · cos x = 0</p>
+<p>It divides space into two interlocking channels with no straight line of weakness in any direction, and it supports itself as it prints. It is used as infill inside 3D-printed parts, in lightweight aerospace brackets, in bone implants and in heat exchangers. Material is placed wherever the formula's value is close to zero. The example shows horizontal slices through it, which is exactly what each printed layer looks like. A thicker wall or a tighter period is one changed number.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="S3.6 Slicing a gyroid, layer by layer">
+<script type="text/plain">
+const img = ctx.createImageData(W, H);
+const period = 0.08;        // smaller number: larger cells
+const wall = 0.35;          // how close to zero counts as material: wall thickness
+
+loop((t) => {
+  const z = t * 0.6;        // the height of the current layer, rising steadily
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const X = x * period, Y = y * period;
+      const g = Math.sin(X) * Math.cos(Y) + Math.sin(Y) * Math.cos(z) + Math.sin(z) * Math.cos(X);
+      const solid = Math.abs(g) < wall;
+
+      const k = (y * W + x) * 4;
+      img.data[k]     = solid ? 255 : 22;
+      img.data[k + 1] = solid ? 170 : 24;
+      img.data[k + 2] = solid ? 80 : 30;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h2>More ways out of the screen</h2>
+<table>
+  <thead><tr><th>Medium</th><th>What the machine needs</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Vinyl cutting</td><td>Closed vector outlines</td><td>Wall decals, stencils, heat-transfer designs for clothing. Small pieces are tedious to weed out.</td></tr>
+    <tr><td>Machine embroidery</td><td>Stitch paths</td><td>Hatching becomes fill stitches. Density must stay low enough not to pucker the fabric.</td></tr>
+    <tr><td>Knitting and weaving</td><td>A grid of stitch or thread choices</td><td>A pixel pattern is a knitting pattern. The Jacquard loom's punched cards (1804) were an ancestor of the computer.</td></tr>
+    <tr><td>Ceramics</td><td>A toolpath for extruded clay, or a mould</td><td>Clay sags, so overhang limits are stricter than for plastic.</td></tr>
+    <tr><td>Murals</td><td>A projected image or a grid to scale up from</td><td>Design for the wall's proportions and viewing distance. Fine detail is lost.</td></tr>
+    <tr><td>Stained glass and mosaics</td><td>Closed cells with a workable minimum size</td><td>A Voronoi diagram is nearly a lead-line pattern already.</td></tr>
+    <tr><td>LED installations</td><td>Colour values per light, many times a second</td><td>The generative code runs on a microcontroller. Noise and palettes work well at very low resolution.</td></tr>
+    <tr><td>E-paper frames</td><td>A small image, a few times a day</td><td>A piece that regenerates slowly on the wall, from the date as seed.</td></tr>
+    <tr><td>Architecture</td><td>Panel schedules and fabrication files for hundreds of unique parts</td><td>Every panel differs, so each must be numbered and its file generated.</td></tr>
+  </tbody>
+</table>
+
+<h2>A fabrication workflow</h2>
+<ol>
+  <li><strong>Choose the process and material first.</strong> They decide what is possible. Ask the workshop or print service for its limits: sheet size, minimum line weight, minimum feature, file format.</li>
+  <li><strong>Write the limits into the code</strong> as named constants in millimetres: <code>MIN_WEB</code>, <code>PEN_WIDTH</code>, <code>KERF</code>, <code>MIN_WALL</code>.</li>
+  <li><strong>Work in real units.</strong> Convert to pixels only for the preview.</li>
+  <li><strong>Preview honestly.</strong> Draw lines at the real pen or cutter width. Print a 1:1 section on an office printer and hold it at arm's length.</li>
+  <li><strong>Make a small test piece</strong> covering the finest detail and the tightest tolerance before committing a full sheet or a long print.</li>
+  <li><strong>Check the file in the next program along:</strong> the plotter software, the laser's driver, the slicer, a G-code simulator. Look at its time and material estimates.</li>
+  <li><strong>Record everything:</strong> seed, code version, material, machine settings. Physical work gets reordered.</li>
+</ol>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Design in millimetres. Convert to pixels only to preview.</li>
+  <li>Print needs resolution (about 300 dpi), bleed and printable colours. Layered work separates naturally into ink plates.</li>
+  <li>Plotters draw lines only. Order the paths, respect the pen width, and remove hidden lines yourself.</li>
+  <li>Cutting has kerf, islands, minimum webs and closed paths. Milling adds tool radius, depth and tabs.</li>
+  <li>3D printing needs a watertight mesh, limited overhangs and a minimum wall.</li>
+  <li>Physical limits are constraints. Put them in the rules and every output is manufacturable.</li>
+  <li>Simulate and test small before committing material or running a machine.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 3</p>
+  <h2>Make Something You Can Hold</h2>
+  <p>Take a procedural design all the way to a file that a real machine or print service could accept today. If you have access to the machine, make the object. If not, the verified file is the deliverable.</p>
+  <h3>Choose one route</h3>
+  <ul>
+    <li><strong>Wall print.</strong> A poster at a real paper size, rendered at 300 dpi with bleed, or separated into two or three ink plates.</li>
+    <li><strong>Plotter drawing.</strong> An SVG of lines only, sized to a real sheet, with paths ordered to reduce pen-up travel and no spacing below the pen width.</li>
+    <li><strong>Laser-cut piece.</strong> A panel, coaster, lampshade or stencil as an SVG in millimetres, with cut, score and engrave separated by colour and no islands that fall out unintentionally.</li>
+    <li><strong>3D print.</strong> A vase, planter, pendant or tile as an STL that passes a slicer's checks.</li>
+  </ul>
+  <h3>Requirements</h3>
+  <ul>
+    <li>All dimensions are in <strong>millimetres</strong>, declared as named constants at the top of the file.</li>
+    <li>At least <strong>three manufacturing constraints</strong> for your chosen process are enforced by the code, and the sketch reports whether each is met.</li>
+    <li>The design is <strong>seeded</strong>, and at least five seeds produce valid, manufacturable results.</li>
+    <li>The on-screen preview is <strong>honest</strong>: real line widths, true proportions, and the overall size shown.</li>
+    <li>The exported file <strong>opens correctly</strong> in an independent program: an SVG viewer at the right physical size, a slicer, or a G-code simulator.</li>
+    <li>A short note in the file: material, process, estimated time or cost, and anything you would test first.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start from a piece you made in an earlier challenge. The flow-field poster suits a plotter, the packed silhouette suits a laser cutter, and a noise terrain suits a 3D-printed tile.</li>
+    <li>Where a constraint is hard to guarantee by construction, measure after generating and reject or repair.</li>
+    <li>For SVG, set <code>width</code> and <code>height</code> with <code>mm</code> units and a <code>viewBox</code> in the same numbers, as in example S3.3.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Another program reports the size you intended, to the millimetre.</li>
+    <li>You could hand the file to a workshop with one sentence of instructions.</li>
+  </ul>
+  <a class="start" href="../challenges/s3-made-object.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="02-practical-uses.html">← Special Topic 2</a><a href="04-sound-and-music.html">Special Topic 4: Sound and Generative Music →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

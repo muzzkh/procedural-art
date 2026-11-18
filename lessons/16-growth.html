@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 16 · Growth Algorithms</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="15-animation-and-looping.html">← Lesson 15</a><span>Lesson 16 of 19</span><a href="17-physics.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 16</p>
+  <h1>Growth Algorithms</h1>
+  <p class="lede">Coral, frost, veins, lichens and river deltas are not designed. They accumulate, a small piece at a time, each piece placed by a local rule. This lesson builds three algorithms that grow forms the same way, and all three are short.</p>
+</header>
+
+<h2>Growing versus drawing</h2>
+<p>Lesson 6 made branching forms by recursion: the whole tree was decided from the top down, in one pass. Growth algorithms work the other way. They start from a seed and add to it step by step, and each addition depends on what is already there and on what is around it. The form is a record of its own history.</p>
+<p>That gives grown forms two qualities that recursive ones lack. They <strong>respond to their surroundings</strong>: they avoid obstacles, fill the space available, and compete with themselves. And they are <strong>unrepeatable in detail</strong>, though unmistakable in kind.</p>
+<p>All three algorithms here follow the pattern of Lesson 8: a state, a local rule, and a step repeated many times.</p>
+
+<h2>Diffusion-limited aggregation</h2>
+<p>Release a particle far away and let it wander at random. When it touches the growing cluster, it sticks there for good. Release another. That is the whole of <strong>diffusion-limited aggregation</strong>, described by Witten and Sander in 1981 to explain how soot and metal deposits form.</p>
+<p>The result is a branching, feathery shape, and the reason is worth understanding. A wandering particle is far more likely to meet the tip of a branch than to find its way down into a gap between branches. So tips grow, gaps stay empty, and any small bump becomes a branch. The same instability shapes frost on a window, lightning, and mineral dendrites in rock.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="16.1 Wanderers that stick">
+<script type="text/plain">
+const R = PA.rng();
+const order = new Uint16Array(W * H);           // 0 = empty, otherwise the order in which the cell was filled
+const CX = W / 2, CY = H / 2;
+let count = 1, reach = 2;                       // reach: how far the cluster extends from the centre
+order[CY * W + CX] = 1;                         // the seed
+
+const touching = (x, y) => order[y * W + x - 1] || order[y * W + x + 1] || order[(y - 1) * W + x] || order[(y + 1) * W + x];
+const img = ctx.createImageData(W, H);
+
+loop(() => {
+  for (let k = 0; k < 1500 && reach < W / 2 - 34; k++) {
+    // release a walker on a circle just outside the cluster
+    const a = R.range(PA.TAU);
+    let x = Math.round(CX + Math.cos(a) * (reach + 4)), y = Math.round(CY + Math.sin(a) * (reach + 4));
+
+    for (let step = 0; step < 3000; step++) {
+      if (touching(x, y)) {                                   // it has arrived: stick
+        order[y * W + x] = ++count;
+        reach = Math.max(reach, Math.hypot(x - CX, y - CY));
+        break;
+      }
+      const d = R.int(0, 3);                                  // otherwise take one random step
+      x += [1, -1, 0, 0][d];
+      y += [0, 0, 1, -1][d];
+      if (Math.hypot(x - CX, y - CY) > reach + 30) break;     // wandered far off: abandon it
+    }
+  }
+
+  for (let i = 0; i < W * H; i++) {
+    const age = order[i] ? order[i] / count : 0;              // 0 = oldest, 1 = newest
+    const [r, g, b] = order[i] ? PA.oklchRGB(0.45 + age * 0.45, 0.14, 200 + age * 140) : [14, 16, 22];
+    img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<p>Variations change the character completely. Let particles stick with a probability below 1 and they penetrate deeper, giving denser, mossier growth. Start from a line along the bottom instead of a point and you get a forest of ferns. Give the walkers a slight drift in one direction and the cluster leans into the wind.</p>
+
+<h2>Space colonisation</h2>
+<p>Trees do not branch at random. They grow toward light and unoccupied space. <strong>Space colonisation</strong>, published by Adam Runions and colleagues in 2007, models exactly that, and produces the most natural-looking branching of any simple algorithm.</p>
+<ol>
+  <li>Scatter <strong>attraction points</strong> through the volume the plant should fill: the shape of its crown.</li>
+  <li>Each attraction point pulls on the <strong>nearest</strong> branch node, if one is within reach.</li>
+  <li>Every node that is being pulled grows a new node a short step in the average direction of its pulls.</li>
+  <li>Any attraction point that a branch has come very close to is <strong>removed</strong>. That space is now colonised.</li>
+  <li>Repeat until no attraction points are left within reach.</li>
+</ol>
+<p>Branches split wherever two groups of points pull a node in different directions, and they stop where there is nothing left to reach for. The crown shape is entirely decided by where you scatter the points, which makes this a very controllable way to grow a tree, a leaf's veins, a root system or a river network.</p>
+
+<div class="example" data-title="16.2 Branches that grow toward free space">
+<script type="text/plain">
+const R = PA.rng();          // run again for another tree
+const REACH = 90, KILL = 13, STEP = 6;
+
+// attraction points fill the crown: here, an egg shape
+let attractors = [];
+while (attractors.length < 650) {
+  const x = R.range(W), y = R.range(30, 440);
+  if (Math.hypot((x - W / 2) / 1.05, (y - 235) * 1.15) < 215) attractors.push({ x, y });
+}
+const nodes = [{ x: W / 2, y: H - 15, parent: null }];
+const taken = new Set();
+
+loop((t, frame) => {
+  if (attractors.length > 0 && frame < 500) {
+    for (const n of nodes) { n.dx = 0; n.dy = 0; n.pulls = 0; }
+
+    // each attraction point pulls on its nearest node, if within reach
+    for (const a of attractors) {
+      let nearest = null, best = REACH;
+      for (const n of nodes) {
+        const d = Math.hypot(a.x - n.x, a.y - n.y);
+        if (d < best) { best = d; nearest = n; }
+      }
+      if (nearest) { nearest.dx += (a.x - nearest.x) / best; nearest.dy += (a.y - nearest.y) / best; nearest.pulls++; }
+    }
+
+    // every pulled node grows one step in the average direction
+    const born = [];
+    for (const n of nodes) {
+      if (!n.pulls) continue;
+      const len = Math.hypot(n.dx, n.dy) || 1;
+      const child = { x: n.x + (n.dx / len) * STEP, y: n.y + (n.dy / len) * STEP, parent: n };
+      const key = Math.round(child.x) + ',' + Math.round(child.y);
+      if (!taken.has(key)) { taken.add(key); born.push(child); }       // never grow the same spot twice
+    }
+    if (born.length === 0 && nodes.length < 70) {                       // nothing in reach yet: the trunk rises
+      const tip = nodes[nodes.length - 1];
+      born.push({ x: tip.x, y: tip.y - STEP, parent: tip });
+    }
+    nodes.push(...born);
+
+    // remove the attraction points that have been reached
+    attractors = attractors.filter((a) => !born.some((n) => Math.hypot(a.x - n.x, a.y - n.y) < KILL));
+  }
+
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(74, 124, 89, 0.5)';
+  for (const a of attractors) { ctx.beginPath(); ctx.arc(a.x, a.y, 2, 0, PA.TAU); ctx.fill(); }
+  ctx.strokeStyle = '#3b2f2f';
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const n of nodes) { if (n.parent) { ctx.moveTo(n.parent.x, n.parent.y); ctx.lineTo(n.x, n.y); } }
+  ctx.stroke();
+});
+</script>
+</div>
+
+<p>Try it: change the crown test to a ring, a heart or a letter (Lesson 12's inside test works here). Lower <code>KILL</code> for denser twigs. For a finished tree, make each branch's thickness depend on how many twigs it carries: count descendants from the tips back to the root.</p>
+
+<h2>Differential growth</h2>
+<p>The third algorithm grows a <em>line</em>, not a branching structure. Take a closed loop of points and apply three rules to every point:</p>
+<dl class="vocab">
+  <dt>Repulsion</dt><dd>Push away from every other point that is too close.</dd>
+  <dt>Cohesion</dt><dd>Stay close to your two neighbours along the line, so that the line stays smooth.</dd>
+  <dt>Growth</dt><dd>Keep inserting new points into the line, and split any segment that has become too long.</dd>
+</dl>
+<p>The line keeps getting longer, but it cannot cross itself, and it has only so much room. So it buckles and folds, and the folds fold again. The result looks like brain coral, the edge of a lettuce leaf, or the surface of a walnut. It is called <strong>differential growth</strong> because different parts of the form grow at different rates.</p>
+
+<div class="example" data-title="16.3 A line that runs out of room">
+<script type="text/plain">
+const R = PA.rng();
+const REPEL = 20, MAX_EDGE = 8, LIMIT = 1100, BOUND = 275;
+
+let nodes = [];
+for (let i = 0; i < 40; i++) {                   // start as a small circle
+  const a = (i / 40) * PA.TAU;
+  nodes.push({ x: W / 2 + Math.cos(a) * 30, y: H / 2 + Math.sin(a) * 30, fx: 0, fy: 0 });
+}
+const between = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, fx: 0, fy: 0 });
+
+loop(() => {
+  // growth: add a few new points at random places along the line
+  for (let k = 0; k < 3 && nodes.length < LIMIT; k++) {
+    const i = R.int(0, nodes.length - 1);
+    nodes.splice(i + 1, 0, between(nodes[i], nodes[(i + 1) % nodes.length]));
+  }
+
+  const n = nodes.length;
+  for (let i = 0; i < n; i++) {
+    const p = nodes[i];
+    let fx = 0, fy = 0;
+    for (let j = 0; j < n; j++) {                // repulsion from every point within range
+      if (j === i) continue;
+      const dx = p.x - nodes[j].x, dy = p.y - nodes[j].y, d2 = dx * dx + dy * dy;
+      if (d2 < REPEL * REPEL && d2 > 0) {
+        const d = Math.sqrt(d2), push = (REPEL - d) / REPEL;
+        fx += (dx / d) * push; fy += (dy / d) * push;
+      }
+    }
+    const a = nodes[(i - 1 + n) % n], b = nodes[(i + 1) % n];      // cohesion: move toward the midpoint of the neighbours
+    fx += ((a.x + b.x) / 2 - p.x) * 0.3;
+    fy += ((a.y + b.y) / 2 - p.y) * 0.3;
+    p.fx = fx; p.fy = fy;
+  }
+  for (const p of nodes) {
+    p.x += p.fx * 0.8; p.y += p.fy * 0.8;
+    const d = Math.hypot(p.x - W / 2, p.y - H / 2);                 // stay inside a circular dish
+    if (d > BOUND) { p.x = W / 2 + ((p.x - W / 2) / d) * BOUND; p.y = H / 2 + ((p.y - H / 2) / d) * BOUND; }
+  }
+  for (let i = nodes.length - 1; i >= 0 && nodes.length < LIMIT; i--) {     // split segments that have stretched
+    const a = nodes[i], b = nodes[(i + 1) % nodes.length];
+    if (Math.hypot(a.x - b.x, a.y - b.y) > MAX_EDGE) nodes.splice(i + 1, 0, between(a, b));
+  }
+
+  ctx.fillStyle = '#0f1a24';
+  ctx.fillRect(0, 0, W, H);
+  ctx.beginPath();
+  for (const p of nodes) ctx.lineTo(p.x, p.y);
+  ctx.closePath();
+  ctx.fillStyle = '#e07a5f';
+  ctx.fill();
+  ctx.strokeStyle = '#f2cc8f';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px monospace';
+  ctx.fillText(nodes.length + ' points', 12, H - 12);
+});
+</script>
+</div>
+
+<p>Each point here is compared with every other, which limits the example to about a thousand points. With the spatial hashing of Lesson 19 the same algorithm handles tens of thousands, which is where the forms become really intricate.</p>
+
+<h2>Guiding growth</h2>
+<p>What makes growth algorithms useful for design, not just pleasant to watch, is that every one has a place where you can steer it.</p>
+<table>
+  <thead><tr><th>Control</th><th>How</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td>Boundary</td><td>Stop or deflect growth outside a shape</td><td>Grown forms that fill a letter, a silhouette, a vessel</td></tr>
+    <tr><td>Field</td><td>Let noise or an image scale the growth rate or the step size</td><td>Dense in some regions, sparse in others</td></tr>
+    <tr><td>Starting state</td><td>Several seeds, a line, a ring</td><td>Competing colonies, forests, frames</td></tr>
+    <tr><td>Obstacles</td><td>Regions that nothing may enter</td><td>Forms that flow round things</td></tr>
+    <tr><td>Stopping time</td><td>Halt early or late</td><td>A sprout or a thicket: the same code</td></tr>
+    <tr><td>Rendering</td><td>Colour by age, thicken by flow, draw only the tips</td><td>Very different images from one structure</td></tr>
+  </tbody>
+</table>
+<p>Other growth systems worth looking up: cellular automata started from a single seed (Lesson 8), reaction–diffusion, Eden growth (the simplest of all: fill a random cell beside the cluster), and physically based models of cracks, erosion and crystal formation.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Growth adds to a form step by step, each step depending on what is there already.</li>
+  <li>Diffusion-limited aggregation: random walkers stick on contact. Tips win, so it branches.</li>
+  <li>Space colonisation: attraction points pull branches toward unclaimed space, then vanish.</li>
+  <li>Differential growth: a line that lengthens but may not cross itself must fold.</li>
+  <li>The shape of the available space is your main control.</li>
+  <li>When to stop is an artistic decision.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Letting a growth loop run without a limit on points or steps, until the browser stalls.</li>
+  <li>Releasing diffusion walkers far from the cluster, so that almost all of the time is spent wandering in empty space.</li>
+  <li>Drawing only the final state. Colouring by age or order tells the story of how the form grew.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 16</p>
+  <h2>A Grown Form</h2>
+  <p>Grow something inside a shape of your own choosing, and present it as a finished image: a specimen, an ornament, a map of somewhere that grew.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>One of the three algorithms, or a combination, <strong>written by you</strong> and not copied from the examples.</li>
+    <li>Growth is <strong>confined to a shape</strong> you defined with an inside test: a letter, a leaf, a ring, a silhouette.</li>
+    <li>A <strong>field</strong> (noise or distance) changes how the form grows in different places.</li>
+    <li>The rendering shows <strong>history</strong>: age, order or thickness by flow, not a flat colour.</li>
+    <li>A clear <strong>stopping rule</strong>, and the growth can be watched as it happens.</li>
+    <li>Seeded, with a key for a new seed and one to save a PNG.</li>
+    <li>It reaches at least 3,000 elements without dropping below a comfortable frame rate.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Get the bare algorithm working in an empty square before adding the shape.</li>
+    <li>For space colonisation, scatter the attraction points only where your inside test is true. The form then fills the shape by itself.</li>
+    <li>If it slows down, the cost is in comparing everything with everything. Lesson 19's grid of buckets is the cure.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Two colonies in different colours competing for the same space.</li>
+    <li>Thickness by flow: branches that carry more twigs are drawn wider, as in a real tree or river.</li>
+    <li>Export the result as SVG lines for a plotter.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The outline of your shape can be recognised from the growth alone.</li>
+    <li>It looks as though it could be something found, not something drawn.</li>
+  </ul>
+  <a class="start" href="../challenges/16-grown-form.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="15-animation-and-looping.html">← Lesson 15</a><a href="17-physics.html">Lesson 17: Physics →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

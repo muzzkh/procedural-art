@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web Design 2 · Building Real Pages</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-generative-web-design.html">← Web Design 1</a><span>Web design 2 of 2</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Web Design 2</p>
+  <h1>Building Real Pages</h1>
+  <p class="lede">An effect in a square test canvas is half the job. On a real page it has to fill a responsive layout, sit behind real text, load without delaying the content, behave on phones, and respect people who do not want motion. This lesson walks through three complete pages.</p>
+</header>
+
+<div class="note"><p>The three demos on this page are ordinary stand-alone web pages in the course's <code>web/demos</code> folder. Each is embedded below in a frame, with a link to open it full size. Read their source: they are short, and written to be read. All three were loaded and checked with the pointer over them. They were not tested on a phone.</p></div>
+
+<h2>Demo 1: a landing page with a reveal hero</h2>
+<p>This is the dual-design reveal from the last lesson as a complete landing page for an imaginary studio. Move the pointer across the hero.</p>
+<iframe class="demo-frame" src="demos/reveal-hero.html" title="Demo: a landing page whose hero reveals a second design under the pointer" loading="lazy"></iframe>
+<p class="demo-link"><a href="demos/reveal-hero.html">Open this demo in its own tab</a></p>
+
+<h3>Layering canvas and content</h3>
+<p>The hero is a positioned box. The canvas fills it, and the navigation and headline are ordinary HTML placed on top. The text is therefore real text: selectable, readable by search engines and screen readers, and styled with CSS. The canvas is marked <code>aria-hidden</code> because it is decoration.</p>
+<pre><code>.hero { position: relative; height: 100vh; overflow: hidden; }
+.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero nav, .hero .copy { position: absolute; left: 0; right: 0; padding: 0 6vw; }
+
+/* "difference" inverts the text against whatever is behind it, so it reads on both designs */
+.hero nav, .hero h1, .hero p { color: #fff; mix-blend-mode: difference; }</code></pre>
+<p>The last rule solves a real problem. The headline sits over a light design and, inside the blob, over a dark one. No single text colour is readable on both. With <code>mix-blend-mode: difference</code>, white text shows as the inverse of what lies beneath it: dark on the light design, light on the dark one, switching letter by letter as the blob passes.</p>
+
+<h3>Sizing a canvas properly</h3>
+<p>A canvas has two sizes: the size it is displayed at, set by CSS, and the number of pixels it holds, set by its <code>width</code> and <code>height</code>. If they do not match the picture is blurry or stretched. The pattern below keeps them in step, and scales drawing so that your code can work in ordinary CSS pixels.</p>
+<pre><code>function build() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);            // never render more than 2x: it is wasted work
+  W = hero.clientWidth; H = hero.clientHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // ...draw the two designs onto hidden canvases of the same size...
+}
+
+new ResizeObserver(build).observe(hero);                       // rebuild whenever the hero changes size</code></pre>
+<p>Because the designs are generated from functions of <code>W</code> and <code>H</code>, they re-compose themselves for a phone, a laptop or a wide monitor. This is the unit-square discipline of Lesson 10 paying off.</p>
+
+<h3>Pointer position, relative to the element</h3>
+<pre><code>hero.addEventListener('pointermove', (e) =&gt; {
+  const box = hero.getBoundingClientRect();
+  pointer.x = e.clientX - box.left;
+  pointer.y = e.clientY - box.top;
+  pointer.active = true;
+});
+hero.addEventListener('pointerleave', () =&gt; { pointer.active = false; });</code></pre>
+<p>Pointer events cover mouse, pen and touch with one set of handlers. When the pointer leaves, the demo goes back to its idle motion, so the hero is never frozen in an odd state.</p>
+
+<h3>Being a good guest</h3>
+<pre><code>const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// pause when the hero is scrolled out of view
+new IntersectionObserver((entries) =&gt; { visible = entries[0].isIntersecting; }).observe(hero);
+
+function frame(ms) {
+  if (visible) { /* ...draw... */ }
+  if (!calm) requestAnimationFrame(frame);
+}
+
+if (calm) drawStill(); else requestAnimationFrame(frame);     // reduced motion: one fixed frame</code></pre>
+
+<h2>Demo 2: a reveal with no canvas at all</h2>
+<p>If the two designs can be made from HTML and CSS, the browser can do the masking itself. Here both layers are plain <code>div</code> elements with CSS gradients for artwork. The top layer is clipped to a circle whose position comes from CSS variables, and JavaScript's whole job is to copy the pointer position into those variables.</p>
+<iframe class="demo-frame" src="demos/css-reveal.html" title="Demo: a day and night hero revealed with CSS clip-path" loading="lazy"></iframe>
+<p class="demo-link"><a href="demos/css-reveal.html">Open this demo in its own tab</a></p>
+<pre><code>.night {
+  /* only a circle of this layer is visible, placed by three CSS variables */
+  clip-path: circle(var(--r, 0px) at var(--x, 50%) var(--y, 50%));
+}</code></pre>
+<pre><code>x += (tx - x) * 0.12;                            // smoothing, as everywhere in the course
+y += (ty - y) * 0.12;
+r += (tr - r) * 0.08;
+hero.style.setProperty('--x', x + 'px');
+hero.style.setProperty('--y', y + 'px');
+hero.style.setProperty('--r', r + 'px');</code></pre>
+<p>This <strong>CSS-variable bridge</strong> is the most useful pattern in creative web development. JavaScript computes a few numbers, and CSS uses them anywhere: in a clip path, a transform, a gradient position, a colour. The layers can contain anything, including images, video and live text, which a canvas cannot.</p>
+<table>
+  <thead><tr><th>CSS feature</th><th>What it gives you</th></tr></thead>
+  <tbody>
+    <tr><td><code>clip-path</code></td><td>Hard-edged masks: circles, polygons, insets. Fast and widely supported.</td></tr>
+    <tr><td><code>mask-image</code> with a gradient</td><td>Soft-edged masks. A radial gradient from opaque to transparent gives a feathered hole.</td></tr>
+    <tr><td><code>mix-blend-mode</code></td><td>Layers that multiply, screen or invert against what is beneath</td></tr>
+    <tr><td><code>background</code> with several gradients</td><td>Patterns with no image files: stripes, dots, grids, noise-like textures</td></tr>
+    <tr><td>SVG filters (<code>feTurbulence</code>, <code>feDisplacementMap</code>)</td><td>Noise and liquid distortion applied to any element. Powerful, but heavy: test performance.</td></tr>
+    <tr><td><code>transform</code> and <code>opacity</code></td><td>The two properties browsers animate most cheaply. Prefer them for motion.</td></tr>
+  </tbody>
+</table>
+<p>Choose canvas when the artwork itself is generated or needs an organic, changing mask. Choose CSS when the layers are ordinary page content.</p>
+
+<h2>Demo 3: generated covers for every article</h2>
+<p>A content page in which no article has an illustration. Each card's cover is drawn from its title, in one house style, and comes alive while hovered.</p>
+<iframe class="demo-frame" src="demos/generative-cards.html" title="Demo: article cards with cover art generated from each title" loading="lazy"></iframe>
+<p class="demo-link"><a href="demos/generative-cards.html">Open this demo in its own tab</a></p>
+<p>Many small canvases raise a different problem from one large one: doing no more work than necessary.</p>
+<pre><code>// draw a cover only when its card first scrolls into view
+const seen = new IntersectionObserver((entries) =&gt; {
+  for (const entry of entries) {
+    const state = cards.find((c) =&gt; c.canvas === entry.target);
+    if (entry.isIntersecting &amp;&amp; !state.drawn) { drawCover(state.canvas, state.title, 0); state.drawn = true; }
+  }
+});
+
+// animate only the cards that need it
+function frame() {
+  for (const c of cards) {
+    if (!c.drawn) continue;
+    if (c.hover) c.life += 0.02;
+    else if (c.life &gt; 0.01) c.life *= 0.92;
+    else continue;                                   // at rest: no drawing at all
+    drawCover(c.canvas, c.title, c.life);
+  }
+  requestAnimationFrame(frame);
+}</code></pre>
+<p>With a hundred cards on the page, at most one is being redrawn at any moment. For a site with thousands of items, generate the covers once on the server or at build time and serve them as ordinary images. The generator is the same code.</p>
+
+<h2>Checklists</h2>
+<h3>Performance</h3>
+<ul>
+  <li>Cap the device pixel ratio at 2.</li>
+  <li>Draw expensive, unchanging layers once onto hidden canvases and copy them each frame.</li>
+  <li>Stop the animation loop when the element is off screen or the tab is hidden.</li>
+  <li>Use <code>requestAnimationFrame</code>, never a timer, for animation.</li>
+  <li>Let the text and layout appear first. Start the canvas after the page has rendered, and show a static first frame immediately.</li>
+  <li>Measure on a mid-range phone. If it cannot hold 30 frames a second, reduce the particle count or resolution there.</li>
+</ul>
+<h3>Accessibility and robustness</h3>
+<ul>
+  <li>Honour <code>prefers-reduced-motion</code> with a still image.</li>
+  <li>Mark decorative canvases <code>aria-hidden="true"</code>. Keep all real content in HTML.</li>
+  <li>Check text contrast against <em>every</em> state of the background, not just the first frame.</li>
+  <li>Make sure the page is complete and usable if the script fails to load.</li>
+  <li>Never let a canvas capture clicks meant for links: set <code>pointer-events: none</code> on purely decorative layers.</li>
+</ul>
+<h3>Touch devices</h3>
+<ul>
+  <li>There is no hover. The idle animation is what most phone visitors will see, so make it good.</li>
+  <li>Let a finger dragged across the element act as the pointer, without blocking page scrolling: add <code>touch-action: pan-y</code>.</li>
+  <li>Consider tilt as input, or tie the effect to scroll position instead.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Put the canvas behind real HTML content. Text stays text.</li>
+  <li><code>mix-blend-mode: difference</code> keeps text readable over two different backgrounds.</li>
+  <li>Keep a canvas's pixel size in step with its displayed size, and rebuild on resize.</li>
+  <li>The CSS-variable bridge lets JavaScript drive any CSS property, including masks.</li>
+  <li>Draw once, copy often. Animate only what is visible and changing.</li>
+  <li>Reduced motion, touch and script failure are requirements, not extras.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Web design challenge</p>
+  <h2>A Landing Page That Is Alive</h2>
+  <p>Design and build a one-page site for a real or imaginary person, product or event, whose hero is a generative piece that responds to the visitor.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>hero</strong> with a dual-design reveal of your own: two aligned treatments of one composition, and a mask with character.</li>
+    <li>Real <strong>HTML content</strong> over and below it: navigation, a headline, a paragraph, at least one further section.</li>
+    <li>A <strong>second generative element</strong> elsewhere on the page: seeded cards, a reactive divider, a living background.</li>
+    <li>One <strong>brand</strong>: two or three colours and one or two typefaces, used consistently in both the page and the generated art.</li>
+    <li><strong>Responsive:</strong> it re-composes from 360 pixels wide to a wide monitor, with no horizontal scrolling.</li>
+    <li>A good <strong>idle state</strong>, a <strong>reduced-motion</strong> still, and animation that <strong>pauses off screen</strong>.</li>
+    <li>Text is readable in every state of the hero.</li>
+    <li>The seed can be set from the page address, so a particular version can be shared.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Design both hero treatments as still images first. If they are not good when still, motion will not save them.</li>
+    <li>Start from the starter file, which has the layering, sizing and good-guest code in place.</li>
+    <li>Shrink the browser window constantly while you work.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone who has not seen it moves the mouse over the hero and smiles.</li>
+    <li>It works with the pointer, with a finger, and with neither.</li>
+  </ul>
+  <a class="start" href="../challenges/w2-landing-page.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="01-generative-web-design.html">← Web Design 1</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+</body>
+</html>

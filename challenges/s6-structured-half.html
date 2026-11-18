@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 6 · The Structured Half</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 92vmin; max-height: 86vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); touch-action: none; }
+  #report { margin: 0; padding: 10px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="1024" height="1024"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 6 — THE STRUCTURED HALF
+   Full brief: ../special/06-ai-and-procedural.html
+
+   Checklist
+   [ ] A seeded generator of scenes with depth: at least fifteen elements
+   [ ] Three renderings from the same data: flat picture, depth map, outline map
+   [ ] In the outline map, nearer shapes hide the outlines of farther ones
+   [ ] All three export as PNG at 1024 x 1024, with matching names that include the seed
+   [ ] A scoring function with at least three criteria, each with a comment saying why
+   [ ] A view of the best and worst of at least fifty seeds
+   [ ] The three renderings line up exactly when overlaid
+
+   WHAT I WOULD LEAVE TO A MODEL, AND WHAT I NEVER WOULD:
+     ...
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const report = document.getElementById('report');
+
+let seed = 1;
+let view = 'colour';                    // 'colour', 'depth' or 'edges'
+
+// The scene as DATA. Every rendering reads this and nothing else.
+function makeScene(seed) {
+  const R = PA.rng(seed);
+  const elements = [];
+  // ---- at least fifteen elements: { x, y, shape, size, depth (0 = near, 1 = far), ... } ----
+  return elements;
+}
+
+function renderColour(scene) { /* ---- the flat picture ---- */ }
+function renderDepth(scene) { /* ---- greyscale: near is light, far is dark ---- */ }
+function renderEdges(scene) { /* ---- white outlines on black, with hidden outlines removed ---- */ }
+
+// A number from 0 (reject) to 1 (keep).
+function score(scene) {
+  // ---- criterion 1, and why:
+  // ---- criterion 2, and why:
+  // ---- criterion 3, and why:
+  return 0;
+}
+
+function show() {
+  const scene = makeScene(seed);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  if (view === 'colour') renderColour(scene);
+  if (view === 'depth') renderDepth(scene);
+  if (view === 'edges') renderEdges(scene);
+  report.textContent = 'seed ' + seed + ' · ' + view + ' · score ' + score(scene).toFixed(2);
+}
+show();
+
+// TODO: keys for a new seed, switching view, exporting all three, and the best-and-worst sheet
+</script>
+</body>
+</html>

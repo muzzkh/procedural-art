@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 7 · Packing and Partitioning</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="06-recursion-and-grammars.html">← Lesson 6</a><span>Lesson 7 of 19</span><a href="08-simulation-and-emergence.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 7</p>
+  <h1>Packing and Partitioning</h1>
+  <p class="lede">Where should things go? Scatter them at random and they clump and overlap. This lesson covers the algorithms that distribute shapes with intent: filling space without collisions, spacing points evenly, and carving the canvas into regions.</p>
+</header>
+
+<h2>Two ways to organise space</h2>
+<ul>
+  <li><strong>Packing</strong> places separate objects so they do not overlap: circles, points, shapes.</li>
+  <li><strong>Partitioning</strong> divides the whole canvas into regions that cover it completely: rectangles, cells, tiles.</li>
+</ul>
+<p>Both give a composition something that pure randomness lacks: every element respects its neighbours.</p>
+
+<h2>Circle packing</h2>
+<p>The simplest packing method is <strong>trial and rejection</strong>. Pick a random spot. Work out the largest circle that fits there without touching an existing circle or the edge. If that radius is big enough to bother with, keep the circle; otherwise throw the attempt away. Repeat many thousands of times.</p>
+<p>Early attempts find lots of room and produce large circles. Later attempts can only fit into the gaps. The result has the pleasing size distribution you met in Lesson 2, a few large and many small, without your having to design it.</p>
+
+<div class="example" data-title="7.1 Circle packing by trial and rejection">
+<script type="text/plain">
+const R = PA.rng('pack');
+const palette = ['#264653', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51'];
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+const circles = [];
+const maxRadius = 70, minRadius = 2, gap = 2;
+
+for (let attempt = 0; attempt < 12000; attempt++) {
+  const x = R.range(W), y = R.range(H);
+
+  // the biggest radius allowed by the canvas edge...
+  let r = Math.min(x, y, W - x, H - y, maxRadius) - 6;
+  // ...and by every existing circle
+  for (const c of circles) {
+    r = Math.min(r, Math.hypot(x - c.x, y - c.y) - c.r - gap);
+    if (r < minRadius) break;
+  }
+  if (r < minRadius) continue;            // no room here: reject
+
+  circles.push({ x, y, r });
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, PA.TAU);
+  ctx.fillStyle = R.pick(palette);
+  ctx.fill();
+}
+
+ctx.fillStyle = '#333';
+ctx.font = '13px monospace';
+ctx.fillText(circles.length + ' circles', 12, H - 12);
+</script>
+</div>
+
+<p>Try it: set <code>maxRadius</code> to 15 for an even texture, or to 200 for a few dominant shapes. Change the edge test to a distance from the canvas centre and the circles will fill a disc instead of a square. Any test of "is this spot allowed?" works, which is how packing is made to fill a letter or a silhouette.</p>
+
+<div class="note"><p><strong>Cost.</strong> Each attempt is compared with every existing circle, so the work grows with the square of the count. A few thousand circles is fine. For more, store circles in a coarse grid of buckets and compare only against nearby buckets. This is called a <strong>spatial hash</strong> and example 7.2 uses the same idea.</p></div>
+
+<h2>Evenly spaced points: Poisson-disc sampling</h2>
+<p>Uniform random points clump and leave holes. A perfect grid is even but looks mechanical. <strong>Poisson-disc sampling</strong> sits between them: points are random, but no two are closer than a chosen minimum distance. The pattern is sometimes called blue noise. It is how trees are scattered in game worlds, how stippled drawings are made, and how cells are arranged in the retina.</p>
+<p>Robert Bridson's 2007 algorithm does it quickly:</p>
+<ol>
+  <li>Start with one point and put it on an "active" list.</li>
+  <li>Pick an active point. Try up to 30 random candidates in the ring between one and two minimum-distances away from it.</li>
+  <li>Accept the first candidate that is far enough from all existing points, and add it to the active list.</li>
+  <li>If all 30 fail, that point is surrounded: remove it from the active list.</li>
+  <li>Stop when the active list is empty.</li>
+</ol>
+<p>A background grid with cells smaller than the minimum distance makes the "far enough" test fast, because only a few neighbouring cells need checking.</p>
+
+<div class="example" data-title="7.2 Uniform random (left) versus Poisson-disc (right)">
+<script type="text/plain">
+const R = PA.rng('poisson');
+const r = 14;                              // minimum distance between points
+const cell = r / Math.SQRT2;               // grid cell small enough to hold at most one point
+const gw = Math.ceil(W / cell), gh = Math.ceil(H / cell);
+const grid = new Array(gw * gh).fill(null);
+const points = [], active = [];
+
+function add(p) {
+  points.push(p);
+  active.push(p);
+  grid[Math.floor(p.y / cell) * gw + Math.floor(p.x / cell)] = p;
+}
+
+function farEnough(p) {
+  if (p.x < 0 || p.x >= W || p.y < 0 || p.y >= H) return false;
+  const gx = Math.floor(p.x / cell), gy = Math.floor(p.y / cell);
+  for (let j = Math.max(0, gy - 2); j <= Math.min(gh - 1, gy + 2); j++) {
+    for (let i = Math.max(0, gx - 2); i <= Math.min(gw - 1, gx + 2); i++) {
+      const q = grid[j * gw + i];
+      if (q && Math.hypot(q.x - p.x, q.y - p.y) < r) return false;
+    }
+  }
+  return true;
+}
+
+add({ x: W / 2, y: H / 2 });
+while (active.length > 0) {
+  const index = R.int(0, active.length - 1);
+  const from = active[index];
+  let placed = false;
+  for (let k = 0; k < 30; k++) {
+    const angle = R.range(PA.TAU), d = R.range(r, 2 * r);
+    const p = { x: from.x + Math.cos(angle) * d, y: from.y + Math.sin(angle) * d };
+    if (farEnough(p)) { add(p); placed = true; break; }
+  }
+  if (!placed) active.splice(index, 1);
+}
+
+// draw: Poisson points on the right half, the same number of plain random points on the left
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#ffd166';
+let count = 0;
+for (const p of points) {
+  if (p.x < W / 2 + 8) continue;
+  count++;
+  ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, PA.TAU); ctx.fill();
+}
+ctx.fillStyle = '#ef476f';
+for (let i = 0; i < count; i++) {
+  ctx.beginPath(); ctx.arc(R.range(W / 2 - 8), R.range(H), 2.5, 0, PA.TAU); ctx.fill();
+}
+</script>
+</div>
+
+<h2>Recursive subdivision</h2>
+<p>To partition a rectangle, cut it in two, then cut each piece in two, and continue until the pieces are small enough or chance says stop. This is Lesson 6's recursion applied to layout. It produces the irregular grids of a Mondrian painting, a newspaper page or a treemap.</p>
+
+<div class="example" data-title="7.3 Subdivision">
+<script type="text/plain">
+const R = PA.rng();          // run again for a new layout
+const palette = ['#f4efe6', '#f4efe6', '#f4efe6', '#d62828', '#003049', '#fcbf49'];
+
+ctx.fillStyle = '#111';
+ctx.fillRect(0, 0, W, H);
+ctx.lineWidth = 6;
+ctx.strokeStyle = '#111';
+
+function split(x, y, w, h, depth) {
+  const bigEnough = w > 60 || h > 60;
+  if (depth === 0 || !bigEnough || R.chance(0.1)) {      // stop: paint this piece
+    ctx.fillStyle = R.pick(palette);
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    return;
+  }
+  if (w > h) {                                   // cut the longer side
+    const cut = w * R.range(0.3, 0.7);
+    split(x, y, cut, h, depth - 1);
+    split(x + cut, y, w - cut, h, depth - 1);
+  } else {
+    const cut = h * R.range(0.3, 0.7);
+    split(x, y, w, cut, depth - 1);
+    split(x, y + cut, w, h - cut, depth - 1);
+  }
+}
+
+split(20, 20, W - 40, H - 40, 6);
+</script>
+</div>
+
+<h3>Subdividing where it matters</h3>
+<p>A <strong>quadtree</strong> splits a square into four smaller squares, and the decision to split can depend on a field. Here, noise decides: regions where the noise is high keep splitting and become finely detailed, and regions where it is low stay as large calm blocks. Varying the level of detail across a picture like this gives the eye somewhere to rest and somewhere to explore.</p>
+
+<div class="example" data-title="7.4 A quadtree steered by noise">
+<script type="text/plain">
+const N = PA.noise('quad'), R = PA.rng('quad');
+ctx.fillStyle = '#0b132b';
+ctx.fillRect(0, 0, W, H);
+
+function quad(x, y, size, depth) {
+  const n = N.get((x + size / 2) * 0.004, (y + size / 2) * 0.004);
+  const splitChance = PA.map(n, 0.3, 0.7, 0.05, 1.0);       // more noise, more detail
+
+  if (depth < 6 && R() < splitChance) {
+    const h = size / 2;
+    quad(x, y, h, depth + 1);      quad(x + h, y, h, depth + 1);
+    quad(x, y + h, h, depth + 1);  quad(x + h, y + h, h, depth + 1);
+    return;
+  }
+
+  ctx.fillStyle = PA.hsl(190 + depth * 28, 70, 30 + depth * 7);
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size * 0.44, 0, PA.TAU);
+  ctx.fill();
+}
+
+quad(12, 12, W - 24, 0);
+</script>
+</div>
+
+<h2>Voronoi cells</h2>
+<p>Scatter some seed points. Give every location on the canvas to its nearest seed. The canvas divides into cells with straight edges, one per seed. This is a <strong>Voronoi diagram</strong>. It resembles cracked mud, giraffe skin, soap foam and leaf cells, because all of those form by things growing outward until they meet their neighbours.</p>
+<p>The simple way to draw it is per pixel: for each pixel, find the closest seed. The example also tracks the second-closest seed. Where the two distances are almost equal the pixel lies on a border.</p>
+<p>The animation applies <strong>Lloyd relaxation</strong>: each seed moves a little toward the centre of its own cell, over and over. The cells gradually even out into a regular, organic honeycomb. It is a general-purpose way of turning a random scatter into a well-spaced one.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="7.5 Voronoi cells relaxing">
+<script type="text/plain">
+const R = PA.rng('voronoi');
+const seeds = [];
+for (let i = 0; i < 40; i++) {
+  const t = 0.55 + R() * 0.45;          // a position along a blue-to-cream colour ramp
+  seeds.push({
+    x: R.range(W), y: R.range(H),
+    colour: PA.cosPaletteRGB(t, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [1, 1, 1], [0, 0.1, 0.2]),
+  });
+}
+const img = ctx.createImageData(W, H);
+
+loop(() => {
+  for (const s of seeds) { s.sumX = 0; s.sumY = 0; s.count = 0; }
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let nearest = null, d1 = Infinity, d2 = Infinity;      // closest and second closest
+      for (const s of seeds) {
+        const d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
+        if (d < d1) { d2 = d1; d1 = d; nearest = s; }
+        else if (d < d2) d2 = d;
+      }
+      nearest.sumX += x; nearest.sumY += y; nearest.count++;
+
+      const onBorder = Math.sqrt(d2) - Math.sqrt(d1) < 1.5;
+      const k = (y * W + x) * 4;
+      img.data[k]     = onBorder ? 15 : nearest.colour[0];
+      img.data[k + 1] = onBorder ? 15 : nearest.colour[1];
+      img.data[k + 2] = onBorder ? 20 : nearest.colour[2];
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Lloyd relaxation: nudge each seed toward the centre of its cell
+  for (const s of seeds) {
+    if (s.count === 0) continue;
+    s.x = PA.lerp(s.x, s.sumX / s.count, 0.05);
+    s.y = PA.lerp(s.y, s.sumY / s.count, 0.05);
+  }
+});
+</script>
+</div>
+
+<p>Two relatives are worth knowing by name. Joining every pair of seeds whose cells share an edge gives the <strong>Delaunay triangulation</strong>, the basis of low-poly art. Using the <em>distance</em> to the nearest seed as a brightness gives <strong>Worley</strong> or cellular noise, which looks like stone, scales or water caustics.</p>
+
+<h2>Tiling under constraints</h2>
+<p>One more approach deserves a mention, though it is too large to build in this lesson. In <strong>Wave Function Collapse</strong> (Maxim Gumin, 2016), every grid cell starts able to be any tile. The algorithm repeatedly picks the cell with the fewest remaining options, fixes it to one tile, and removes any options from neighbouring cells that would no longer fit beside it. The outcome is a tiling that obeys local "what may sit next to what" rules everywhere. Think of it as Lesson 2's Truchet tiles with a rulebook, and look it up once you have finished the course.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Trial and rejection: propose at random, keep only what satisfies your rule.</li>
+  <li>Packing produces a natural few-large-many-small size distribution.</li>
+  <li>Poisson-disc sampling gives random points with a guaranteed minimum spacing.</li>
+  <li>Recursive subdivision partitions space, and a field can decide where to subdivide more.</li>
+  <li>A Voronoi diagram gives each seed the region nearest to it. Relaxation evens the cells out.</li>
+  <li>A background grid of buckets makes "what is near here?" fast.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Forgetting the gap between packed shapes, so they visually merge.</li>
+  <li>A minimum radius that is too large, leaving obvious empty patches, or too small, producing dust.</li>
+  <li>No limit on attempts. A rejection loop that waits for a set number of <em>successes</em> may never finish; count <em>attempts</em> instead.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 7</p>
+  <h2>The Packed Silhouette</h2>
+  <p>Fill a recognisable shape with packed circles so that the shape is readable from the packing alone, with no outline drawn.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A function <code>inside(x, y)</code> that returns true for points within your shape. Design the shape yourself: a letter, an animal, a leaf, a combination of simple forms.</li>
+    <li>At least <strong>800 circles</strong>, none overlapping, none crossing the shape's boundary.</li>
+    <li>A clear size range, with a few large circles and many small ones.</li>
+    <li>Colour follows a rule tied to size or position, from a limited palette.</li>
+    <li>Seeded, and it finishes in a couple of seconds.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>The easiest way to get <code>inside</code> for a complicated shape: draw the shape in black on a hidden second canvas (using <code>fillText</code> with a huge font, or paths), read its pixels once with <code>getImageData</code>, and look up the pixel at <code>(x, y)</code>.</li>
+    <li>To keep a circle within the boundary, test several points round its edge with <code>inside</code>, not just its centre.</li>
+    <li>If it is slow, add a grid of buckets as in example 7.2.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Fill the background outside the shape with a fine Poisson-disc stipple in a quiet colour.</li>
+    <li>Pack a shape other than circles, such as rotated squares.</li>
+    <li>Make a Voronoi stained-glass version of the same silhouette.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone can name the shape without being told.</li>
+    <li>Zooming in shows no overlaps and no circle poking over the edge.</li>
+  </ul>
+  <a class="start" href="../challenges/07-packed-silhouette.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="06-recursion-and-grammars.html">← Lesson 6</a><a href="08-simulation-and-emergence.html">Lesson 8: Simulation and Emergence →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Procedural Art — the course</title>
+<link rel="stylesheet" href="assets/lesson.css">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<main>
+<header>
+  <p class="kicker">A course in nineteen lessons, with sections on maths, 3D, Blender, printing and the web</p>
+  <h1>Procedural Art</h1>
+  <p class="lede">You write the rules; the computer makes the picture. Nineteen lessons take you from a first rectangle to finished, fast, well-crafted generative work, and each one ends with a piece you build yourself. Further sections cover the maths, special topics, 3D printing, three.js, Blender and web design.</p>
+</header>
+
+<h2>How the course works</h2>
+<ol>
+  <li><strong>Read the lesson.</strong> Every example on the page is live. Edit the code beside the picture and press <code>Ctrl + Enter</code> (or Run). Changing numbers and watching what happens is the fastest way to learn this subject.</li>
+  <li><strong>Build the challenge.</strong> Each lesson ends with a brief, a list of requirements and some hints, but no solution. Open the matching file in the <code>challenges</code> folder in a code editor, write your sketch, and refresh the browser to see it.</li>
+  <li><strong>Check yourself.</strong> Each challenge has a short checklist. When every item is true, move on.</li>
+</ol>
+<p>Everything is plain JavaScript drawing on an HTML canvas. There is nothing to install: double-click <code>index.html</code> and you are running. A code editor such as VS Code makes the challenges more comfortable, but Notepad works.</p>
+
+<h2>The lessons</h2>
+<ul class="lessons">
+  <li><a href="lessons/01-drawing-with-code.html"><span class="num">Lesson 1</span><strong>Drawing with Code</strong><span class="desc">Coordinates, shapes, colour, loops, grids and transforms.</span><span class="build">You build: a rule-driven grid poster</span></a></li>
+  <li><a href="lessons/02-controlled-randomness.html"><span class="num">Lesson 2</span><strong>Controlled Randomness</strong><span class="desc">Seeds, distributions, weighted choice, tiles and random walks.</span><span class="build">You build: a seeded tile machine</span></a></li>
+  <li><a href="lessons/03-noise.html"><span class="num">Lesson 3</span><strong>Noise</strong><span class="desc">Smooth randomness: value and Perlin noise, octaves, domain warping.</span><span class="build">You build: an imaginary topographic map</span></a></li>
+  <li><a href="lessons/04-curves-and-trigonometry.html"><span class="num">Lesson 4</span><strong>Curves and Trigonometry</strong><span class="desc">Sine, polar coordinates, parametric curves, spirals and phyllotaxis.</span><span class="build">You build: a specimen sheet of curves</span></a></li>
+  <li><a href="lessons/05-particles-and-flow-fields.html"><span class="num">Lesson 5</span><strong>Particles and Flow Fields</strong><span class="desc">Vectors, forces, particle systems and noise-driven flow.</span><span class="build">You build: a flow-field poster</span></a></li>
+  <li><a href="lessons/06-recursion-and-grammars.html"><span class="num">Lesson 6</span><strong>Recursion, Fractals and L-systems</strong><span class="desc">Self-similarity, fractal trees, iterated functions and plant grammars.</span><span class="build">You build: a grammar garden</span></a></li>
+  <li><a href="lessons/07-packing-and-partitioning.html"><span class="num">Lesson 7</span><strong>Packing and Partitioning</strong><span class="desc">Circle packing, Poisson discs, subdivision, Voronoi cells.</span><span class="build">You build: a packed silhouette</span></a></li>
+  <li><a href="lessons/08-simulation-and-emergence.html"><span class="num">Lesson 8</span><strong>Simulation and Emergence</strong><span class="desc">Cellular automata, reaction–diffusion, flocking and slime moulds.</span><span class="build">You build: a living wallpaper</span></a></li>
+  <li><a href="lessons/09-shaders-and-distance-fields.html"><span class="num">Lesson 9</span><strong>Shaders and Distance Fields</strong><span class="desc">Per-pixel thinking, signed distance functions and GLSL.</span><span class="build">You build: a shader sigil</span></a></li>
+  <li><a href="lessons/10-systems-and-finishing.html"><span class="num">Lesson 10</span><strong>Systems and Finishing</strong><span class="desc">Colour, composition, texture, traits, curation and export.</span><span class="build">You build: your own long-form collection</span></a></li>
+  <li><a href="lessons/11-colour.html"><span class="num">Lesson 11</span><strong>Colour</strong><span class="desc">OKLCH, palettes by rule, harmony as geometry, contrast checks, clean gradients.</span><span class="build">You build: a palette machine</span></a></li>
+  <li><a href="lessons/12-typography.html"><span class="num">Lesson 12</span><strong>Typography and Text</strong><span class="desc">Fitting type to blocks, text on paths, letters as geometry, kinetic type.</span><span class="build">You build: a type poster</span></a></li>
+  <li><a href="lessons/13-images-as-input.html"><span class="num">Lesson 13</span><strong>Images as Input</strong><span class="desc">Halftones, engraving, dithering, stippling, edges, pixel sorting.</span><span class="build">You build: a portrait in marks</span></a></li>
+  <li><a href="lessons/14-wave-function-collapse.html"><span class="num">Lesson 14</span><strong>Wave Function Collapse</strong><span class="desc">Sockets, entropy, propagation, contradictions, weighted tilesets.</span><span class="build">You build: your own tileset</span></a></li>
+  <li><a href="lessons/15-animation-and-looping.html"><span class="num">Lesson 15</span><strong>Animation and Looping</strong><span class="desc">Easing, perfect loops, staggering and rhythm, exporting video.</span><span class="build">You build: a perfect loop</span></a></li>
+  <li><a href="lessons/16-growth.html"><span class="num">Lesson 16</span><strong>Growth Algorithms</strong><span class="desc">Diffusion-limited aggregation, space colonisation, differential growth.</span><span class="build">You build: a grown form</span></a></li>
+  <li><a href="lessons/17-physics.html"><span class="num">Lesson 17</span><strong>Physics</strong><span class="desc">Verlet integration, constraints, ropes, cloth and soft bodies.</span><span class="build">You build: something that hangs, swings or wobbles</span></a></li>
+  <li><a href="lessons/18-geometry.html"><span class="num">Lesson 18</span><strong>Geometry Utilities</strong><span class="desc">Clipping, offsetting, hidden-line removal, Delaunay triangulation, clean SVG.</span><span class="build">You build: a drawing for the plotter</span></a></li>
+  <li><a href="lessons/19-performance.html"><span class="num">Lesson 19</span><strong>Performance</strong><span class="desc">Profiling, spatial hashing, typed arrays, web workers, GPU particles.</span><span class="build">You build: a sketch made ten times faster</span></a></li>
+</ul>
+
+<h2>The maths section</h2>
+<p>Six companion pages on the mathematics underneath the lessons: what each idea means, the formula, and the designs it produces. They assume no more than school algebra and can be read alongside the lessons or afterwards. Every formula is shown as running code you can edit.</p>
+<ul class="lessons">
+  <li><a href="math/01-functions-and-shaping.html"><span class="num">Maths 1</span><strong>Functions and Shaping</strong><span class="desc">Formulas as dials: interpolation, powers, periodic functions, exponentials, the bell curve.</span><span class="build">Goes with Lessons 1–3</span></a></li>
+  <li><a href="math/02-vectors-and-transformations.html"><span class="num">Maths 2</span><strong>Vectors, Matrices and Complex Numbers</strong><span class="desc">The dot product, transformations, symmetry, and the arithmetic behind Julia sets.</span><span class="build">Goes with Lessons 4–6 and 9</span></a></li>
+  <li><a href="math/03-calculus.html"><span class="num">Maths 3</span><strong>Calculus</strong><span class="desc">Derivatives, tangents and normals, gradients of fields, integrals and arc length.</span><span class="build">Goes with Lessons 3, 5 and 9</span></a></li>
+  <li><a href="math/04-differential-equations.html"><span class="num">Maths 4</span><strong>Differential Equations</strong><span class="desc">Springs, pendulums, orbits, strange attractors and waves, and how to step them.</span><span class="build">Goes with Lessons 5 and 8</span></a></li>
+  <li><a href="math/05-waves-chaos-and-chance.html"><span class="num">Maths 5</span><strong>Waves, Curves, Chaos and Chance</strong><span class="desc">Fourier series, Bézier curves, the logistic map, probability as density, even sequences.</span><span class="build">Goes with Lessons 2, 4, 7 and 10</span></a></li>
+  <li><a href="math/06-linear-algebra.html"><span class="num">Maths 6</span><strong>Linear Algebra</strong><span class="desc">Bases and grids, the determinant, the inverse, chained matrices, 3D and perspective, eigenvectors, shapes as vectors.</span><span class="build">Goes with Lessons 6, 12, 18 and three.js</span></a></li>
+</ul>
+
+<h2>Special topics</h2>
+<p>Nine longer pages on taking procedural design beyond the still image: interaction, practical uses, fabrication, sound, live hardware, working alongside AI, and the craft of judging, publishing and organising your work. Each ends with its own challenge and starter file. They are best read after Lesson 10, though the first can be started after Lesson 5.</p>
+<ul class="lessons">
+  <li><a href="special/01-interactivity.html"><span class="num">Special 1</span><strong>Interactivity</strong><span class="desc">Pointer, keyboard, sliders, text, sound and scroll as input. Methods for websites and for games.</span><span class="build">You build: a visual instrument</span></a></li>
+  <li><a href="special/02-practical-uses.html"><span class="num">Special 2</span><strong>Practical Uses</strong><span class="desc">Level generation, brand systems, automated layout, procedural materials, data-driven design.</span><span class="build">You build: a generator someone could use</span></a></li>
+  <li><a href="special/03-into-the-real-world.html"><span class="num">Special 3</span><strong>Into the Real World</strong><span class="desc">Prints and wall art, pen plotters, laser cutting, CNC and G-code, 3D printing, engineering.</span><span class="build">You build: a file a real machine can make</span></a></li>
+  <li><a href="special/04-sound-and-music.html"><span class="num">Special 4</span><strong>Sound and Generative Music</strong><span class="desc">Web Audio synthesis, scales, rule-based melody and rhythm, one system for sound and image.</span><span class="build">You build: a piece for eyes and ears</span></a></li>
+  <li><a href="special/05-live-hardware.html"><span class="num">Special 5</span><strong>Live Hardware</strong><span class="desc">Addressable LEDs and microcontrollers, cameras and pose tracking, projection mapping.</span><span class="build">You build: a piece for a place</span></a></li>
+  <li><a href="special/06-ai-and-procedural.html"><span class="num">Special 6</span><strong>AI Alongside Procedural Methods</strong><span class="desc">Where each is the better tool, guide images, scoring functions, things to consider.</span><span class="build">You build: the structured half of a pipeline</span></a></li>
+  <li><a href="special/07-critique-and-art-direction.html"><span class="num">Special 7</span><strong>Critique and Art Direction</strong><span class="desc">Judging your own output, parameter sweeps, studying other work, developing a style.</span><span class="build">You build: a study and a series</span></a></li>
+  <li><a href="special/08-publishing.html"><span class="num">Special 8</span><strong>Publishing</strong><span class="desc">Portfolios, documentation, licences, prints and editions.</span><span class="build">You build: a published series page</span></a></li>
+  <li><a href="special/09-project-workflow.html"><span class="num">Special 9</span><strong>Project Workflow</strong><span class="desc">Saving the recipe with every output, version control, a personal library, fingerprint checks.</span><span class="build">You build: a workshop of your own</span></a></li>
+</ul>
+
+<h2>3D printing</h2>
+<p>Five lessons on making printable objects with code, aimed at the Bambu Lab P1S: first models (meshes and STL files), then G-code, from reading it to generating whole toolpaths. Lessons 4 and 5 carry safety warnings that matter. Read them before sending anything custom to a printer.</p>
+<ul class="lessons">
+  <li><a href="printing/01-how-printing-works.html"><span class="num">3D printing 1</span><strong>How Printing Works</strong><span class="desc">Layers, beads, the P1S's limits, what a slicer does, design rules, flow rate.</span><span class="build">Goes with Special 3</span></a></li>
+  <li><a href="printing/02-models-from-code.html"><span class="num">3D printing 2</span><strong>Models from Code</strong><span class="desc">Meshes by hand, height maps, lofting, watertightness, STL export.</span><span class="build">You build: an object from a function</span></a></li>
+  <li><a href="printing/03-models-from-formulas.html"><span class="num">3D printing 3</span><strong>Models from Formulas</strong><span class="desc">3D distance functions, blends, shells and lattices turned into meshes.</span><span class="build">You build: a formula you can hold</span></a></li>
+  <li><a href="printing/04-gcode-fundamentals.html"><span class="num">3D printing 4</span><strong>G-code Fundamentals</strong><span class="desc">Reading G-code, extrusion maths, custom G-code in Bambu Studio, a preflight checker.</span><span class="build">Practice exercises</span></a></li>
+  <li><a href="printing/05-generative-toolpaths.html"><span class="num">3D printing 5</span><strong>Generative Toolpaths</strong><span class="desc">Spiral walls, variable bead width, Bambu-specific commands, assembling a printable file.</span><span class="build">You build: a toolpath of your own</span></a></li>
+</ul>
+
+<h2>three.js</h2>
+<p>Three lessons on procedural 3D in the browser with three.js, each with live scenes you can edit. These pages load the library from the internet, so they need a connection.</p>
+<ul class="lessons">
+  <li><a href="three/01-scenes-and-objects.html"><span class="num">three.js 1</span><strong>Scenes and Objects</strong><span class="desc">Scene, camera, renderer, meshes, lights, the scene graph, worlds from loops.</span><span class="build">Practice exercises</span></a></li>
+  <li><a href="three/02-geometry-from-code.html"><span class="num">three.js 2</span><strong>Geometry from Code</strong><span class="desc">Custom geometry, terrain, parametric surfaces, instancing, point clouds.</span><span class="build">Practice exercises</span></a></li>
+  <li><a href="three/03-shaders-interaction-export.html"><span class="num">three.js 3</span><strong>Shaders, Interaction and Export</strong><span class="desc">Vertex shaders, raycasting, STL and image export, performance.</span><span class="build">You build: a small world</span></a></li>
+</ul>
+
+<h2>Blender</h2>
+<p>Four lessons on procedural design in Blender with Python: scripts, meshes and modifiers, Geometry Nodes, and writing your own add-ons and libraries. Blender code cannot run in a web page, so these lessons use code listings and rendered pictures. Every script is a file in the <code>blender</code> folder and was run in Blender 5.3.</p>
+<ul class="lessons">
+  <li><a href="blender/01-scripting-blender.html"><span class="num">Blender 1</span><strong>Scripting Blender</strong><span class="desc">The Python interface, objects and meshes, a first generating script, running from the command line.</span><span class="build">You build: a rule scene</span></a></li>
+  <li><a href="blender/02-meshes-and-modifiers.html"><span class="num">Blender 2</span><strong>Meshes and Modifiers</strong><span class="desc">Meshes from functions, bmesh, modifiers, curves, STL export for printing.</span><span class="build">You build: a printable form</span></a></li>
+  <li><a href="blender/03-geometry-nodes.html"><span class="num">Blender 3</span><strong>Geometry Nodes</strong><span class="desc">Fields, scattering and instancing; building node trees and materials from Python.</span><span class="build">You build: a scatter system</span></a></li>
+  <li><a href="blender/04-addons-and-libraries.html"><span class="num">Blender 4</span><strong>Add-ons and Libraries</strong><span class="desc">Operators, panels, packaging as an extension, code and asset libraries, batch generation.</span><span class="build">You build: your own add-on</span></a></li>
+</ul>
+
+<h2>Website design</h2>
+<p>Two lessons on using generative design on real websites: the effects themselves, then how to build them into responsive, accessible pages. Includes three complete demo pages.</p>
+<ul class="lessons">
+  <li><a href="web/01-generative-web-design.html"><span class="num">Web design 1</span><strong>Generative Effects for Websites</strong><span class="desc">The dual-design cursor reveal, healing trails, reactive grids, kinetic type, living gradients, seeded thumbnails.</span><span class="build">Practice exercises</span></a></li>
+  <li><a href="web/02-building-real-pages.html"><span class="num">Web design 2</span><strong>Building Real Pages</strong><span class="desc">Layering canvas and content, sizing, CSS masks and variables, performance, accessibility, touch.</span><span class="build">You build: a landing page that is alive</span></a></li>
+</ul>
+
+<h2>Projects</h2>
+<p>Three extended challenges. Each needs techniques from at least four different lessons, takes ten to twenty hours, and is worked through in milestones. Start one once you have finished the lessons it lists.</p>
+<ul class="lessons">
+  <li><a href="projects/01-atlas.html"><span class="num">Project 1</span><strong>An Atlas of Somewhere That Does Not Exist</strong><span class="desc">Terrain, regions, generated names, labels, a palette and a print-ready sheet from one seed.</span><span class="build">Combines Lessons 3, 7, 11, 12, 18 and Special 2, 3</span></a></li>
+  <li><a href="projects/02-living-identity.html"><span class="num">Project 2</span><strong>A Living Identity</strong><span class="desc">A generative mark, palette, type and motion for an invented client, in five formats, alive on a web page.</span><span class="build">Combines Lessons 11, 12, 15, Special 1, 2 and Web design</span></a></li>
+  <li><a href="projects/03-code-to-object.html"><span class="num">Project 3</span><strong>From Code to Object</strong><span class="desc">Grow a form, clean its geometry, check it, make it on a machine, and document it.</span><span class="build">Combines Lessons 16, 18, Special 3, 8, 9 and 3D printing</span></a></li>
+</ul>
+
+<h2>Reference</h2>
+<p>Three pages to keep open while you work.</p>
+<ul class="lessons">
+  <li><a href="reference/glossary.html"><span class="num">Reference</span><strong>Glossary</strong><span class="desc">Every term used in the course, in plain words, with the place it is introduced.</span><span class="build">Look things up</span></a></li>
+  <li><a href="reference/cheat-sheet.html"><span class="num">Reference</span><strong>Cheat Sheet</strong><span class="desc">The formulas and code idioms on one printable page.</span><span class="build">Print it</span></a></li>
+  <li><a href="reference/artists-and-works.html"><span class="num">Reference</span><strong>Artists and Works to Study</strong><span class="desc">People and pieces to look at closely, arranged by lesson.</span><span class="build">Study one a week</span></a></li>
+</ul>
+
+<h2>The helper library</h2>
+<p>The examples use a small library called <code>PA</code>, in <code>assets/pa.js</code>. Nothing in it is magic: Lessons 2, 3 and 9 build its main parts from scratch before you start relying on them. You may use it in every challenge.</p>
+<table>
+  <thead><tr><th>Call</th><th>What it gives you</th></tr></thead>
+  <tbody>
+    <tr><td><code>PA.rng(seed)</code></td><td>A random function <code>R()</code> returning 0–1. The same seed always gives the same sequence. It also has <code>R.range(lo, hi)</code>, <code>R.int(lo, hi)</code>, <code>R.pick(array)</code>, <code>R.chance(p)</code>, <code>R.gauss(mean, sd)</code>, <code>R.weighted(items, weights)</code> and <code>R.shuffle(array)</code>.</td></tr>
+    <tr><td><code>PA.noise(seed)</code></td><td>Smooth noise. <code>N.get(x, y, z)</code> and <code>N.fbm(x, y, { octaves, lacunarity, gain })</code> both return 0–1.</td></tr>
+    <tr><td><code>PA.lerp(a, b, t)</code></td><td>The value a fraction <code>t</code> of the way from <code>a</code> to <code>b</code>.</td></tr>
+    <tr><td><code>PA.map(v, a, b, c, d)</code></td><td>Rescales <code>v</code> from the range a–b to the range c–d.</td></tr>
+    <tr><td><code>PA.clamp(v, lo, hi)</code>, <code>PA.smoothstep(e0, e1, x)</code>, <code>PA.dist(x1, y1, x2, y2)</code>, <code>PA.fract(x)</code>, <code>PA.TAU</code></td><td>Everyday maths. <code>TAU</code> is a full turn, 2π.</td></tr>
+    <tr><td><code>PA.hsl(h, s, l, alpha)</code></td><td>A CSS colour from hue (0–360), saturation and lightness (0–100).</td></tr>
+    <tr><td><code>PA.mix(hexA, hexB, t)</code></td><td>A blend of two <code>#rrggbb</code> colours.</td></tr>
+    <tr><td><code>PA.cosPalette(t, a, b, c, d)</code></td><td>A smooth colour ramp (see Lesson 9). <code>PA.cosPaletteRGB</code> returns <code>[r, g, b]</code> for pixel work.</td></tr>
+    <tr><td><code>PA.palettes</code></td><td>Four small palettes: <code>dusk</code>, <code>citrus</code>, <code>riso</code>, <code>mono</code>. The first colour of each is the background.</td></tr>
+  </tbody>
+</table>
+
+<h2>Inside a live example</h2>
+<p>Example code on the lesson pages receives a few ready-made variables: <code>ctx</code> (the drawing context), <code>W</code> and <code>H</code> (the canvas size, 600 × 600 unless stated), <code>mouse</code> (<code>x</code>, <code>y</code>, <code>down</code>, <code>active</code>), <code>PA</code>, and <code>loop(fn)</code>, which calls <code>fn(seconds, frame)</code> on every animation frame. The special topics also use <code>keys</code> (the keys currently held, after you click the canvas) and <code>ui</code>, which adds sliders, text boxes and buttons under the canvas. In the challenge files you set these up yourself; each starter shows how.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths 4 · Differential Equations</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-calculus.html">← Maths 3</a><span>Maths 4 of 6</span><a href="05-waves-chaos-and-chance.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Maths 4</p>
+  <h1>Differential Equations</h1>
+  <p class="lede">An ordinary formula tells you where something is. A differential equation tells you only how it is changing, and leaves you to find out where that leads. Almost everything that moves, grows, flows or oscillates is described this way.</p>
+</header>
+
+<h2>What a differential equation is</h2>
+<p>A differential equation is a rule for the <em>rate of change</em> of a quantity, written in terms of its current state. For example:</p>
+<p class="formula">rate of change of position = velocity <small>x′ = v</small></p>
+<p class="formula">rate of change of velocity = force ÷ mass <small>v′ = F / m</small></p>
+<p>Those two lines are Newton's laws of motion, and they are differential equations. They do not say where the particle will be. They say how to get from now to a moment from now.</p>
+<p>That makes them a natural fit for a computer. To <strong>solve</strong> a differential equation numerically you do exactly what it says, over and over, in small time steps:</p>
+<pre><code>repeat:
+  work out the rate of change from the current state
+  state += rate of change × dt</code></pre>
+<p>This is <strong>Euler's method</strong>. You met it in Lesson 5 as <code>velocity += acceleration; position += velocity</code>, and Maths 3 showed that it is a numerical integral. Every simulation in this course is that loop with a different rule for the rate of change.</p>
+<p>The artistic appeal is that you design the <em>law</em>, not the shape. You never draw a spiral or an orbit; you write a rule and discover what it traces.</p>
+
+<h2>The spring: where oscillation comes from</h2>
+<p>A spring pulls back toward its rest position with a force proportional to how far it has been stretched. Add friction proportional to speed:</p>
+<p class="formula">acceleration = −k · position − c · velocity</p>
+<p>From that one line come sine waves (when <code>c</code> is zero), decaying wobbles (small <code>c</code>) and a smooth settle with no overshoot (large <code>c</code>). It is the most reused equation in motion design: anything that should bounce, wobble, follow with a lag or settle into place is a spring.</p>
+<p>The example also shows that <strong>how</strong> you take the step matters. The two methods differ only in the order of two lines, but the first one steadily invents energy that is not there.</p>
+
+<div class="example" data-title="M4.1 One equation, three behaviours">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+ctx.font = '13px monospace';
+ctx.lineWidth = 2;
+
+function simulate(method, damping, baseY, colour, label) {
+  const k = 40, dt = 0.01;
+  let x = 1, v = 0;                          // start stretched, at rest
+
+  ctx.beginPath();
+  for (let i = 0; i < 560; i++) {
+    const a = -k * x - damping * v;          // the differential equation
+
+    if (method === 'explicit') {
+      x += v * dt;                           // position uses the OLD velocity
+      v += a * dt;
+    } else {
+      v += a * dt;                           // update velocity first...
+      x += v * dt;                           // ...so position uses the NEW velocity
+    }
+    ctx.lineTo(20 + i, baseY - x * 40);
+  }
+  ctx.strokeStyle = colour;
+  ctx.stroke();
+  ctx.fillStyle = colour;
+  ctx.fillText(label, 20, baseY - 75);
+}
+
+simulate('explicit', 0, 130, '#ef476f', 'explicit Euler, no friction: grows. Wrong.');
+simulate('semi-implicit', 0, 310, '#ffd166', 'semi-implicit Euler, no friction: steady. Right.');
+simulate('semi-implicit', 1.5, 490, '#06d6a0', 'with friction (c = 1.5): decays');
+</script>
+</div>
+
+<div class="note"><p><strong>Choosing a method.</strong> Always update velocity before position (semi-implicit Euler): it costs nothing and is far more stable. Keep the time step small; if a simulation explodes, halve <code>dt</code> first. For higher accuracy there are better steppers, of which Runge–Kutta 4 (RK4) is the standard, and Verlet integration is the favourite for cloth and ropes. Try <code>dt = 0.05</code> above to see even the good method start to struggle.</p></div>
+
+<h2>Phase space: drawing the state, not the object</h2>
+<p>A pendulum obeys almost the same equation as the spring, with a sine in it:</p>
+<p class="formula">angular acceleration = −sin(angle) − c · speed</p>
+<p>Its complete state at any moment is two numbers: its angle and its speed. Plot one against the other and you have a point in <strong>phase space</strong>. As time passes that point traces a path, and the paths from many different starting states form the <strong>phase portrait</strong> of the system: a picture of everything the pendulum can ever do.</p>
+<p>Phase portraits are a rich source of imagery, because the differential equation defines a flow field (Lesson 5) with real structure: here, whirlpools where the pendulum comes to rest hanging down, and saddle points between them where it balances upright.</p>
+
+<div class="example" data-title="M4.2 The phase portrait of a pendulum">
+<script type="text/plain">
+const R = PA.rng('pendulum');
+ctx.fillStyle = '#0b132b';
+ctx.fillRect(0, 0, W, H);
+ctx.lineWidth = 1;
+
+const damping = 0.12;         // try 0 (closed loops) and 0.5
+const dt = 0.02;
+
+for (let k = 0; k < 280; k++) {
+  let angle = R.range(-10, 10);        // a random starting state
+  let speed = R.range(-3.4, 3.4);
+  const startSpeed = Math.abs(speed);
+
+  ctx.beginPath();
+  for (let i = 0; i < 900; i++) {
+    const accel = -Math.sin(angle) - damping * speed;      // the pendulum equation
+    speed += accel * dt;
+    angle += speed * dt;
+    ctx.lineTo(W / 2 + angle * 30, H / 2 - speed * 80);    // x axis: angle.  y axis: speed
+  }
+  ctx.strokeStyle = PA.hsl(170 + startSpeed * 45, 80, 65, 0.35);
+  ctx.stroke();
+}
+</script>
+</div>
+
+<h2>Orbits</h2>
+<p>Gravity pulls toward a centre with a strength that falls off with distance:</p>
+<p class="formula">acceleration = −strength / distance<sup>p</sup>, toward the centre</p>
+<p>With the real-world value <code>p = 2</code>, the orbit is a closed ellipse that retraces itself for ever. That closure is a special property of the inverse-square law. Change the exponent slightly and the ellipse no longer closes: it <strong>precesses</strong>, rotating a little each lap, and draws a rosette. So the exponent in a force law is a design parameter, and "wrong" physics is a spirograph.</p>
+
+<div class="example" data-title="M4.3 The force law decides the figure">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+function orbit(power, cx, colour) {
+  const r0 = 100, dt = 0.01;
+  let x = r0, y = 0, vx = 0, vy = 6;        // launched sideways, slower than a circular orbit needs
+
+  ctx.beginPath();
+  for (let i = 0; i < 40000; i++) {
+    const r = Math.hypot(x, y);
+    const a = -((r0 / r) ** power);         // pull toward the centre, weaker with distance
+    vx += a * (x / r) * dt;
+    vy += a * (y / r) * dt;
+    x += vx * dt;
+    y += vy * dt;
+    if (i % 4 === 0) ctx.lineTo(cx + x * 1.3, H / 2 + y * 1.3);
+  }
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffd166';                // the sun
+  ctx.beginPath(); ctx.arc(cx, H / 2, 5, 0, PA.TAU); ctx.fill();
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '13px monospace';
+  ctx.fillText('force = 1 / distance^' + power, cx - 110, 40);
+}
+
+orbit(2, 150, '#5bc0be');         // an ellipse, drawn about 13 times over
+orbit(2.3, 450, '#ef476f');       // try 1.5, 2.6, 3
+</script>
+</div>
+
+<h2>Chaos: the Lorenz system</h2>
+<p>In 1963 the meteorologist Edward Lorenz reduced a model of air convection to three linked equations in three variables:</p>
+<p class="formula">x′ = σ(y − x)   y′ = x(ρ − z) − y   z′ = xy − βz</p>
+<p>The solution never settles down and never repeats, yet it stays on a definite butterfly-shaped structure called a <strong>strange attractor</strong>. It is also extremely sensitive to where it starts. The example traces two paths that begin one ten-thousandth of a unit apart. For a while they are indistinguishable, then they part company completely. That is <strong>chaos</strong>: fully deterministic, with no randomness anywhere, and unpredictable in practice.</p>
+
+<div class="example" data-title="M4.4 Two almost identical starts">
+<script type="text/plain">
+const sigma = 10, rho = 28, beta = 8 / 3;
+const dt = 0.005;
+
+const a = { x: 1, y: 1, z: 1 };
+const b = { x: 1.0001, y: 1, z: 1 };        // differs in the fourth decimal place
+
+function step(p) {
+  const dx = sigma * (p.y - p.x);
+  const dy = p.x * (rho - p.z) - p.y;
+  const dz = p.x * p.y - beta * p.z;
+  p.x += dx * dt; p.y += dy * dt; p.z += dz * dt;
+}
+
+const sx = (p) => W / 2 + p.x * 11;         // view from the side: x across, z up
+const sy = (p) => H - 40 - p.z * 10.5;
+
+ctx.fillStyle = '#0d1117';
+ctx.fillRect(0, 0, W, H);
+ctx.lineWidth = 1;
+
+loop((t, frame) => {
+  if (frame > 1500) return;
+  for (let k = 0; k < 12; k++) {
+    for (const [p, colour] of [[a, 'rgba(91, 192, 190, 0.7)'], [b, 'rgba(239, 71, 111, 0.7)']]) {
+      ctx.beginPath();
+      ctx.moveTo(sx(p), sy(p));
+      step(p);
+      ctx.lineTo(sx(p), sy(p));
+      ctx.strokeStyle = colour;
+      ctx.stroke();
+    }
+  }
+});
+</script>
+</div>
+
+<h2>Iterated maps: attractors without time steps</h2>
+<p>A close relative of the differential equation is the <strong>iterated map</strong>: a formula that takes a point and returns the next point, applied over and over. There is no <code>dt</code>; each application is a jump. Clifford Pickover's attractor uses nothing but sines and cosines:</p>
+<p class="formula">x′ = sin(a·y) + c·cos(a·x)   y′ = sin(b·x) + d·cos(b·y)</p>
+<p>The individual points hop about apparently at random, but two million of them accumulate into smooth, folded, smoke-like forms. Four numbers define the whole image.</p>
+<p>The rendering uses two ideas from earlier pages. Instead of drawing dots, it counts how many times each pixel is hit, building a <strong>density map</strong>. And because a few pixels are hit thousands of times while most are hit only a few, it takes the <strong>logarithm</strong> of the count (Maths 1) so that faint structure stays visible.</p>
+
+<div class="example" data-pixel data-w="600" data-h="600" data-title="M4.5 Two million jumps">
+<script type="text/plain">
+// four numbers make the picture. other good sets:
+//   1.7, 1.7, 0.6, 1.2      -1.7, 1.3, -0.1, -1.2      1.5, -1.8, 1.6, 0.9
+const a = -1.4, b = 1.6, c = 1.0, d = 0.7;
+
+const hits = new Float32Array(W * H);
+let x = 0.1, y = 0.1, most = 0;
+
+for (let i = 0; i < 2000000; i++) {
+  const nx = Math.sin(a * y) + c * Math.cos(a * x);
+  const ny = Math.sin(b * x) + d * Math.cos(b * y);
+  x = nx; y = ny;
+
+  const px = Math.floor((x / 4.4 + 0.5) * W);
+  const py = Math.floor((y / 4.4 + 0.5) * H);
+  const k = py * W + px;
+  hits[k]++;                                   // count the visit
+  if (hits[k] > most) most = hits[k];
+}
+
+const img = ctx.createImageData(W, H);
+for (let i = 0; i < W * H; i++) {
+  const v = Math.log(1 + hits[i]) / Math.log(1 + most);      // log scale: 0 to 1
+  img.data[i * 4]     = 12 + 243 * v ** 0.8;
+  img.data[i * 4 + 1] = 16 + 215 * v ** 1.6;
+  img.data[i * 4 + 2] = 32 + 150 * v ** 3;
+  img.data[i * 4 + 3] = 255;
+}
+ctx.putImageData(img, 0, 0);
+</script>
+</div>
+
+<h2>Partial differential equations: change across space</h2>
+<p>So far each equation tracked a few numbers through time. A <strong>partial differential equation</strong> (PDE) tracks a whole field, a value at every point of a grid, where each point's rate of change depends on its neighbours. The neighbour comparison is nearly always the <strong>Laplacian</strong>, written ∇²: how much a cell differs from the average of the cells around it.</p>
+<table>
+  <thead><tr><th>Equation</th><th>Rule</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td>Diffusion (heat)</td><td><em>u′ = D·∇²u</em></td><td>Each cell drifts toward the average of its neighbours. Blurs, spreads, smooths.</td></tr>
+    <tr><td>Wave</td><td><em>u″ = c²·∇²u</em></td><td>Each cell <em>accelerates</em> toward that average. It overshoots, so disturbances travel as ripples.</td></tr>
+    <tr><td>Reaction–diffusion</td><td>Two diffusion equations plus a reaction</td><td>Spots, stripes and mazes (Lesson 8).</td></tr>
+  </tbody>
+</table>
+<p>Notice the single difference between the first two: one prime or two. Diffusion sets the <em>rate</em> of change, the wave equation sets the <em>acceleration</em>. That is the entire difference between ink spreading in water and a ripple crossing a pond.</p>
+<p>The wave equation needs the current grid and the previous one, because acceleration is a change in the rate of change. The picture is then lit using the gradient from Maths 3.</p>
+
+<div class="example" data-pixel data-w="150" data-h="150" data-title="M4.6 The wave equation (click and drag to disturb the water)">
+<script type="text/plain">
+const R = PA.rng();
+let previous = new Float32Array(W * H);
+let current = new Float32Array(W * H);
+let next = new Float32Array(W * H);
+const img = ctx.createImageData(W, H);
+
+function drop(cx, cy) {                       // a small smooth bump
+  for (let dy = -3; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const x = cx + dx, y = cy + dy;
+      if (x > 0 && x < W - 1 && y > 0 && y < H - 1) {
+        current[y * W + x] += 4 * Math.exp(-(dx * dx + dy * dy) / 3);
+      }
+    }
+  }
+}
+
+loop((t, frame) => {
+  if (frame % 40 === 0) drop(R.int(10, W - 10), R.int(10, H - 10));      // rain
+  if (mouse.down) drop(Math.floor(mouse.x), Math.floor(mouse.y));
+
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const laplacian = current[i - 1] + current[i + 1] + current[i - W] + current[i + W] - 4 * current[i];
+      // new height = continue the previous motion, plus the pull from the neighbours, minus a little damping
+      next[i] = (2 * current[i] - previous[i] + 0.25 * laplacian) * 0.996;
+    }
+  }
+  const spare = previous; previous = current; current = next; next = spare;
+
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const slope = (current[i + 1] - current[i - 1]) + (current[i + W] - current[i - W]);    // gradient, lit from the top left
+      const shade = PA.clamp(0.5 - slope * 0.6);
+      img.data[i * 4]     = 10 + shade * 120;
+      img.data[i * 4 + 1] = 40 + shade * 170;
+      img.data[i * 4 + 2] = 80 + shade * 175;
+      img.data[i * 4 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h2>From equation to design</h2>
+<table>
+  <thead><tr><th>If you want…</th><th>Reach for…</th></tr></thead>
+  <tbody>
+    <tr><td>Bounce, wobble, lag, settling motion</td><td>A damped spring toward a target</td></tr>
+    <tr><td>Cloth, ropes, jelly, hanging chains</td><td>Many points joined by springs</td></tr>
+    <tr><td>Swirling line fields with real structure</td><td>The phase portrait of a two-variable system</td></tr>
+    <tr><td>Rosettes and looping ribbons</td><td>Orbits under a central force with an unusual exponent</td></tr>
+    <tr><td>Tangled, never-repeating ribbons in 3D</td><td>Lorenz, Rössler, Aizawa and other strange attractors</td></tr>
+    <tr><td>Smoke-like, feathered density images</td><td>Iterated maps (Clifford, de Jong) with a log density plot</td></tr>
+    <tr><td>Blur, bleed, soft spreading</td><td>The diffusion equation</td></tr>
+    <tr><td>Ripples, interference, water surfaces</td><td>The wave equation</td></tr>
+    <tr><td>Spots, stripes, coral, fingerprints</td><td>Reaction–diffusion</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A differential equation gives the rate of change. Solving it numerically means stepping: state += rate × dt.</li>
+  <li>Update velocity before position, and keep the step small.</li>
+  <li>The damped spring is the universal source of oscillation and settling.</li>
+  <li>Phase space plots a system's state. Its portrait is a flow field with whirlpools and saddles.</li>
+  <li>Chaotic systems are deterministic but unpredictable, and trace strange attractors.</li>
+  <li>A PDE applies a rule to a whole grid using each cell's neighbours. Diffusion smooths, the wave equation ripples.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <p>Do these in the <a href="../challenges/math-sandbox.html">maths sandbox file</a>, or by editing the examples above.</p>
+  <ul>
+    <li><strong>Springy followers.</strong> Make a chain of twenty points in which each is pulled by a damped spring toward the one before it, and the first follows the mouse. Draw the chain as a ribbon using normals from Maths 3.</li>
+    <li><strong>Invent a system.</strong> Write your own pair of equations, <code>x′ = f(x, y)</code> and <code>y′ = g(x, y)</code>, using sines, products and constants. Draw its phase portrait from 300 random starts. Adjust until it has at least one whirlpool.</li>
+    <li><strong>Attractor poster.</strong> Find four Clifford parameters of your own by trial, render at 1000 × 1000 with ten million points, and design a colour ramp for it.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="03-calculus.html">← Maths 3</a><a href="05-waves-chaos-and-chance.html">Maths 5: Waves, Curves, Chaos and Chance →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

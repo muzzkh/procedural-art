@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Project 3 · From Code to Object</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfc8bd; font-family: system-ui, sans-serif; }
+  body { display: grid; grid-template-columns: 1fr 280px; }
+  canvas { max-width: 100%; max-height: 100vh; margin: auto; }
+  #panel { padding: 20px; border-left: 1px solid #333; font-size: 14px; line-height: 1.6; }
+  #panel h2 { font-size: 15px; margin: 0 0 8px; }
+  .pass { color: #7fc8a9; } .fail { color: #f08a6c; }
+  button { margin-top: 14px; padding: 8px 14px; font: inherit; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="900" height="900"></canvas>
+<div id="panel">
+  <h2>Preflight</h2>
+  <div id="checks"></div>
+  <button id="export" disabled>Export</button>
+</div>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script>
+/* PROJECT 3 — FROM CODE TO OBJECT
+   Full brief: ../projects/03-code-to-object.html
+
+   Route: A flat (SVG)  /  B solid (STL)      <- choose one
+   Machine and material:
+   -
+   Lessons I am combining (at least four, including growth, geometry and a fabrication lesson):
+   -
+   -
+   -
+   -
+
+   Milestones
+   [ ] 1 Machine first: the limits below are real numbers, with their source noted
+   [ ] 2 Grow: in millimetres, inside the outline of the object
+   [ ] 3 Clean: paths joined, stubs removed, simplified, evenly resampled
+   [ ] 4 Buildable: real thickness; one connected piece; (B) a watertight mesh
+   [ ] 5 Preflight: at least four checks; export blocked while any fails
+   [ ] 6 Proof: opened in the machine's own software; a small test made
+   [ ] 7 Made and documented
+
+   Requirements
+   [ ] At least one growth parameter is derived from the machine limits
+   [ ] The cleaning stage can be switched off to see the difference
+   [ ] Export at true size, with a recipe file: seed, parameters, limits, date
+   [ ] A documentation page that says which stages were and were not carried out */
+
+// The machine's limits, in millimetres. Replace every number, and note where it came from.
+const MACHINE = {
+  width: 100,          // working area
+  height: 100,
+  margin: 3,           // keep this far from the edge
+  minFeature: 1.0,     // thinnest thing it can make
+  // ---- route B: layer height, steepest overhang, maximum Z ----
+};
+
+const params = {
+  seed: 1,
+  // ---- your growth parameters. derive at least one from MACHINE ----
+};
+
+// All geometry is in millimetres. Pixels appear only in preview().
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const SCALE = Math.min(canvas.width / MACHINE.width, canvas.height / MACHINE.height);
+
+// The outline of the object.
+function inside(x, y) {
+  // ---- your shape here, in mm ----
+  return Math.hypot(x - MACHINE.width / 2, y - MACHINE.height / 2) < MACHINE.width / 2 - MACHINE.margin;
+}
+
+function grow(p) {
+  const R = PA.rng(p.seed), N = PA.noise(p.seed);
+  // ---- the growth algorithm. return its raw result ----
+  return [];
+}
+
+function clean(raw) {
+  // ---- join, remove stubs, simplify, resample. return an array of paths, each an array of [x, y] ----
+  return raw;
+}
+
+function build(paths) {
+  // ---- route A: thickened, connected outlines ready for SVG ----
+  // ---- route B: triangles for MESH.check and MESH.stl ----
+  return paths;
+}
+
+function preflight(result) {
+  // ---- return a list of [description, passed]. at least four ----
+  return [
+    ['there is something to make', result.length > 0],
+  ];
+}
+
+function preview(result) {
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.scale(SCALE, SCALE);               // draw in millimetres
+  // ---- draw the result ----
+  ctx.restore();
+}
+
+function run() {
+  const result = build(clean(grow(params)));
+  preview(result);
+  const checks = preflight(result);
+  document.getElementById('checks').innerHTML = checks
+    .map(([text, ok]) => '<div class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'pass' : 'FAIL') + ' · ' + text + '</div>')
+    .join('');
+  document.getElementById('export').disabled = !checks.every((c) => c[1]);
+  return result;
+}
+
+run();
+
+document.getElementById('export').onclick = () => {
+  // ---- write the SVG or STL at true size, and the recipe JSON beside it ----
+};
+
+// TODO: keys for a new seed and for switching the cleaning stage off
+</script>
+</body>
+</html>

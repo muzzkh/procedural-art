@@ -1,0 +1,12 @@
+schema_version = "1.0.0"
+
+id = "my_generator"
+version = "0.1.0"
+name = "My Generator"
+tagline = "Describe your generator in one line"
+maintainer = "Your Name"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]

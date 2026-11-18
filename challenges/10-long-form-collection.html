@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 10 · Your Long-Form Collection</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 10 — YOUR LONG-FORM COLLECTION (CAPSTONE)
+   Full brief: ../lessons/10-systems-and-finishing.html
+
+   Collection title: ______________________
+
+   What this system is about (three or four sentences):
+   ...
+
+   Checklist
+   [ ] One seed controls everything; the same seed gives the identical image
+   [ ] At least two techniques from different lessons, combined so one affects the other
+   [ ] At least four named traits chosen by weighted chance, one of them rare (under 1 in 10)
+   [ ] Traits are logged to the console
+   [ ] Resolution independent: SIZE 1000 and SIZE 4000 give the same composition
+   [ ] Contact-sheet mode: 25 seeds in a 5 x 5 grid
+   [ ] A margin, a weighted palette, and at least one texture technique
+   [ ] Keys: new seed, toggle contact sheet, save PNG named after the seed
+   [ ] You would frame any one of 25 outputs
+
+   Structure
+     pickTraits(seed)   -> an object of named traits
+     render(ctx, seed)  -> draws ONE artwork into the unit square (0..1 in both directions).
+                           It must not know the canvas size.
+     show()             -> sets up the transform, then calls render once (single view)
+                           or 25 times (contact sheet). */
+
+const SIZE = 1000;                    // change to 4000 for print: the picture must stay the same
+
+const canvas = document.getElementById('canvas');
+canvas.width = SIZE;
+canvas.height = SIZE;
+const ctx = canvas.getContext('2d');
+
+let seed = 1;
+let contactSheet = false;
+
+function pickTraits(seed) {
+  const R = PA.rng(seed + '-traits');
+  return {
+    // ---- your traits here ----
+  };
+}
+
+function render(ctx, seed) {
+  const traits = pickTraits(seed);
+  const R = PA.rng(seed);
+  const N = PA.noise(seed);
+
+  // ---- your artwork here, drawn in unit coordinates ----
+
+}
+
+function show() {
+  // ---- single view or contact sheet ----
+}
+
+show();
+
+// TODO: keys for new seed, contact sheet, and saving a PNG
+
+</script>
+</body>
+</html>

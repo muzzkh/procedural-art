@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 7 · The Packed Silhouette</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 7 — THE PACKED SILHOUETTE
+   Full brief: ../lessons/07-packing-and-partitioning.html
+
+   Fill a recognisable shape with packed circles. No outline: the packing is the drawing.
+
+   Checklist
+   [ ] inside(x, y) returns true for points within a shape you designed
+   [ ] At least 800 circles, none overlapping, none crossing the boundary
+   [ ] A few large circles and many small ones
+   [ ] Colour follows a rule tied to size or position
+   [ ] Seeded, and finishes within a couple of seconds
+   [ ] Someone can name the shape without being told
+
+   A way to get inside() for a complicated shape
+     const mask = document.createElement('canvas');   // a hidden second canvas
+     mask.width = W; mask.height = H;
+     const m = mask.getContext('2d');
+     ...draw your shape on m in solid black...
+     const pixels = m.getImageData(0, 0, W, H).data;
+     // the alpha value of pixel (x, y) is pixels[(Math.floor(y) * W + Math.floor(x)) * 4 + 3]  */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const seed = 'silhouette-1';
+const R = PA.rng(seed);
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+function inside(x, y) {
+  // ---- your shape here ----
+  return false;
+}
+
+// ---- your packing here ----
+
+</script>
+</body>
+</html>

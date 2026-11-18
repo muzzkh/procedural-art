@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 1 · Interactivity</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Special topic 1 of 9</span><a href="02-practical-uses.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 1</p>
+  <h1>Interactivity</h1>
+  <p class="lede">A procedural artwork is a system of rules with dials. Interactivity means handing some of those dials to someone else: a visitor, a player, a microphone, a clock. This page covers where input comes from, how to connect it to a system, and how that is done on websites and in games.</p>
+</header>
+
+<h2>The interaction loop</h2>
+<p>Every interactive piece runs the same loop, many times a second:</p>
+<p class="formula">input → state → rules → picture → (the person reacts) → input …</p>
+<ul>
+  <li><strong>Input</strong> is any signal from outside the program.</li>
+  <li><strong>State</strong> is what the program remembers: positions, a grid, a seed, a mode.</li>
+  <li><strong>Rules</strong> are everything from the ten lessons.</li>
+</ul>
+<p>The design question is always the same: <em>which signal drives which parameter, and how directly?</em> The rest of this page is a catalogue of answers.</p>
+
+<h2>Where input comes from</h2>
+<table>
+  <thead><tr><th>Source</th><th>What you get</th><th>Typical use</th></tr></thead>
+  <tbody>
+    <tr><td>Pointer</td><td>Position, speed, direction, pressed or not, drag path</td><td>Steering, stirring, painting, pushing</td></tr>
+    <tr><td>Keyboard</td><td>Which keys are held, or a key press as an event</td><td>Movement, switching modes, new seed, save</td></tr>
+    <tr><td>Sliders and buttons</td><td>Exact values for named parameters</td><td>Design tools and configurators</td></tr>
+    <tr><td>Text</td><td>A string</td><td>A seed: names, dates, messages turned into images</td></tr>
+    <tr><td>Scroll</td><td>How far down a page the reader is</td><td>A timeline the reader scrubs through</td></tr>
+    <tr><td>Time</td><td>Seconds elapsed, or the real clock and calendar</td><td>Animation; pieces that differ by hour or season</td></tr>
+    <tr><td>Sound</td><td>Loudness, and loudness per pitch band</td><td>Music visualisers, voice-driven pieces</td></tr>
+    <tr><td>Camera</td><td>Pixels, motion, detected hands, faces or bodies</td><td>Mirrors, installations, gesture control</td></tr>
+    <tr><td>Device sensors</td><td>Tilt, acceleration, touch pressure, location</td><td>Phone-held pieces, gravity that follows the hand</td></tr>
+    <tr><td>Data</td><td>Weather, stock prices, transit feeds, a wallet address</td><td>Data art, pieces that reflect the world</td></tr>
+    <tr><td>Other people</td><td>Everyone else's input, over a network</td><td>Shared canvases, crowd-driven installations</td></tr>
+    <tr><td>The piece itself</td><td>Its own previous frame</td><td>Feedback: trails, echoes, growth</td></tr>
+  </tbody>
+</table>
+
+<h2>Mapping: direct and smoothed</h2>
+<p>The simplest connection is a <strong>direct mapping</strong>: one input value sets one parameter through <code>PA.map</code>. It is immediate and easy to understand. Its weakness is that hands are jittery, and a picture wired straight to the mouse twitches.</p>
+<p>The fix is one line. Keep your own copy of the input and move it a fraction of the way toward the real value each frame:</p>
+<pre><code>smooth += (input - smooth) * 0.08;</code></pre>
+<p>That is a <code>lerp</code> toward a moving target. The picture gains weight and glide. A smaller fraction feels heavier, a larger one snappier. (A damped spring from Maths 4 does the same with a little overshoot.)</p>
+
+<div class="example" data-title="S1.1 Two dials on the mouse">
+<script type="text/plain">
+let sx = W / 2, sy = H / 2;          // our smoothed copy of the mouse
+
+loop((t) => {
+  sx += (mouse.x - sx) * 0.08;       // try 1 (no smoothing) and 0.02 (very heavy)
+  sy += (mouse.y - sy) * 0.08;
+
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  const count = Math.round(PA.map(sy, 0, H, 6, 34));     // up and down: how many squares
+  const twist = PA.map(sx, 0, W, -1.5, 1.5);             // left and right: how much they turn
+
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < count; i++) {
+    const u = i / count;
+    const s = 200 * (1 - u);
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(u * twist * PA.TAU + t * 0.1);
+    ctx.strokeStyle = PA.hsl(190 + u * 140, 80, 62);
+    ctx.strokeRect(-s, -s, s * 2, s * 2);
+    ctx.restore();
+  }
+});
+</script>
+</div>
+
+<h2>Input as a force</h2>
+<p>A more interesting connection is <strong>indirect</strong>. The system has its own behaviour, and the input only disturbs it. The visitor does not set values; they push on something that pushes back. This is why stirring a fluid simulation is more absorbing than dragging a slider: the system answers with something you did not exactly ask for.</p>
+<p>Here the particles drift on a noise field by themselves. The cursor's <em>velocity</em>, not its position, is added to nearby particles, weighted by a bell curve of distance (Maths 1).</p>
+
+<div class="example" data-title="S1.2 Stirring (move the mouse quickly through the particles)">
+<script type="text/plain">
+const R = PA.rng(2), N = PA.noise(2);
+const particles = [];
+for (let i = 0; i < 1800; i++) particles.push({ x: R.range(W), y: R.range(H), vx: 0, vy: 0 });
+
+let lastX = mouse.x, lastY = mouse.y;
+
+loop((t) => {
+  const mvx = mouse.x - lastX, mvy = mouse.y - lastY;     // how fast the cursor is moving
+  lastX = mouse.x; lastY = mouse.y;
+
+  ctx.fillStyle = 'rgba(11, 19, 43, 0.12)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(190, 235, 255, 0.85)';
+
+  for (const p of particles) {
+    // the system's own behaviour: drift along a slowly changing noise field
+    const a = N.get(p.x * 0.004, p.y * 0.004, t * 0.05) * PA.TAU * 2;
+    p.vx += Math.cos(a) * 0.05;
+    p.vy += Math.sin(a) * 0.05;
+
+    // the visitor's influence: the cursor drags nearby particles along with it
+    const dx = p.x - mouse.x, dy = p.y - mouse.y;
+    const near = Math.exp(-(dx * dx + dy * dy) / (90 * 90));
+    p.vx += mvx * near * 0.25;
+    p.vy += mvy * near * 0.25;
+
+    p.vx *= 0.95; p.vy *= 0.95;
+    p.x = (((p.x + p.vx) % W) + W) % W;
+    p.y = (((p.y + p.vy) % H) + H) % H;
+    ctx.fillRect(p.x, p.y, 1.5, 1.5);
+  }
+});
+</script>
+</div>
+
+<h2>Co-creation: the generative brush</h2>
+<p>A third relationship splits the work. <strong>The person decides where and when. The system decides what.</strong> Drawing tools built this way let anyone make something that looks good, because the rules guarantee the quality of the marks while the gesture still belongs to the person.</p>
+<p>Drag on the canvas below. You plant; the vines grow, wander on a noise field and branch by themselves. Two details are worth copying. The drawing persists, so the piece accumulates a history of the visit. And until someone touches it, a "ghost hand" draws slowly, so that the piece is never blank. Installations call this an <strong>attract mode</strong>.</p>
+
+<div class="example" data-title="S1.3 A brush that grows (drag on the canvas)">
+<script type="text/plain">
+const R = PA.rng(), N = PA.noise();
+const palette = ['#2a9d8f', '#e9c46a', '#f4a261', '#e76f51', '#8ecae6'];
+let vines = [];
+
+ctx.fillStyle = '#10141c';
+ctx.fillRect(0, 0, W, H);
+ctx.lineCap = 'round';
+
+loop((t) => {
+  // attract mode: until someone touches the canvas, a ghost hand draws
+  const auto = !mouse.active;
+  const bx = auto ? W / 2 + Math.sin(t * 0.7) * 200 : mouse.x;
+  const by = auto ? H / 2 + Math.sin(t * 1.1) * 200 : mouse.y;
+
+  // the person decides WHERE
+  if ((auto || mouse.down) && vines.length < 2500) {
+    for (let k = 0; k < 2; k++) {
+      vines.push({ x: bx, y: by, a: R.range(PA.TAU), life: R.int(40, 140), w: R.range(0.5, 2.5), c: R.pick(palette) });
+    }
+  }
+
+  // the system decides WHAT grows there
+  const born = [];
+  for (const v of vines) {
+    v.a += (N.get(v.x * 0.01, v.y * 0.01, t * 0.1) - 0.5) * 0.9;      // wander
+    const nx = v.x + Math.cos(v.a) * 2, ny = v.y + Math.sin(v.a) * 2;
+
+    ctx.strokeStyle = v.c;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = v.w * (v.life / 140 + 0.2);                       // thinner with age
+    ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(nx, ny); ctx.stroke();
+
+    v.x = nx; v.y = ny; v.life--;
+    if (v.life % 30 === 0 && R.chance(0.5)) {                         // branch now and then
+      born.push({ x: v.x, y: v.y, a: v.a + R.range(-0.8, 0.8), life: Math.floor(v.life * 0.6), w: v.w * 0.7, c: v.c });
+    }
+  }
+  vines = vines.concat(born).filter((v) => v.life > 0);
+});
+</script>
+</div>
+
+<h2>Parameters as an interface</h2>
+<p>Sometimes the goal is not play but <strong>control</strong>: a tool in which someone explores a design space and picks a result. Then the right input is a labelled slider for each parameter. This is how generative tools for designers work, and how product configurators let a customer shape their own lamp or ring.</p>
+<p>The craft is in choosing <em>which</em> parameters to expose. A system might have forty numbers inside it. A good tool exposes four or five that each make a visible, distinct difference, and keeps their ranges within values that always look good. In these examples <code>ui.slider</code> adds a control and returns a function that reads its current value.</p>
+
+<div class="example" data-title="S1.4 A design tool with four dials">
+<script type="text/plain">
+const petals = ui.slider('petals', 3, 16, 7, 1);
+const layers = ui.slider('layers', 1, 12, 6, 1);
+const twist  = ui.slider('twist', 0, 1, 0.35, 0.01);
+const pinch  = ui.slider('pinch', 0.2, 3, 1, 0.05);
+
+function draw() {
+  ctx.fillStyle = '#16121c';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let l = 0; l < layers(); l++) {
+    const u = l / layers();
+    const size = 270 * (1 - u * 0.85);
+
+    ctx.beginPath();
+    for (let i = 0; i <= 360; i++) {
+      const a = (i / 360) * PA.TAU;
+      const wave = Math.abs(Math.cos(a * petals() / 2)) ** pinch();     // petal outline
+      const r = size * (0.35 + 0.65 * wave);
+      const b = a + u * twist() * PA.TAU;                               // inner layers turn
+      ctx.lineTo(W / 2 + Math.cos(b) * r, H / 2 + Math.sin(b) * r);
+    }
+    ctx.closePath();
+    ctx.fillStyle = PA.hsl(330 + u * 60, 75, 30 + u * 45);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.stroke();
+  }
+}
+
+draw();
+ui.onChange(draw);        // redraw whenever a slider moves
+</script>
+</div>
+
+<h2>Identity as a seed</h2>
+<p>Lesson 2 showed that a text seed always produces the same sequence of random numbers. That turns any piece of text into a unique, repeatable image. Type a name and you get <em>its</em> emblem, the same one every time and different from everyone else's.</p>
+<p>This is among the most widely used interactive methods because the person's only action is to be themselves. It is how default avatars are generated on code-hosting and messaging sites, how event badges and personalised packaging are made, and how blockchain art platforms turn a transaction number into an artwork.</p>
+
+<div class="example" data-title="S1.5 Your name as an emblem (type in the box)">
+<script type="text/plain">
+const name = ui.text('name', 'Ada Lovelace');
+
+function draw() {
+  const R = PA.rng(name().trim().toLowerCase());      // the text IS the seed
+
+  const hue = R.range(360);
+  const main = PA.hsl(hue, 70, 60), accent = PA.hsl((hue + 150) % 360, 80, 62);
+  ctx.fillStyle = PA.hsl(hue, 30, 11);
+  ctx.fillRect(0, 0, W, H);
+
+  // a 7 x 7 grid. only the left four columns are random: the rest mirror them,
+  // and that symmetry is what makes random cells read as a badge or a face
+  const n = 7, cell = 62, ox = (W - n * cell) / 2, oy = 50;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < 4; i++) {
+      if (R.chance(0.45)) continue;
+      const colour = R.chance(0.2) ? accent : main;
+      const shape = R.pick(['square', 'circle', 'diamond']);
+      for (const col of [i, n - 1 - i]) {             // draw it and its mirror image
+        const cx = ox + (col + 0.5) * cell, cy = oy + (j + 0.5) * cell, h = cell * 0.44;
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        if (shape === 'square') ctx.rect(cx - h, cy - h, h * 2, h * 2);
+        else if (shape === 'circle') ctx.arc(cx, cy, h, 0, PA.TAU);
+        else { ctx.moveTo(cx, cy - h); ctx.lineTo(cx + h, cy); ctx.lineTo(cx, cy + h); ctx.lineTo(cx - h, cy); }
+        ctx.fill();
+      }
+    }
+  }
+
+  ctx.fillStyle = main;
+  ctx.font = '20px Georgia';
+  ctx.textAlign = 'center';
+  ctx.fillText(name(), W / 2, H - 40);
+}
+
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Sound</h2>
+<p>Audio becomes visual input through an <strong>analyser</strong>, which the browser provides. Many times a second it gives you an array of numbers: how loud the sound currently is in each band of pitch, from bass to treble. From there it is ordinary mapping.</p>
+<ul>
+  <li>Average the first few bands for the <strong>bass</strong>, and use it for big, slow things: scale, pulse, camera shake.</li>
+  <li>Use the upper bands for small, fast things: sparkle, line weight, jitter.</li>
+  <li>Smooth everything, or the picture flickers. Let values rise quickly and fall slowly.</li>
+  <li>A sudden jump in loudness is a <strong>beat</strong>. Use beats as triggers: change the seed, spawn particles, flip a mode.</li>
+</ul>
+<p>The example plays its own quiet synthesiser so that it works without asking for microphone permission. The comment in the code shows the two lines that swap in the microphone.</p>
+
+<div class="example" data-title="S1.6 Sound as input (click the canvas: it plays a quiet sound)">
+<script type="text/plain">
+let audio = null, analyser = null, bins = null, osc = null, smoothBass = 0;
+
+canvas.onclick = () => {
+  if (audio) return;
+  audio = new AudioContext();
+  analyser = audio.createAnalyser();
+  analyser.fftSize = 256;
+  bins = new Uint8Array(analyser.frequencyBinCount);     // 128 loudness values, low pitch to high
+
+  // the sound source: a small synthesiser.
+  // for the microphone instead, replace these lines with:
+  //   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  //   audio.createMediaStreamSource(stream).connect(analyser);
+  osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = 'sawtooth';
+  gain.gain.value = 0.04;
+  osc.connect(gain);
+  gain.connect(analyser);
+  analyser.connect(audio.destination);
+  osc.start();
+};
+cleanup(() => { if (audio) audio.close(); });             // stop the sound when the example is re-run
+
+const notes = [110, 165, 220, 147, 196, 262, 330, 98];
+
+loop((t) => {
+  ctx.fillStyle = 'rgba(13, 17, 23, 0.3)';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!analyser) {
+    ctx.fillStyle = '#cfd6dd';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('click to start', W / 2, H / 2);
+    return;
+  }
+
+  osc.frequency.value = notes[Math.floor(t * 4) % notes.length];     // play a looping phrase
+  analyser.getByteFrequencyData(bins);                               // read the spectrum
+
+  let bass = 0;
+  for (let i = 0; i < 6; i++) bass += bins[i];
+  bass /= 6 * 255;                                                   // 0 to 1
+  smoothBass += (bass - smoothBass) * (bass > smoothBass ? 0.5 : 0.08);   // fast up, slow down
+
+  const inner = 70 + smoothBass * 60;
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 96; i++) {
+    const loud = bins[i] / 255;
+    const a = (i / 96) * PA.TAU - Math.PI / 2;
+    ctx.strokeStyle = PA.hsl(200 + i * 1.6, 85, 60);
+    ctx.beginPath();
+    ctx.moveTo(W / 2 + Math.cos(a) * (inner + 8), H / 2 + Math.sin(a) * (inner + 8));
+    ctx.lineTo(W / 2 + Math.cos(a) * (inner + 12 + loud * 170), H / 2 + Math.sin(a) * (inner + 12 + loud * 170));
+    ctx.stroke();
+  }
+  ctx.fillStyle = PA.hsl(40, 90, 60);
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, inner, 0, PA.TAU); ctx.fill();
+});
+</script>
+</div>
+
+<h2>Interactivity on websites</h2>
+<p>On a web page a generative piece is usually not the main event. It is a background, an illustration or a moment of delight, and it has to coexist with text, navigation and slow phones. These are the common patterns.</p>
+
+<h3>Scroll as a timeline</h3>
+<p>Reading a page is already an input: the reader scrolls. Convert the scroll position into a fraction from 0 to 1 and drive the piece with it, and the reader scrubs through your animation at their own pace, forwards and backwards. This is the technique behind "scrollytelling" articles.</p>
+<p>The key requirement is that the piece is a <strong>pure function of progress</strong>: the same scroll position must always give the same picture. So the tree below is generated once from a fixed seed, and only the amount of it that is drawn depends on scrolling. Scroll this page slowly while the canvas is on screen.</p>
+
+<div class="example" data-title="S1.7 Scroll the page to grow the tree">
+<script type="text/plain">
+// build the whole tree once, from a fixed seed
+const R = PA.rng('scroll-tree');
+const segments = [];
+function grow(x, y, a, len, level) {
+  const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len;
+  segments.push({ x, y, x2, y2, level });
+  if (level === 7) return;
+  for (let i = 0; i < 2; i++) grow(x2, y2, a + R.range(-0.6, 0.6), len * R.range(0.68, 0.8), level + 1);
+}
+grow(W / 2, H - 20, -Math.PI / 2, 120, 0);
+
+loop(() => {
+  // where is this canvas on the screen?  0 = entering at the bottom, 1 = leaving at the top
+  const box = canvas.getBoundingClientRect();
+  const raw = 1 - (box.top + box.height / 2) / window.innerHeight;
+  const progress = PA.smoothstep(0.15, 0.75, raw);
+
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+
+  for (const s of segments) {
+    const g = PA.clamp(progress * 8 - s.level);          // each level waits for the one before
+    if (g <= 0) continue;
+    ctx.strokeStyle = s.level > 4 ? '#4a7c59' : '#3b2f2f';
+    ctx.lineWidth = 9 - s.level;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(PA.lerp(s.x, s.x2, g), PA.lerp(s.y, s.y2, g));
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#555';
+  ctx.font = '13px monospace';
+  ctx.fillText('progress ' + Math.round(progress * 100) + '%', 14, 24);
+});
+</script>
+</div>
+
+<h3>Other web patterns</h3>
+<table>
+  <thead><tr><th>Pattern</th><th>How it works</th></tr></thead>
+  <tbody>
+    <tr><td>Reactive background</td><td>A full-window canvas behind the content, driven gently by the cursor. Keep contrast low so text stays readable.</td></tr>
+    <tr><td>Shareable outputs</td><td>Put the seed in the address, after a <code>#</code>. Anyone opening the link sees the same piece.</td></tr>
+    <tr><td>Remembering the visitor</td><td>Store a seed or the state in <code>localStorage</code>, so that their piece is still there next visit.</td></tr>
+    <tr><td>Per-visitor uniqueness</td><td>Seed from the date, a username, or a random number saved on first visit.</td></tr>
+    <tr><td>Hover and focus effects</td><td>Small generative responses on buttons and cards: a noise ripple, particles, a shader distortion.</td></tr>
+    <tr><td>Loading states</td><td>A short looping generative animation in place of a spinner.</td></tr>
+    <tr><td>Phone sensors</td><td>Tilt replaces the mouse. Gravity in a particle system can follow the real direction of down.</td></tr>
+    <tr><td>Shared canvases</td><td>Send each visitor's input to a server and broadcast it, so that everyone affects one piece.</td></tr>
+  </tbody>
+</table>
+<p>The essential code for the first three, outside this course's example boxes:</p>
+<pre><code>// a canvas that always fills the window, at full sharpness
+function resize() {
+  canvas.width = innerWidth * devicePixelRatio;
+  canvas.height = innerHeight * devicePixelRatio;
+}
+addEventListener('resize', resize);
+resize();
+
+// follow the cursor anywhere on the page
+addEventListener('pointermove', (e) =&gt; { target.x = e.clientX; target.y = e.clientY; });
+
+// a seed in the address bar: every output has a link
+let seed = location.hash.slice(1) || String(Date.now());
+location.hash = seed;
+addEventListener('hashchange', () =&gt; draw(location.hash.slice(1)));
+
+// phone tilt, in degrees
+addEventListener('deviceorientation', (e) =&gt; { tiltX = e.gamma; tiltY = e.beta; });</code></pre>
+
+<div class="note"><p><strong>Being a good guest on a web page.</strong> Stop animating when the canvas is off screen or the tab is hidden. Check <code>matchMedia('(prefers-reduced-motion: reduce)')</code> and show a still image to people who have asked for less motion. Never make content depend on the animation. Test on a phone: a piece that runs at 60 frames a second on a desktop may manage 10 on an old handset, so lower the particle count or resolution when frames are slow.</p></div>
+
+<h2>Interactivity in games</h2>
+<p>Games are the largest users of procedural methods, and they use them in two distinct ways.</p>
+<h3>1. Generating the world the player explores</h3>
+<p>The player's movement is the input, and content is generated to meet it. The central idea is that <strong>the world is a function</strong>. Nothing is stored. Any location can be computed from its coordinates and a seed, so the world is effectively infinite and yet identical every time you return, and two players with the same seed see the same place.</p>
+<p>The whole world below is the function <code>tileAt</code>. Noise gives the terrain (Lesson 3) and a hash of the tile's coordinates decides where trees stand. Click the canvas, then walk with the arrow keys or W, A, S, D. You can walk for ever.</p>
+
+<div class="example" data-title="S1.8 An endless world (click the canvas, then use the arrow keys or WASD)">
+<script type="text/plain">
+const N = PA.noise('world-7');        // change the seed: a different world
+const TILE = 20;
+let camX = 0, camY = 0, vx = 0, vy = 0, used = false;
+
+// the entire world. nothing is stored: every tile is computed when it is looked at
+function tileAt(tx, ty) {
+  const h = N.fbm(tx * 0.05, ty * 0.05, { octaves: 4 });
+  if (h < 0.44) return '#26548c';                                    // deep water
+  if (h < 0.48) return '#4682b4';                                    // shallows
+  if (h < 0.50) return '#e2cd96';                                    // sand
+  const tree = PA.hashString(tx + ',' + ty) % 100 < (h - 0.5) * 400; // same answer every time for this tile
+  if (h < 0.62) return tree ? '#2f6b3a' : '#58964e';                 // forest or grass
+  if (h < 0.68) return '#787064';                                    // rock
+  return '#f2f2f2';                                                  // snow
+}
+
+loop(() => {
+  let ax = 0, ay = 0;
+  if (keys.arrowleft || keys.a) ax -= 1;
+  if (keys.arrowright || keys.d) ax += 1;
+  if (keys.arrowup || keys.w) ay -= 1;
+  if (keys.arrowdown || keys.s) ay += 1;
+  if (ax || ay) used = true;
+  if (!used) ax = 0.4;                       // drift east until someone takes the controls
+
+  vx = (vx + ax * 0.03) * 0.9;               // acceleration and friction (Lesson 5)
+  vy = (vy + ay * 0.03) * 0.9;
+  camX += vx; camY += vy;
+
+  const x0 = Math.floor(camX), y0 = Math.floor(camY);
+  for (let j = -1; j <= H / TILE + 1; j++) {
+    for (let i = -1; i <= W / TILE + 1; i++) {
+      ctx.fillStyle = tileAt(x0 + i, y0 + j);
+      ctx.fillRect(Math.round((i - (camX - x0)) * TILE), Math.round((j - (camY - y0)) * TILE), TILE + 1, TILE + 1);
+    }
+  }
+
+  ctx.fillStyle = '#e63946';                 // the player
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, 7, 0, PA.TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(0, 0, W, 26);
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.fillText('position ' + Math.round(camX) + ', ' + Math.round(camY), 10, 18);
+});
+</script>
+</div>
+
+<h3>2. Giving the player a system to play with</h3>
+<p>In the second kind, the rules themselves are the toy. The player adds things to a simulation and watches the consequences. "Falling sand" games are the classic case: a cellular automaton (Lesson 8) in which each grain falls straight down if it can, and otherwise slides diagonally. Those two rules are enough to produce heaps, slopes and avalanches. Add rules for water, fire and plants and you have a genre.</p>
+
+<div class="example" data-pixel data-w="120" data-h="120" data-title="S1.9 Falling sand (hold the mouse button and move)">
+<script type="text/plain">
+const R = PA.rng();
+const grid = new Uint8Array(W * H);          // 0 = empty, otherwise a grain (the value picks its colour)
+const img = ctx.createImageData(W, H);
+
+loop((t, frame) => {
+  // input: pour sand at the cursor. until someone takes over, a swinging spout pours
+  const auto = !mouse.active;
+  if (auto && frame % 1500 === 0) grid.fill(0);
+  const sx = Math.floor(auto ? W / 2 + Math.sin(t * 0.8) * W * 0.35 : mouse.x);
+  const sy = Math.floor(auto ? 6 : mouse.y);
+  if (auto || mouse.down) {
+    for (let k = 0; k < 6; k++) {
+      const x = PA.clamp(sx + R.int(-3, 3), 0, W - 1), y = PA.clamp(sy + R.int(-3, 3), 0, H - 1);
+      if (!grid[y * W + x]) grid[y * W + x] = 1 + ((frame * 0.3) % 254);
+    }
+  }
+
+  // rules: fall straight down if possible, otherwise diagonally.
+  // scanning from the bottom up means each grain moves at most once per frame
+  for (let y = H - 2; y >= 0; y--) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x, grain = grid[i];
+      if (!grain) continue;
+      if (!grid[i + W]) {
+        grid[i + W] = grain; grid[i] = 0;
+      } else {
+        const dir = R.chance(0.5) ? 1 : -1;
+        if (x + dir >= 0 && x + dir < W && !grid[i + W + dir]) { grid[i + W + dir] = grain; grid[i] = 0; }
+      }
+    }
+  }
+
+  for (let i = 0; i < W * H; i++) {
+    const g = grid[i];
+    img.data[i * 4]     = g ? 150 + 100 * Math.sin(g * 0.05) : 16;
+    img.data[i * 4 + 1] = g ? 120 + 70 * Math.sin(g * 0.05 + 2) : 20;
+    img.data[i * 4 + 2] = g ? 70 + 50 * Math.sin(g * 0.05 + 4) : 28;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h3>Procedural methods across game design</h3>
+<table>
+  <thead><tr><th>What is generated</th><th>Typical method</th><th>Driven by</th></tr></thead>
+  <tbody>
+    <tr><td>Terrain and biomes</td><td>Layered noise, with moisture and temperature fields</td><td>Where the player goes</td></tr>
+    <tr><td>Dungeons and levels</td><td>Space partitioning, cellular caves, Wave Function Collapse (Special Topic 2 builds one)</td><td>A new seed each run</td></tr>
+    <tr><td>Vegetation and cities</td><td>L-systems, scatter by Poisson disc, road-growing agents</td><td>Terrain and distance</td></tr>
+    <tr><td>Creature motion</td><td>Springs and inverse kinematics, so that feet land on uneven ground</td><td>The player's speed and the terrain</td></tr>
+    <tr><td>Crowds and wildlife</td><td>Boids and steering behaviours</td><td>The player as predator or leader</td></tr>
+    <tr><td>Effects and "juice"</td><td>Particle systems, screen shake from noise, trails</td><td>Hits, jumps, pickups</td></tr>
+    <tr><td>Items, names, quests</td><td>Weighted tables and grammars</td><td>Level and rarity rules</td></tr>
+    <tr><td>Music and sound</td><td>Layers added and removed by rules</td><td>Tension, health, location</td></tr>
+    <tr><td>Difficulty</td><td>Parameters adjusted from measured performance</td><td>How well the player is doing</td></tr>
+  </tbody>
+</table>
+<p>Two engineering constraints shape all of this. <strong>Determinism:</strong> the same seed must give the same world on every machine, or multiplayer and saved games break, which is why games use their own seeded generators exactly as Lesson 2 did. <strong>Budget:</strong> everything must finish within a sixtieth of a second, so worlds are generated in chunks, near the player, a little each frame.</p>
+
+<h2>Less common methods</h2>
+<table>
+  <thead><tr><th>Method</th><th>The idea</th></tr></thead>
+  <tbody>
+    <tr><td>Camera as mirror</td><td>Use the webcam image as a field: brightness drives dot size, particles avoid dark areas, motion between frames stirs a fluid.</td></tr>
+    <tr><td>Body and hand tracking</td><td>Machine-learning models return the positions of joints or fingertips. Each becomes an attractor, an emitter or a brush.</td></tr>
+    <tr><td>Sketch as seed</td><td>The visitor draws a rough line and the system elaborates it: grows branches from it, packs circles inside it, makes it the spine of a creature.</td></tr>
+    <tr><td>The real clock</td><td>The piece is a function of the date and time. It looks different at dusk than at noon and never repeats a day.</td></tr>
+    <tr><td>Live data</td><td>Wind speed sets the flow field, air quality sets the palette, the number of people in a room sets the density.</td></tr>
+    <tr><td>Physical controllers</td><td>Knobs, sliders and pads from music hardware (MIDI), or sensors on a microcontroller: distance, light, touch, heartbeat.</td></tr>
+    <tr><td>Typing rhythm</td><td>Not what is typed but how: pauses, bursts and corrections become the input.</td></tr>
+    <tr><td>Presence and absence</td><td>The piece grows while watched and decays when left alone, or the reverse.</td></tr>
+    <tr><td>Slow interaction</td><td>Each visitor changes the piece slightly and permanently. It evolves over weeks, a record of everyone who came.</td></tr>
+    <tr><td>Breeding</td><td>Show nine variations, let the person pick one, generate nine mutations of it, repeat. The person steers by taste alone.</td></tr>
+  </tbody>
+</table>
+
+<h2>Principles</h2>
+<ul>
+  <li><strong>Respond at once.</strong> Something visible should happen within a tenth of a second of any action, even if the full consequence unfolds slowly.</li>
+  <li><strong>Let the rule be discoverable.</strong> People enjoy working out what their input does. Too direct is dull, too obscure feels broken.</li>
+  <li><strong>Smooth the input.</strong> Raw signals jitter.</li>
+  <li><strong>No input should make it ugly.</strong> Clamp ranges and design the system so that every reachable state is a good one. This is Lesson 10's rule for long-form art, applied to a person instead of a seed.</li>
+  <li><strong>Never be blank.</strong> Give the piece an idle behaviour.</li>
+  <li><strong>Reward small actions generously.</strong> A flick of the wrist should produce more than a flick's worth of result.</li>
+  <li><strong>Decide what persists.</strong> Marks that stay give a sense of authorship. Marks that fade invite continuous play. Always provide a reset.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Interactivity is an outside signal driving a parameter of a generative system.</li>
+  <li>Direct mapping sets values. Indirect mapping applies forces to a system with its own behaviour.</li>
+  <li>In co-creation the person chooses where and when, and the rules choose what.</li>
+  <li>Text, dates and identifiers become seeds: unique and repeatable.</li>
+  <li>On the web, scroll, cursor and address are the native inputs, and the piece must be a polite guest.</li>
+  <li>In games, the world is a function of coordinates and a seed, or the rules themselves are the toy.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 1</p>
+  <h2>The Instrument</h2>
+  <p>Build an interactive generative piece that someone could happily play with for five minutes without instructions. Think of it as a visual instrument: the person performs, and the system gives the performance its character.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>At least <strong>three input channels</strong> of different kinds, for example pointer, keyboard, and one of time, text, sound or scroll.</li>
+    <li>At least one <strong>indirect mapping</strong>: an input that acts as a force on a simulation, not as a value.</li>
+    <li>All continuous inputs are <strong>smoothed</strong>.</li>
+    <li>An <strong>attract mode</strong>: it does something interesting when untouched, and hands over the moment someone interacts.</li>
+    <li>No sequence of inputs produces an ugly or broken picture.</li>
+    <li>Keys to <strong>reset</strong>, to <strong>save a PNG</strong>, and to start from a <strong>new seed</strong>.</li>
+    <li>The seed lives in the page address, so that a starting state can be shared as a link.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start from a system you already built for an earlier challenge, and ask what a person could push on.</li>
+    <li>Give someone else the mouse and watch without explaining. Whatever they try first should do something.</li>
+    <li>For pointer speed, keep last frame's position and subtract.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Microphone input, with beats as triggers.</li>
+    <li>Make it work by touch on a phone, including tilt.</li>
+    <li>Record a performance as a list of timed inputs and replay it exactly. This only works if the piece is deterministic.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>A person who has never seen it finds all three inputs without help.</li>
+    <li>Two people playing it produce recognisably different results.</li>
+  </ul>
+  <a class="start" href="../challenges/s1-instrument.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-practical-uses.html">Special Topic 2: Practical Uses →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

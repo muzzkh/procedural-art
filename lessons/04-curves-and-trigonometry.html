@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 4 · Curves and Trigonometry</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-noise.html">← Lesson 3</a><span>Lesson 4 of 19</span><a href="05-particles-and-flow-fields.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 4</p>
+  <h1>Curves and Trigonometry</h1>
+  <p class="lede">Sine and cosine are the two functions that turn "going round" into x and y. With them you can draw circles, waves, spirals, flowers and the looping figures of a spirograph, each from a line or two of maths.</p>
+</header>
+
+<h2>The only trigonometry you need</h2>
+<p>Picture a point travelling round a circle of radius 1. At angle <code>a</code>, its horizontal position is <code>cos(a)</code> and its vertical position is <code>sin(a)</code>. Both swing smoothly between −1 and 1, and both repeat every full turn. That is all sine and cosine are.</p>
+<p>From this comes the conversion you will write hundreds of times, from <strong>polar</strong> coordinates (an angle and a distance) to canvas coordinates:</p>
+<pre><code>x = centreX + Math.cos(angle) * radius;
+y = centreY + Math.sin(angle) * radius;</code></pre>
+<p>Angles are in radians. A full turn is <code>PA.TAU</code> (2π, about 6.283), so a fraction <code>t</code> of a turn is <code>t * PA.TAU</code>. Because the canvas <code>y</code> axis points down, increasing angles go <em>clockwise</em> on screen.</p>
+
+<div class="example" data-title="4.1 Polygons are circles sampled coarsely">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+function polygon(cx, cy, r, sides, rotation = 0) {
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const a = rotation + (i / sides) * PA.TAU;       // evenly spaced angles
+    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+
+for (let k = 0; k < 28; k++) {
+  polygon(W / 2, H / 2, 20 + k * 9, 3 + (k % 5), k * 0.08);
+  ctx.strokeStyle = PA.hsl(170 + k * 9, 80, 65);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+</script>
+</div>
+
+<h2>Sine as an oscillator</h2>
+<p>Used on its own, sine is a smooth back-and-forth motion with three controls:</p>
+<pre><code>value = Math.sin(t * frequency + phase) * amplitude</code></pre>
+<dl class="vocab">
+  <dt>Amplitude</dt><dd>How far it swings.</dd>
+  <dt>Frequency</dt><dd>How fast it repeats.</dd>
+  <dt>Phase</dt><dd>Where in the cycle it starts. Changing phase over time makes a wave travel.</dd>
+</dl>
+<p>Give x and y their own oscillators and the point traces a <strong>Lissajous figure</strong>. Whole-number frequency ratios such as 3:4 give closed knots. This is a <strong>parametric curve</strong>: both coordinates are functions of a single parameter.</p>
+
+<div class="example" data-title="4.2 Two oscillators at right angles">
+<script type="text/plain">
+loop((t) => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  const fx = 3, fy = 4;           // try 1:2, 2:3, 5:6, and 3:3.02
+  const phase = t * 0.4;          // slowly shifting phase makes it tumble
+
+  ctx.beginPath();
+  for (let i = 0; i <= 1000; i++) {
+    const u = (i / 1000) * PA.TAU;
+    const x = W / 2 + Math.sin(fx * u + phase) * 230;
+    const y = H / 2 + Math.sin(fy * u) * 230;
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+});
+</script>
+</div>
+
+<h2>Polar curves: radius as a function of angle</h2>
+<p>Go round the full circle, but let the radius change as you go. Whatever rule you choose for the radius becomes the outline. A cosine with a whole-number frequency gives petals, a radius that grows steadily gives a spiral, and a small ripple gives a cog.</p>
+
+<div class="example" data-title="4.3 Four radius rules">
+<script type="text/plain">
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+// draws r = radiusAt(angle), scaled by size, for a number of turns
+function polarPlot(cx, cy, size, radiusAt, turns, colour) {
+  ctx.beginPath();
+  for (let i = 0; i <= 2000; i++) {
+    const a = (i / 2000) * PA.TAU * turns;
+    const r = radiusAt(a) * size;
+    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+polarPlot(150, 150, 120, (a) => Math.cos(4 * a),             1, '#e4572e');   // rose
+polarPlot(450, 150, 120, (a) => Math.cos((5 / 3) * a),       3, '#17bebb');   // rose, fractional
+polarPlot(150, 450, 12,  (a) => a / 3,                       5, '#2e282a');   // spiral
+polarPlot(450, 450, 100, (a) => 1 + 0.3 * Math.sin(7 * a),   1, '#7a3b69');   // cog
+</script>
+</div>
+
+<p>Try it: change the 4 in the rose to 5, then to 2.5 (and give it 2 turns). Odd, even and fractional values each behave differently, and working out why is a good exercise.</p>
+
+<h2>Circles rolling in circles</h2>
+<p>A spirograph toy rolls a small wheel inside a large ring, with a pen in a hole of the wheel. The pen's path is the sum of two circular motions: the wheel's centre going round the ring, and the pen going round the wheel's centre the other way. Sums of rotations are a deep idea: with enough of them you can draw any closed curve at all.</p>
+
+<div class="example" data-title="4.4 Spirograph">
+<script type="text/plain">
+ctx.fillStyle = '#0b132b';
+ctx.fillRect(0, 0, W, H);
+ctx.globalCompositeOperation = 'lighter';     // overlapping lines add up to brighter
+
+function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+
+// ring radius, wheel radius, pen distance from the wheel's centre
+function spiro(ring, wheel, pen, colour) {
+  const turns = wheel / gcd(ring, wheel);     // turns needed before the curve closes
+  const k = (ring - wheel) / wheel;
+  ctx.beginPath();
+  for (let i = 0; i <= 4000; i++) {
+    const t = (i / 4000) * PA.TAU * turns;
+    const x = (ring - wheel) * Math.cos(t) + pen * Math.cos(k * t);
+    const y = (ring - wheel) * Math.sin(t) - pen * Math.sin(k * t);
+    ctx.lineTo(W / 2 + x, H / 2 + y);
+  }
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+spiro(240, 90, 80, '#5bc0be');
+spiro(240, 64, 100, '#ef476f');
+spiro(240, 150, 120, '#ffd166');
+</script>
+</div>
+
+<h2>The golden angle</h2>
+<p>Sunflower seeds, pine cones and daisies arrange themselves by one rule: each new element is placed 137.5° round from the last and a little further out. That angle, the <strong>golden angle</strong>, is the one that never lines up with itself, so the elements pack evenly with no gaps and no rows. The arrangement is called <strong>phyllotaxis</strong>.</p>
+
+<div class="example" data-title="4.5 Phyllotaxis">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+const golden = Math.PI * (3 - Math.sqrt(5));     // about 137.5 degrees. try 137.3 or 138
+
+for (let i = 0; i < 900; i++) {
+  const a = i * golden;
+  const r = 9.5 * Math.sqrt(i);        // square root keeps the density even
+  const x = W / 2 + Math.cos(a) * r;
+  const y = H / 2 + Math.sin(a) * r;
+
+  ctx.beginPath();
+  ctx.arc(x, y, 2 + i * 0.006, 0, PA.TAU);
+  ctx.fillStyle = PA.hsl(40 + (i % 13) * 7, 85, 60);    // 13 is a Fibonacci number
+  ctx.fill();
+}
+</script>
+</div>
+
+<p>Try it: replace <code>golden</code> with <code>137.3 * Math.PI / 180</code>. A fifth of a degree is enough to break the even packing into visible spiral arms.</p>
+
+<h2>Decay: the harmonograph</h2>
+<p>A harmonograph is a Victorian drawing machine in which swinging pendulums move a pen. It is a Lissajous figure whose amplitude slowly dies away, so the curve spirals inward instead of retracing itself. Multiplying by <code>Math.exp(-damping * t)</code> produces that fading. Frequencies that are very slightly off a whole-number ratio make the figure rotate as it shrinks.</p>
+
+<div class="example" data-title="4.6 Harmonograph">
+<script type="text/plain">
+const R = PA.rng();          // run again for a new machine
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+const f1 = R.pick([2, 3, 4]) + R.range(-0.01, 0.01);   // nearly whole-number frequencies
+const f2 = R.pick([2, 3, 5]) + R.range(-0.01, 0.01);
+const p1 = R.range(PA.TAU), p2 = R.range(PA.TAU);
+const damping = 0.012;
+
+ctx.beginPath();
+for (let i = 0; i < 20000; i++) {
+  const t = i * 0.01;
+  const fade = Math.exp(-damping * t);          // 1 at the start, shrinking toward 0
+  ctx.lineTo(
+    W / 2 + Math.sin(f1 * t + p1) * 250 * fade,
+    H / 2 + Math.sin(f2 * t + p2) * 250 * fade
+  );
+}
+ctx.strokeStyle = 'rgba(20, 20, 40, 0.5)';
+ctx.lineWidth = 0.6;
+ctx.stroke();
+</script>
+</div>
+
+<h2>Straight lines that make curves</h2>
+<p>Curves can also emerge from straight lines. Put <code>n</code> points round a circle and join point <code>i</code> to point <code>i × m</code>. For <code>m = 2</code> the lines outline a heart-shaped cardioid, for <code>m = 3</code> a two-lobed curve, and so on. Letting <code>m</code> drift slowly shows the whole family.</p>
+
+<div class="example" data-title="4.7 Times tables on a circle">
+<script type="text/plain">
+loop((t) => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  const n = 200;
+  const m = 2 + t * 0.08;       // the multiplier drifts upward
+  const r = 270;
+
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const a1 = (i / n) * PA.TAU;
+    const a2 = ((i * m) / n) * PA.TAU;
+    ctx.moveTo(W / 2 + Math.cos(a1) * r, H / 2 + Math.sin(a1) * r);
+    ctx.lineTo(W / 2 + Math.cos(a2) * r, H / 2 + Math.sin(a2) * r);
+  }
+  ctx.strokeStyle = PA.hsl(190 + m * 12, 80, 65, 0.6);
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+});
+</script>
+</div>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li><code>cos</code> gives x and <code>sin</code> gives y for a point on a circle. Angle and radius convert to a position with one line each.</li>
+  <li>An oscillator has amplitude, frequency and phase.</li>
+  <li>A parametric curve computes x and y from one parameter. A polar curve computes radius from angle.</li>
+  <li>Whole-number frequency ratios close up. Nearly whole ratios rotate slowly. Irrational ones never repeat.</li>
+  <li>The golden angle spreads points evenly round a centre.</li>
+  <li>Multiplying by a decaying exponential turns a repeating figure into a spiral.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Too few steps along a curve, so it shows corners. Use more samples than seems necessary.</li>
+  <li>Stopping a closed curve before it has completed all its turns. Work out the number of turns, as the spirograph example does with <code>gcd</code>.</li>
+  <li>Forgetting that <code>y</code> points down, which mirrors every figure you copy from a maths book.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 4</p>
+  <h2>The Specimen Sheet</h2>
+  <p>Invent a family of curves and present nine members of it as a 3 × 3 sheet, like a page from a naturalist's notebook. Each specimen comes from its own seed, and each is labelled with the parameters that produced it.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>One function, <code>drawSpecimen(cx, cy, size, seed)</code>, draws any member of the family.</li>
+    <li>The family has at least <strong>four parameters</strong> chosen from the seed, and combines at least <strong>two ideas</strong> from this lesson (for example a polar rose whose radius is also modulated by a second sine, or a harmonograph with two pendulums per axis).</li>
+    <li>Every curve either closes exactly or fades out gracefully. No loose ends.</li>
+    <li>Colour or line weight <strong>changes along the curve</strong>. Draw it as many short segments so each can have its own style.</li>
+    <li>Under each specimen, small text lists its seed and parameter values.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Restrict parameters to values that look good. Picking a frequency from <code>[2, 3, 4, 5]</code> usually beats picking any number between 2 and 5.</li>
+    <li>If some seeds give ugly results, narrow the parameter ranges until none do. That narrowing is the real design work.</li>
+    <li><code>ctx.fillText</code> draws labels; set <code>ctx.font</code> first.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Animate each specimen being drawn from start to finish.</li>
+    <li>Morph smoothly between two parameter sets using <code>PA.lerp</code> on every parameter.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>All nine specimens clearly belong to one family, and no two are alike.</li>
+    <li>You can reproduce any single specimen at full size from the label alone.</li>
+  </ul>
+  <a class="start" href="../challenges/04-specimen-sheet.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="03-noise.html">← Lesson 3</a><a href="05-particles-and-flow-fields.html">Lesson 5: Particles and Flow Fields →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

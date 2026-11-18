@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 11 · Colour</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="10-systems-and-finishing.html">← Lesson 10</a><span>Lesson 11 of 19</span><a href="12-typography.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 11</p>
+  <h1>Colour</h1>
+  <p class="lede">Lesson 10 gave rules of thumb for colour. This lesson gives the machinery: a colour space in which the numbers mean what you see, palettes built by rule instead of picked by eye, and checks that tell you when a combination will fail.</p>
+</header>
+
+<h2>Why HSL lets you down</h2>
+<p>HSL is convenient because hue, saturation and lightness sound like the way we talk about colour. Its flaw is that its "lightness" is not the lightness you perceive. Yellow at 50% lightness is glaringly bright. Blue at 50% is dark. So a rule such as "keep lightness fixed and rotate the hue" produces an uneven, blotchy set of colours, and a rule such as "light text on a dark colour" works for some hues and fails for others.</p>
+<p><strong>OKLCH</strong>, published by Björn Ottosson in 2020 and now part of CSS, fixes this. It has the same three ideas, but measured so that equal numbers look equal:</p>
+<dl class="vocab">
+  <dt>L, lightness</dt><dd>0 is black, 1 is white. Two colours with the same L look equally light, whatever their hue.</dd>
+  <dt>C, chroma</dt><dd>How colourful: 0 is grey. The maximum depends on hue and lightness, and is about 0.3 for the most vivid colours a screen can show.</dd>
+  <dt>H, hue</dt><dd>An angle in degrees. Roughly: 30 red, 90 yellow, 145 green, 250 blue, 320 magenta.</dd>
+</dl>
+<p><code>PA.oklch(L, C, H)</code> returns a colour for drawing, and <code>PA.oklchRGB(L, C, H)</code> returns its red, green and blue values. The example draws the hue circle twice at one fixed lightness, then shows each strip as a camera with black-and-white film would see it. The OKLCH strip is an even grey. The HSL strip is not.</p>
+
+<div class="example" data-title="11.1 The same lightness, in two colour spaces">
+<script type="text/plain">
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+ctx.font = '13px monospace';
+const N = 48, w = (W - 40) / N;
+
+function strip(y, label, colourAt) {
+  ctx.fillStyle = '#cfd6dd';
+  ctx.fillText(label, 20, y - 10);
+  for (let i = 0; i < N; i++) {
+    const rgb = colourAt((i / N) * 360);
+    ctx.fillStyle = 'rgb(' + rgb.join(',') + ')';
+    ctx.fillRect(20 + i * w, y, w + 0.5, 70);
+    const grey = Math.round(255 * Math.pow(PA.luminance(rgb), 1 / 2.2));    // how light it really looks
+    ctx.fillStyle = 'rgb(' + grey + ',' + grey + ',' + grey + ')';
+    ctx.fillRect(20 + i * w, y + 78, w + 0.5, 38);
+  }
+}
+
+// HSL at 60% lightness, converted by letting the canvas do it
+function hslRGB(h) {
+  ctx.fillStyle = PA.hsl(h, 90, 60);
+  const hex = ctx.fillStyle;                 // the canvas reports it back as #rrggbb
+  return PA.hexToRgb(hex);
+}
+
+strip(60, 'HSL, lightness fixed at 60%      (below: as greyscale)', hslRGB);
+strip(260, 'OKLCH, lightness fixed at 0.75   (below: as greyscale)', (h) => PA.oklchRGB(0.75, 0.13, h));
+
+ctx.fillStyle = '#cfd6dd';
+ctx.fillText('An even grey strip means the colours really are equally light.', 20, 440);
+</script>
+</div>
+
+<h2>Palettes by rule</h2>
+<p>With a trustworthy colour space, a palette becomes a small program. Decide the <em>roles</em> first, then compute a colour for each:</p>
+<table>
+  <thead><tr><th>Role</th><th>Rule</th></tr></thead>
+  <tbody>
+    <tr><td>Background</td><td>Very light or very dark, almost no chroma, tinted slightly toward the base hue</td></tr>
+    <tr><td>Dominant</td><td>The base hue at middling lightness and moderate chroma</td></tr>
+    <tr><td>Support</td><td>A neighbouring hue, or the dominant at another lightness</td></tr>
+    <tr><td>Accent</td><td>A hue far from the dominant, at high chroma, used rarely</td></tr>
+    <tr><td>Ink</td><td>The opposite end of lightness from the background, low chroma</td></tr>
+  </tbody>
+</table>
+<h3>Harmony is geometry on the hue wheel</h3>
+<p>The classical colour harmonies are simply patterns of angles:</p>
+<table>
+  <thead><tr><th>Scheme</th><th>Hue angles from the base</th><th>Character</th></tr></thead>
+  <tbody>
+    <tr><td>Monochrome</td><td>0</td><td>Calm, unified. Variety from lightness only.</td></tr>
+    <tr><td>Analogous</td><td>−30, 0, +30</td><td>Harmonious, natural</td></tr>
+    <tr><td>Complementary</td><td>0, 180</td><td>Maximum contrast, energetic</td></tr>
+    <tr><td>Split complementary</td><td>0, 150, 210</td><td>Contrast with less tension</td></tr>
+    <tr><td>Triadic</td><td>0, 120, 240</td><td>Balanced, playful</td></tr>
+  </tbody>
+</table>
+<p>The example builds a five-role palette from one base hue and a scheme, and immediately tries it on a small composition, with the roles used in the proportions of Lesson 10: mostly dominant, some support, a little accent. Judging a palette as swatches is misleading. Judge it in use.</p>
+
+<div class="example" data-title="11.2 A palette from one hue and a rule">
+<script type="text/plain">
+const hue = ui.slider('base hue', 0, 360, 250, 1);
+const scheme = ui.slider('scheme', 0, 4, 3, 1);
+const dark = ui.slider('dark mode', 0, 1, 0, 1);
+const names = ['monochrome', 'analogous', 'complementary', 'split complementary', 'triadic'];
+const offsets = [[0, 0], [30, -30], [180, 180], [150, 210], [120, 240]];     // support and accent, relative to base
+
+function draw() {
+  const h = hue(), [supportShift, accentShift] = offsets[scheme()];
+  const palette = {
+    background: PA.oklch(dark() ? 0.18 : 0.96, 0.015, h),
+    dominant:   PA.oklch(dark() ? 0.62 : 0.52, 0.13, h),
+    support:    PA.oklch(dark() ? 0.45 : 0.72, 0.09, h + supportShift),
+    accent:     PA.oklch(0.7, 0.19, h + accentShift),
+    ink:        PA.oklch(dark() ? 0.93 : 0.22, 0.02, h),
+  };
+
+  ctx.fillStyle = palette.background;
+  ctx.fillRect(0, 0, W, H);
+
+  // a test composition, using the roles by weight
+  const R = PA.rng('palette-test');
+  for (let i = 0; i < 70; i++) {
+    const role = R.weighted(['dominant', 'support', 'accent'], [6, 3, 1]);
+    const r = role === 'accent' ? R.range(6, 16) : R.range(10, 70) * R();
+    ctx.fillStyle = palette[role];
+    ctx.beginPath();
+    ctx.arc(R.range(60, W - 60), R.range(60, 400), r, 0, PA.TAU);
+    ctx.fill();
+  }
+
+  // the swatches, labelled
+  Object.entries(palette).forEach(([role, colour], k) => {
+    ctx.fillStyle = colour;
+    ctx.fillRect(30 + k * 110, 470, 100, 60);
+    ctx.strokeStyle = palette.ink;
+    ctx.strokeRect(30 + k * 110, 470, 100, 60);
+    ctx.fillStyle = palette.ink;
+    ctx.font = '12px monospace';
+    ctx.fillText(role, 30 + k * 110, 550);
+  });
+  ctx.font = '600 15px Georgia';
+  ctx.fillText(names[scheme()] + ', from hue ' + h, 30, 450);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Contrast: will it be readable?</h2>
+<p>Whether two colours can be told apart, and whether text is legible on a background, depends almost entirely on the difference in their lightness. The standard measure is the <strong>contrast ratio</strong> used in web accessibility guidelines, which runs from 1 (identical) to 21 (black on white). The usual thresholds are 4.5 for body text and 3 for large text and for shapes that must be distinguished.</p>
+<p><code>PA.contrast(rgbA, rgbB)</code> computes it. In a generator this is a test you run on every palette, so that a seed can never produce pale yellow text on white. If a pair fails, move one colour's lightness until it passes.</p>
+
+<div class="example" data-title="11.3 A palette that checks itself">
+<script type="text/plain">
+const lightness = ui.slider('ink lightness', 0.1, 0.95, 0.55, 0.01);
+const hues = [20, 70, 145, 200, 265, 320];
+
+function draw() {
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  const paper = PA.oklchRGB(0.95, 0.02, 90);
+
+  hues.forEach((h, k) => {
+    const x = 20 + (k % 3) * 190, y = 20 + Math.floor(k / 3) * 280;
+    let L = lightness();
+    let ink = PA.oklchRGB(L, 0.14, h);
+    const before = PA.contrast(ink, paper);
+
+    // the repair: darken the ink until the pair passes
+    while (PA.contrast(ink, paper) < 4.5 && L > 0.05) { L -= 0.01; ink = PA.oklchRGB(L, 0.14, h); }
+
+    ctx.fillStyle = 'rgb(' + paper.join(',') + ')';
+    ctx.fillRect(x, y, 180, 260);
+    ctx.fillStyle = 'rgb(' + PA.oklchRGB(lightness(), 0.14, h).join(',') + ')';     // as asked for
+    ctx.font = '600 22px Georgia';
+    ctx.fillText('As chosen', x + 14, y + 50);
+    ctx.font = '13px monospace';
+    ctx.fillText('contrast ' + before.toFixed(1) + (before >= 4.5 ? '  passes' : '  FAILS'), x + 14, y + 74);
+
+    ctx.fillStyle = 'rgb(' + ink.join(',') + ')';                                     // after the repair
+    ctx.font = '600 22px Georgia';
+    ctx.fillText('Repaired', x + 14, y + 150);
+    ctx.font = '13px monospace';
+    ctx.fillText('contrast ' + PA.contrast(ink, paper).toFixed(1), x + 14, y + 174);
+    ctx.fillText('lightness ' + L.toFixed(2), x + 14, y + 194);
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Notice that the yellow and green inks need a much lower lightness than the blue before they pass. Because OKLCH lightness is perceptual, the repair can work on that one number and leave hue and chroma alone.</p>
+
+<h2>Gradients that stay clean</h2>
+<p>A gradient between two colours is a <code>lerp</code>, but the result depends on which numbers you interpolate. Blending red, green and blue values directly drags the middle of the gradient through a duller, darker colour: blue to yellow passes through grey. Blending lightness, chroma and hue keeps the middle as vivid as the ends.</p>
+<p>Hue needs one extra care. It is an angle, so there are two ways round from one hue to another. Take the shorter one, unless you deliberately want a rainbow.</p>
+
+<div class="example" data-title="11.4 Two ways to blend the same two colours">
+<script type="text/plain">
+const pairs = [
+  [[0.55, 0.22, 265], [0.9, 0.18, 100]],      // blue to yellow
+  [[0.6, 0.24, 25], [0.75, 0.2, 150]],        // red to green
+  [[0.45, 0.2, 300], [0.85, 0.14, 190]],      // purple to cyan
+];
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+ctx.font = '13px monospace';
+
+function shortestHue(a, b, t) {
+  const d = ((b - a + 540) % 360) - 180;       // the signed shorter way round
+  return a + d * t;
+}
+
+pairs.forEach(([a, b], row) => {
+  const y = 30 + row * 185;
+  const rgbA = PA.oklchRGB(...a), rgbB = PA.oklchRGB(...b);
+  for (let x = 0; x < 560; x++) {
+    const t = x / 559;
+    // 1. blend red, green and blue directly
+    ctx.fillStyle = 'rgb(' + rgbA.map((v, i) => Math.round(PA.lerp(v, rgbB[i], t))).join(',') + ')';
+    ctx.fillRect(20 + x, y + 20, 1, 55);
+    // 2. blend lightness, chroma and hue
+    ctx.fillStyle = PA.oklch(PA.lerp(a[0], b[0], t), PA.lerp(a[1], b[1], t), shortestHue(a[2], b[2], t));
+    ctx.fillRect(20 + x, y + 100, 1, 55);
+  }
+  ctx.fillStyle = '#cfd6dd';
+  ctx.fillText('blended as red, green, blue', 20, y + 14);
+  ctx.fillText('blended as lightness, chroma, hue', 20, y + 94);
+});
+</script>
+</div>
+
+<h2>More colour tools</h2>
+<table>
+  <thead><tr><th>Tool</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>Lightness ramps</td><td>One hue at five to nine lightness steps: the basis of every design system's colour scale</td></tr>
+    <tr><td>Jitter in OKLCH</td><td>Vary each use of an ink by a few hundredths of L and a few degrees of H, so flat areas look hand-mixed</td></tr>
+    <tr><td>Chroma falloff</td><td>Reduce chroma toward the edges or the background to push things back in space</td></tr>
+    <tr><td>Temperature contrast</td><td>Warm accents on a cool field, or the reverse</td></tr>
+    <tr><td>Sampling</td><td>Take palettes from photographs or paintings you admire, then express them as roles</td></tr>
+    <tr><td>Colour-blind checks</td><td>About one man in twelve confuses red and green. Never let hue alone carry meaning: back it with lightness.</td></tr>
+    <tr><td>Print</td><td>Vivid screen colours may not print. Proof first (Special Topic 3).</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>OKLCH lightness matches what you see, so rules about lightness actually hold.</li>
+  <li>Build palettes from roles: background, dominant, support, accent, ink.</li>
+  <li>Colour harmonies are fixed patterns of hue angles.</li>
+  <li>Contrast is a lightness difference. Compute the ratio and repair failures automatically.</li>
+  <li>Blend in lightness, chroma and hue for clean gradients, and take the short way round the hue circle.</li>
+  <li>Judge a palette in a composition, never as swatches.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>High chroma everywhere. Vivid colours only read as vivid beside quiet ones.</li>
+  <li>Asking for a colour the screen cannot show, such as very light and very saturated blue. It is silently clipped, which shifts the hue. Lower the chroma.</li>
+  <li>Choosing colours on a bright monitor in a dark room. Check on a phone and in daylight.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 11</p>
+  <h2>The Palette Machine</h2>
+  <p>Build a generator that turns a seed into a complete, usable palette, and proves it by applying the palette to three different compositions.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A function <code>makePalette(seed)</code> that returns named <strong>roles</strong>: at least background, dominant, support, accent and ink.</li>
+    <li>Colours are computed in <strong>OKLCH</strong>, with the scheme (the pattern of hue angles) chosen from the seed by weighted chance.</li>
+    <li>Both <strong>light and dark</strong> palettes can come out.</li>
+    <li>The generator <strong>guarantees</strong> a contrast ratio of at least 4.5 between ink and background, and at least 3 between the dominant colour and the background, by repairing lightness.</li>
+    <li>A display showing, for one seed: the swatches with their roles and contrast figures, and the palette applied to <strong>three test compositions</strong> of different kinds.</li>
+    <li>A contact sheet of at least 20 seeds.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Reuse compositions from your earlier challenges as the test pieces. Give each a <code>palette</code> argument.</li>
+    <li>Restrict the ranges. Chroma between 0.08 and 0.2 and a small set of lightness values give far better results than full freedom.</li>
+    <li>When a seed gives an ugly palette, find the rule that allowed it and tighten that rule.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Export the palette as CSS custom properties and as a JSON file.</li>
+    <li>Add a lightness ramp of seven steps for the dominant hue.</li>
+    <li>Simulate red-green colour blindness and check that roles stay distinguishable.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>All 20 palettes on the contact sheet are usable, and no two look alike.</li>
+    <li>Every palette passes its contrast checks without your looking.</li>
+  </ul>
+  <a class="start" href="../challenges/11-palette-machine.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="10-systems-and-finishing.html">← Lesson 10</a><a href="12-typography.html">Lesson 12: Typography and Text →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

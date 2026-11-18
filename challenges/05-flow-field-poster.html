@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 5 · The Flow-Field Poster</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 5 — THE FLOW-FIELD POSTER
+   Full brief: ../lessons/05-particles-and-flow-fields.html
+
+   A finished flow-field composition with a field you designed.
+
+   Checklist
+   [ ] Everything is driven by one seed
+   [ ] At least 800 streamlines, each drawn as a complete path
+   [ ] The field combines noise with at least one other influence
+   [ ] Line weight and colour follow rules, not uniform random picks
+   [ ] Streamlines stop at a margin, leaving a clean frame
+   [ ] Three different seeds all give a poster you would print
+
+   Suggested order
+   1. Write angleAt(x, y).
+   2. Draw it as a grid of short lines to check it (lesson example 5.3).
+   3. Only then trace streamlines through it. */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const seed = 'poster-1';
+const R = PA.rng(seed);
+const N = PA.noise(seed);
+
+ctx.fillStyle = '#efe6d5';
+ctx.fillRect(0, 0, W, H);
+
+function angleAt(x, y) {
+  // ---- your field here ----
+  return 0;
+}
+
+// ---- your streamlines here ----
+
+</script>
+</body>
+</html>

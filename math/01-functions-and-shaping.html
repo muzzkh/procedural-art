@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths 1 · Functions and Shaping</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Maths 1 of 6</span><a href="02-vectors-and-transformations.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Maths 1</p>
+  <h1>Functions and Shaping</h1>
+  <p class="lede">A formula is a machine: a number goes in, a number comes out. Nearly every visual decision in procedural art is a choice of which machine to put between a raw value and a drawn one.</p>
+</header>
+
+<h2>Why maths at all</h2>
+<p>In procedural art you do not draw the picture, you describe it. Mathematics is the language that description is written in. That does not mean proofs or exams. It means a working vocabulary of a few dozen formulas, each of which <em>does something you can see</em>. This section goes through them by what they look like on the canvas.</p>
+<p>Almost all of it follows one pipeline:</p>
+<p class="formula">raw value → normalise to 0–1 → shape → map to what you need</p>
+<ul>
+  <li><strong>Normalise:</strong> turn an index, a distance or a time into a fraction <code>t</code> between 0 and 1.</li>
+  <li><strong>Shape:</strong> bend that fraction with a function, so that change happens early, late, smoothly or in steps.</li>
+  <li><strong>Map:</strong> scale the result to a radius, an angle, a colour or a position.</li>
+</ul>
+<p>The first and last steps are bookkeeping. The middle step is where the design happens.</p>
+
+<h2>Linear interpolation</h2>
+<p class="formula">lerp(a, b, t) = a + (b − a) · t</p>
+<p>Start at <code>a</code>, and add a fraction <code>t</code> of the journey to <code>b</code>. At <code>t = 0</code> you are at <code>a</code>, at <code>t = 1</code> at <code>b</code>, at <code>t = 0.5</code> exactly halfway. It works on anything made of numbers: positions, sizes, angles, each channel of a colour. Its inverse, which recovers the fraction from a value, is the normalising step:</p>
+<p class="formula">t = (value − a) / (b − a)</p>
+<p><code>PA.map</code> is simply the second formula followed by the first.</p>
+
+<h2>Shaping functions</h2>
+<p>A shaping function takes a fraction from 0 to 1 and returns another fraction from 0 to 1, by a different route. The straight route is linear. The others spend more of the journey near one end.</p>
+<table>
+  <thead><tr><th>Formula</th><th>Behaviour</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>t * t</code>, <code>t ** 3</code></td><td>Slow start, fast finish</td><td>Many small things and a few large; acceleration</td></tr>
+    <tr><td><code>Math.sqrt(t)</code>, <code>t ** 0.3</code></td><td>Fast start, slow finish</td><td>Quick attack that settles; even density in a disc</td></tr>
+    <tr><td><code>1 - (1 - t) ** n</code></td><td>The mirror image of a power</td><td>Easing out with a chosen strength</td></tr>
+    <tr><td><code>t * t * (3 - 2 * t)</code></td><td>Slow at both ends (smoothstep)</td><td>Soft edges, natural motion, blending noise</td></tr>
+    <tr><td><code>0.5 - 0.5 * Math.cos(Math.PI * t)</code></td><td>Slow at both ends, from a cosine</td><td>The same, and it loops cleanly</td></tr>
+    <tr><td><code>Math.floor(t * n) / n</code></td><td>A staircase of <code>n</code> steps</td><td>Posterised bands, quantised angles</td></tr>
+  </tbody>
+</table>
+<p>Each panel below plots one function and then, underneath, places 25 evenly numbered marks at the positions the function gives. The curve is the formula. The marks are what it does to a design.</p>
+
+<div class="example" data-title="M1.1 Six ways from 0 to 1">
+<script type="text/plain">
+const shapes = [
+  ['t   (linear)',              (t) => t],
+  ['t * t   (ease in)',         (t) => t * t],
+  ['sqrt(t)   (ease out)',      (t) => Math.sqrt(t)],
+  ['smoothstep',                (t) => t * t * (3 - 2 * t)],
+  ['1 - (1 - t) ** 4',          (t) => 1 - (1 - t) ** 4],
+  ['floor(t * 5) / 5',          (t) => Math.floor(t * 5) / 5],
+];
+
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+
+shapes.forEach(([label, f], k) => {
+  const x0 = 30 + (k % 3) * 190, y0 = 40 + Math.floor(k / 3) * 285, s = 150;
+
+  ctx.strokeStyle = '#333c48';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, s, s);
+
+  ctx.strokeStyle = '#ffd166';            // the curve: input across, output up
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= 100; i++) {
+    const t = i / 100;
+    ctx.lineTo(x0 + t * s, y0 + s - f(t) * s);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#5bc0be';              // 25 marks placed at f(t)
+  for (let i = 0; i <= 24; i++) ctx.fillRect(x0 + f(i / 24) * s - 1, y0 + s + 14, 2, 26);
+
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '12px monospace';
+  ctx.fillText(label, x0, y0 + s + 62);
+});
+</script>
+</div>
+
+<p>Try it: replace one of the functions with your own, for example <code>(t) =&gt; t ** 0.2</code> or <code>(t) =&gt; Math.sin(t * Math.PI)</code>, which rises and falls back.</p>
+
+<h3>The exponent as a single dial</h3>
+<p>The power function <code>t ** p</code> is the most useful shaper because one number changes its whole character: below 1 it bulges early, above 1 it bulges late. Here forty rings are placed at radius <code>t ** p</code> while <code>p</code> drifts. The same rings read as a bowl, a flat target, or a tunnel.</p>
+
+<div class="example" data-title="M1.2 One exponent, three kinds of space">
+<script type="text/plain">
+loop((time) => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  const p = PA.map(Math.sin(time * 0.7), -1, 1, 0.35, 3);     // the exponent swings from 0.35 to 3
+
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i <= 40; i++) {
+    const t = i / 40;                       // normalise
+    const shaped = t ** p;                  // shape
+    const r = shaped * 280;                 // map
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, r, 0, PA.TAU);
+    ctx.strokeStyle = PA.hsl(200 + t * 120, 80, 65);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '14px monospace';
+  ctx.fillText('radius = t ** ' + p.toFixed(2), 14, 24);
+});
+</script>
+</div>
+
+<h2>Functions that repeat</h2>
+<p>A second family of functions never ends: they cycle. Feed them a steadily growing input and they produce a pattern.</p>
+<table>
+  <thead><tr><th>Formula</th><th>Wave shape</th><th>On the canvas</th></tr></thead>
+  <tbody>
+    <tr><td><code>x % n</code>, <code>PA.fract(x)</code></td><td>Sawtooth: ramps up and snaps back</td><td>Repetition, wrapping, tiling</td></tr>
+    <tr><td><code>PA.fract(x) &lt; 0.5</code></td><td>Square: on, off</td><td>Stripes, checks, dashes</td></tr>
+    <tr><td><code>Math.abs(PA.fract(x) - 0.5) * 2</code></td><td>Triangle: up, down</td><td>Zigzags, folds, ping-pong motion</td></tr>
+    <tr><td><code>Math.sin(x)</code></td><td>Sine: smooth swing</td><td>Waves, ripples, breathing</td></tr>
+  </tbody>
+</table>
+<p>The key move is <strong>composition</strong>: put one function inside another. A sine of <em>x</em> gives vertical bands. A sine of <em>distance from a point</em> gives rings. The sum of two ring patterns gives interference, the pattern of two stones dropped in a pond. In each quadrant below, one formula is evaluated for every pixel.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="M1.3 Four formulas, four patterns">
+<script type="text/plain">
+const img = ctx.createImageData(W, H);
+
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const left = x < W / 2, top = y < H / 2;
+    const u = (x % (W / 2)) / (W / 2);       // 0 to 1 across each quadrant
+    const v = (y % (H / 2)) / (H / 2);
+
+    let value;
+    if (top && left) {
+      value = PA.fract(u * 6) < 0.5 ? 1 : 0;                           // square wave of u: stripes
+    } else if (top) {
+      value = Math.abs(PA.fract(u * 5 + v * 5) - 0.5) * 2;             // triangle wave of u + v: diagonal folds
+    } else if (left) {
+      value = 0.5 + 0.5 * Math.sin(Math.hypot(u - 0.5, v - 0.5) * 60); // sine of distance: rings
+    } else {
+      const d1 = Math.hypot(u - 0.2, v - 0.5), d2 = Math.hypot(u - 0.8, v - 0.5);
+      value = 0.5 + 0.25 * (Math.sin(d1 * 70) + Math.sin(d2 * 70));    // two ring sets added: interference
+    }
+
+    const k = (y * W + x) * 4;
+    img.data[k] = 20 + value * 235;
+    img.data[k + 1] = 30 + value * 200;
+    img.data[k + 2] = 60 + value * 140;
+    img.data[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+</script>
+</div>
+
+<h2>Exponentials and logarithms</h2>
+<p>Linear change <em>adds</em> the same amount at each step. Exponential change <em>multiplies</em> by the same amount at each step.</p>
+<p class="formula">linear: a, a + d, a + 2d, …  exponential: a, a·r, a·r², …</p>
+<p>Multiplication by a constant ratio is what growth and decay look like in nature, and it produces <strong>self-similarity</strong>: every step is a scaled copy of the last. Shells, horns, galaxies and the branches of trees are all built this way. As a continuous formula, decay is <code>Math.exp(-k * t)</code>, which you have used for fading and damping.</p>
+<p>The example draws a square, then repeatedly rotates by a fixed angle and shrinks by a fixed ratio. The ratio is chosen by a little trigonometry so that each square exactly touches the sides of the one before. The corners trace a <strong>logarithmic spiral</strong>, the curve whose radius grows exponentially with angle.</p>
+
+<div class="example" data-title="M1.4 A constant ratio makes a spiral">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+ctx.translate(W / 2, H / 2);
+ctx.lineWidth = 1.5;
+
+const turn = 0.12;                                        // try 0.05, 0.3, 0.6
+const ratio = 1 / (Math.cos(turn) + Math.sin(turn));      // the shrink that makes each square fit inside the last
+
+let half = 285;
+for (let i = 0; i < 70; i++) {
+  ctx.strokeStyle = PA.hsl(30 + i * 4, 80, 60);
+  ctx.strokeRect(-half, -half, half * 2, half * 2);
+  ctx.rotate(turn);       // add a constant to the angle
+  half *= ratio;          // multiply the size by a constant
+}
+</script>
+</div>
+
+<p><strong>Logarithms</strong> undo exponentials: they turn multiplying into adding. In practice you reach for <code>Math.log</code> when values span a huge range and you need to see all of them, such as a map of how often each pixel was hit (Maths 4 uses this), or sizes that go from 1 to 10,000.</p>
+
+<h2>The bell curve as a brush</h2>
+<p class="formula">bell(d) = e<sup>−d² / σ²</sup></p>
+<p>The Gaussian function is 1 at distance zero and falls smoothly toward 0, with <code>σ</code> (sigma) setting how wide it is. It is the natural shape for <em>influence</em>: how strongly something affects its surroundings. Use it for soft brushes, glows, magnets, bulges and any effect that should fade out without an edge.</p>
+<p>Here it controls how far each point of a mesh is pushed away from the mouse.</p>
+
+<div class="example" data-title="M1.5 A soft lens (move the mouse over the canvas)">
+<script type="text/plain">
+const n = 30;
+const sigma = 120;        // width of the effect. try 40 and 300
+const strength = 0.7;     // try -0.5 to pinch instead of bulge
+
+function warped(i, j) {
+  const x = 30 + (i / (n - 1)) * (W - 60);
+  const y = 30 + (j / (n - 1)) * (H - 60);
+  const dx = x - mouse.x, dy = y - mouse.y;
+  const bell = Math.exp(-(dx * dx + dy * dy) / (sigma * sigma));     // 1 at the mouse, fading to 0
+  return [x + dx * bell * strength, y + dy * bell * strength];
+}
+
+loop(() => {
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#1d3557';
+  ctx.lineWidth = 1;
+
+  for (let j = 0; j < n; j++) {            // horizontal threads
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) { const [x, y] = warped(i, j); ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  for (let i = 0; i < n; i++) {            // vertical threads
+    ctx.beginPath();
+    for (let j = 0; j < n; j++) { const [x, y] = warped(i, j); ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+});
+</script>
+</div>
+
+<h2>From formula to design</h2>
+<table>
+  <thead><tr><th>If you want…</th><th>Reach for…</th></tr></thead>
+  <tbody>
+    <tr><td>A gradient of size, colour or spacing</td><td><code>lerp</code> on a normalised index</td></tr>
+    <tr><td>A few big elements among many small</td><td>A power above 1 on a random value: <code>R() ** 3</code></td></tr>
+    <tr><td>Depth or a tunnel</td><td>Spacing by <code>t ** p</code> with <code>p</code> above 1</td></tr>
+    <tr><td>Motion that feels physical</td><td>Smoothstep or a cosine ease on time</td></tr>
+    <tr><td>Bands, steps or a limited set of angles</td><td><code>Math.floor(t * n) / n</code></td></tr>
+    <tr><td>Stripes, checks, zigzags</td><td>Square and triangle waves from <code>fract</code></td></tr>
+    <tr><td>Ripples and interference</td><td>Sines of distance, added together</td></tr>
+    <tr><td>Spirals and self-similar nests</td><td>Repeated multiplication by a ratio</td></tr>
+    <tr><td>A soft, edgeless area of effect</td><td>The bell curve of distance</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Normalise, shape, map. The shaping function is the design decision.</li>
+  <li><code>lerp</code> blends any two values. Its inverse turns a value into a fraction.</li>
+  <li>Powers bend a 0–1 range toward one end. Smoothstep eases both ends.</li>
+  <li>Periodic functions turn a growing number into a repeating pattern.</li>
+  <li>Putting one function inside another is how simple formulas become rich patterns.</li>
+  <li>Adding gives lines and even spacing. Multiplying gives spirals and self-similarity.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <p>Do these in the <a href="../challenges/math-sandbox.html">maths sandbox file</a>, or by editing the examples above.</p>
+  <ul>
+    <li><strong>Shaped grid.</strong> Take the grid from Lesson 1 and make the cell <em>spacing</em> uneven: place column <code>i</code> at <code>shape(i / cols) * W</code>. Try three shaping functions and note what each does to the sense of depth.</li>
+    <li><strong>Formula wallpaper.</strong> Write a per-pixel pattern using only <code>sin</code>, <code>fract</code>, <code>abs</code> and distance, with at least two functions composed. No loops over shapes, no randomness.</li>
+    <li><strong>Nested polygons.</strong> Repeat example M1.4 with triangles or pentagons. Work out the shrink ratio that makes each one touch the last, or find it by trial.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-vectors-and-transformations.html">Maths 2: Vectors, Matrices and Complex Numbers →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

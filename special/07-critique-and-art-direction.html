@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 7 · Critique and Art Direction</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="06-ai-and-procedural.html">← Special 6</a><span>Special topic 7 of 9</span><a href="08-publishing.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 7</p>
+  <h1>Critique and Art Direction</h1>
+  <p class="lede">By now you can make a system produce almost anything. The harder skill is telling which of its outputs are good, saying why, and steering the system toward more of them. This page is about judging your own work, learning from other people's, and arriving at a style that is recognisably yours.</p>
+</header>
+
+<h2>The problem of too many outputs</h2>
+<p>A painter makes one picture and looks at it for hours. A generative artist makes a thousand in a minute, and the danger is to look at none of them properly. Everything on screen is new and therefore briefly exciting, and it is easy to mistake novelty for quality.</p>
+<p>Art direction is the remedy: deciding what the work is <em>for</em>, and judging every output against that. It has three parts, and this page takes them in turn. <strong>Seeing</strong> what is actually on the canvas. <strong>Saying</strong> what you want. <strong>Steering</strong> the system until it does it.</p>
+
+<h2>Seeing: tests that remove your bias</h2>
+<p>You know what your code is doing, so you see structure that a stranger would not. These tests show you the picture as others see it.</p>
+<table>
+  <thead><tr><th>Test</th><th>How</th><th>What it reveals</th></tr></thead>
+  <tbody>
+    <tr><td>Squint</td><td>Half-close your eyes, or blur the image</td><td>The big shapes. If nothing is left, there is no composition.</td></tr>
+    <tr><td>Greyscale</td><td>Remove the colour</td><td>Whether light and dark carry the picture, or colour is covering for weak structure</td></tr>
+    <tr><td>Thumbnail</td><td>Shrink it to the size of a postage stamp</td><td>Whether it reads at a glance, as it must in a feed or a gallery wall</td></tr>
+    <tr><td>Flip</td><td>Mirror it left to right</td><td>Imbalances your eye has stopped noticing</td></tr>
+    <tr><td>Tomorrow</td><td>Look again after a night's sleep</td><td>Whether it was good or merely new</td></tr>
+    <tr><td>Stranger</td><td>Show someone and say nothing. Watch where they look.</td><td>What the picture actually says</td></tr>
+    <tr><td>Wall</td><td>Print it, pin it up, walk past it for a week</td><td>Whether it lasts</td></tr>
+  </tbody>
+</table>
+<p>The first four can be built into a sketch. The example shows a generated composition beside its blurred, greyscale and thumbnail versions. Step through seeds and judge each by the three small views, not the large one.</p>
+
+<div class="example" data-title="S7.1 The squint, greyscale and thumbnail tests">
+<script type="text/plain">
+let seed = 1;
+ui.button('next seed', () => { seed++; draw(); });
+
+function compose(g, s, seed) {             // any composition: this one is blocks and a few dots
+  const R = PA.rng(seed);
+  const hue = R.range(360);
+  g.fillStyle = PA.oklch(0.95, 0.02, hue);
+  g.fillRect(0, 0, s, s);
+  const count = R.int(3, 14);
+  for (let i = 0; i < count; i++) {
+    g.fillStyle = PA.oklch(R.pick([0.3, 0.5, 0.75]), R.range(0.04, 0.17), hue + R.pick([0, 0, 30, 180]));
+    const w = R.range(0.08, 0.6) * s * R(), h = R.range(0.08, 0.6) * s;
+    g.fillRect(R.range(0.06, 0.94) * s - w / 2, R.range(0.06, 0.94) * s - h / 2, w, h);
+  }
+  g.fillStyle = PA.oklch(0.65, 0.2, hue + 180);
+  for (let i = 0; i < R.int(0, 5); i++) { g.beginPath(); g.arc(R.range(0.1, 0.9) * s, R.range(0.1, 0.9) * s, R.range(0.01, 0.04) * s, 0, PA.TAU); g.fill(); }
+}
+
+function draw() {
+  const hidden = document.createElement('canvas');
+  hidden.width = hidden.height = 360;
+  compose(hidden.getContext('2d'), 360, seed);
+
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(hidden, 20, 20, 360, 360);                       // the piece
+
+  ctx.filter = 'blur(9px)';                                      // squint
+  ctx.drawImage(hidden, 400, 20, 180, 180);
+  ctx.filter = 'grayscale(1)';                                   // greyscale
+  ctx.drawImage(hidden, 400, 215, 180, 180);
+  ctx.filter = 'none';
+  ctx.drawImage(hidden, 20, 410, 54, 54);                        // thumbnail
+  ctx.save();                                                    // flipped
+  ctx.translate(380, 410);
+  ctx.scale(-1, 1);
+  ctx.drawImage(hidden, 0, 0, 170, 170);
+  ctx.restore();
+
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '12px monospace';
+  ctx.fillText('seed ' + seed, 20, 400);
+  ctx.fillText('squint', 400, 212);
+  ctx.fillText('greyscale', 400, 407);
+  ctx.fillText('thumbnail', 84, 440);
+  ctx.fillText('flipped', 386, 520);
+}
+draw();
+</script>
+</div>
+
+<h2>Saying: what do you want?</h2>
+<p>Criticism needs something to measure against. Before judging outputs, write one sentence that says what the piece is trying to do. Not how it is made, but what it should be like:</p>
+<ul>
+  <li>"Dense at the bottom and dissolving upward, like smoke."</li>
+  <li>"A few bold shapes that could be read from across a street."</li>
+  <li>"Looks grown, not drawn. Nobody should see the grid."</li>
+</ul>
+<p>With the sentence written, the questions become answerable.</p>
+<table>
+  <thead><tr><th>Ask</th><th>Look for</th></tr></thead>
+  <tbody>
+    <tr><td>Where does my eye go first? Is that where I want it?</td><td>A focal point, or its absence</td></tr>
+    <tr><td>What are the three largest shapes?</td><td>If you cannot name them, there is no hierarchy</td></tr>
+    <tr><td>Is there somewhere for the eye to rest?</td><td>Empty space, calm areas beside busy ones</td></tr>
+    <tr><td>What would I lose if I removed this element?</td><td>Parts that are there only because the code makes them</td></tr>
+    <tr><td>Does it look like the algorithm, or like a picture?</td><td>The tell-tale look of an untouched technique</td></tr>
+    <tr><td>Would I recognise this as mine?</td><td>Decisions, as opposed to defaults</td></tr>
+    <tr><td>What is the worst output in this batch, and why does the system allow it?</td><td>The rule to fix</td></tr>
+  </tbody>
+</table>
+<p>The fifth question deserves emphasis. Every technique has a default look: Perlin noise looks like Perlin noise, a flow field like a flow field. Work becomes yours at the point where you push a technique away from its default, by combining it, constraining it, or breaking it on purpose.</p>
+
+<h2>Steering: exploring a system deliberately</h2>
+<p>Turning dials at random teaches you little. The disciplined alternative is the <strong>parameter sweep</strong>: choose two parameters, vary one across the columns of a grid and the other down the rows, hold everything else fixed, and look at the whole sheet at once. It shows what each parameter does, how they interact, and where the good region lies, which is usually a small patch.</p>
+<p>Once you have found that patch, narrow the system's ranges to it. A system that can only produce good outputs is the goal of Lesson 10, and sweeps are how you get there.</p>
+
+<div class="example" data-title="S7.2 A sweep of two parameters">
+<script type="text/plain">
+const SEED = 7;                              // everything else is held fixed
+const countValues = [6, 14, 30, 70, 160];    // across
+const chaosValues = [0, 0.15, 0.35, 0.6, 1]; // down
+
+function piece(x, y, s, count, chaos) {
+  const R = PA.rng(SEED);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, s, s); ctx.clip();
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(x, y, s, s);
+  ctx.strokeStyle = '#1d3557';
+  ctx.lineWidth = 1;
+  const side = Math.ceil(Math.sqrt(count));
+  for (let i = 0; i < count; i++) {
+    const gx = (i % side + 0.5) / side, gy = (Math.floor(i / side) + 0.5) / side;      // an orderly grid position...
+    const px = x + (gx + R.gauss(0, 0.12) * chaos) * s, py = y + (gy + R.gauss(0, 0.12) * chaos) * s;   // ...disturbed by chaos
+    const size = (s / side) * 0.7 * (1 + R.range(-0.8, 1.5) * chaos);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(R.range(-1, 1) * chaos * Math.PI / 2);
+    ctx.strokeRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#cfd6dd';
+ctx.font = '11px monospace';
+const S = 100, GAP = 8, OX = 62, OY = 40;
+countValues.forEach((count, i) => ctx.fillText('count ' + count, OX + i * (S + GAP) + 18, 28));
+chaosValues.forEach((chaos, j) => {
+  ctx.fillText('chaos', 10, OY + j * (S + GAP) + 45);
+  ctx.fillText(String(chaos), 10, OY + j * (S + GAP) + 60);
+  countValues.forEach((count, i) => piece(OX + i * (S + GAP), OY + j * (S + GAP), S, count, chaos));
+});
+</script>
+</div>
+
+<p>Look at the sheet as a whole. The top row is dead and the bottom row is noise. The interesting pieces are in a band across the middle, and they are different for low counts and high ones. That band is the piece. Everything outside it is the system's failures.</p>
+
+<h2>Studying other people's work</h2>
+<p>Looking is a skill that improves with practice, and the fastest practice is close study of work you admire. A method:</p>
+<ol>
+  <li><strong>Describe</strong> it as if to someone who cannot see it: the shapes, the palette, where things are dense and sparse, what repeats and what varies.</li>
+  <li><strong>Guess the system.</strong> What are the rules? What is random and what is fixed? What decided the composition?</li>
+  <li><strong>Find the decisions.</strong> Which choices could not have come from an algorithm's defaults? The margin, the one accent colour, the place where the pattern breaks.</li>
+  <li><strong>Make a small study.</strong> Rebuild one aspect of it in an afternoon: only the line quality, or only the colour logic. You will learn more from where your version falls short than from any description.</li>
+  <li><strong>Vary it</strong> until it is no longer theirs. Change the rule you guessed and see what the system becomes.</li>
+</ol>
+<p>Studies are for learning. Keep them in your notebook. Publishing a recreation of someone else's piece as your own work is not study, and releasing work that could be mistaken for theirs is unfair to them. The reference page at the end of the course lists artists worth this kind of attention.</p>
+
+<h2>Developing a style</h2>
+<p>A style is not chosen. It accumulates from decisions you make repeatedly because you prefer them. You can, however, help it along.</p>
+<ul>
+  <li><strong>Work in series.</strong> Make twenty pieces from one idea, not twenty ideas. The fifteenth is where you find what the idea is.</li>
+  <li><strong>Keep constraints.</strong> A fixed palette for a month. Lines only. One typeface. Constraints force invention, and consistent constraints read as a voice.</li>
+  <li><strong>Notice your defaults.</strong> The margin you always use, the colours you reach for, the densities you like. Write them down. Those are the beginnings of a style, and they belong in your personal library (Special Topic 9).</li>
+  <li><strong>Keep what surprises you.</strong> Save every output that makes you look twice, with its seed. Review the folder monthly. The pattern in what you saved tells you what you care about.</li>
+  <li><strong>Have subjects.</strong> Technique alone wears thin. Work that is about something, a place, a material, a feeling, a piece of music, has a reason to make its choices.</li>
+  <li><strong>Finish things.</strong> A finished, titled, exported piece teaches more than ten abandoned experiments.</li>
+</ul>
+
+<h2>Getting and giving critique</h2>
+<ul>
+  <li>Ask a specific question: "Does your eye know where to go?" gets a better answer than "What do you think?"</li>
+  <li>Show three versions and ask which is best. People choose more honestly than they criticise.</li>
+  <li>Listen for what confused them. Ignore most suggested fixes: the problem they noticed is real, their solution is usually not yours.</li>
+  <li>When giving critique, describe what you see before you judge it. "My eye goes to the top-left corner and stays there" is more useful than "it feels unbalanced".</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Novelty is not quality. Judge against a written intention.</li>
+  <li>Squint, remove the colour, shrink it, flip it, and wait a day.</li>
+  <li>Find where a technique's default look ends and your decisions begin.</li>
+  <li>Sweep two parameters at a time to find the small region where a system is good, then confine it there.</li>
+  <li>Study by describing, guessing the system, and making small studies. Do not publish them.</li>
+  <li>Style comes from series, constraints and finishing.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 7</p>
+  <h2>A Study and a Series</h2>
+  <p>Two linked exercises in looking: learn from a piece you admire, then direct a system of your own to a series of ten finished works.</p>
+  <h3>Part one: a study</h3>
+  <ul>
+    <li>Choose one generative or geometric artwork you admire. The reference page has suggestions.</li>
+    <li>Write a <strong>description</strong> of it, a <strong>guess at its system</strong>, and a list of three <strong>decisions</strong> in it that an algorithm's defaults would not have made.</li>
+    <li>Make a <strong>small study</strong> of one aspect of it, in an afternoon.</li>
+    <li>Write three sentences on where your study falls short of the original, and what that tells you.</li>
+  </ul>
+  <h3>Part two: a series</h3>
+  <ul>
+    <li>Take one system of your own from the course. Write its <strong>one-sentence intention</strong>.</li>
+    <li>Make at least <strong>two parameter sweeps</strong>, each of two parameters, and mark the good region on each.</li>
+    <li><strong>Narrow the system</strong> to that region.</li>
+    <li>Build the <strong>four tests</strong> (squint, greyscale, thumbnail, flip) into a review mode.</li>
+    <li>Select <strong>ten outputs</strong> for a series. For each, note its seed and one sentence on why it was chosen.</li>
+    <li>Reject at least thirty, and for three of the rejects write down what was wrong and which rule allowed it.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The ten pieces hang together as one body of work, and each still looks good at thumbnail size.</li>
+    <li>You can state, in a sentence, what the series is about.</li>
+  </ul>
+  <a class="start" href="../challenges/s7-study-and-series.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="06-ai-and-procedural.html">← Special Topic 6</a><a href="08-publishing.html">Special Topic 8: Publishing →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

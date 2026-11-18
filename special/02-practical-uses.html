@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 2 · Practical Uses</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-interactivity.html">← Special 1</a><span>Special topic 2 of 9</span><a href="03-into-the-real-world.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 2</p>
+  <h1>Practical Uses</h1>
+  <p class="lede">Procedural methods are not only for gallery walls. They are a working tool in games, film, graphic design, product design, data visualisation and software. This page surveys where they are used, why, and what the generators look like.</p>
+</header>
+
+<h2>When a procedure beats a hand</h2>
+<p>Making things by hand is often faster for one item. A procedure earns its cost when one of these is true:</p>
+<table>
+  <thead><tr><th>Need</th><th>Why a procedure helps</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Scale</strong></td><td>More content is needed than anyone could make</td><td>A planet of terrain, a forest of distinct trees</td></tr>
+    <tr><td><strong>Variation</strong></td><td>Many items that are related but not identical</td><td>Labels for 60 products, 10,000 avatars</td></tr>
+    <tr><td><strong>Personalisation</strong></td><td>One unique item per person</td><td>A poster from your birth date, a ring from your voice</td></tr>
+    <tr><td><strong>Responsiveness</strong></td><td>The result must follow changing input</td><td>A chart that redraws from live data, a logo that reacts to sound</td></tr>
+    <tr><td><strong>Exploration</strong></td><td>You want to see a thousand options before choosing</td><td>Facade patterns, textile designs</td></tr>
+    <tr><td><strong>Late changes</strong></td><td>The brief will change, and redoing it by hand is costly</td><td>"Make all the windows 10% wider"</td></tr>
+    <tr><td><strong>Small size</strong></td><td>A formula is smaller than its output</td><td>A texture of a few lines of code instead of megabytes of image</td></tr>
+    <tr><td><strong>Constraints</strong></td><td>Rules must hold in every instance</td><td>Minimum wall thickness, brand colours, legal margins</td></tr>
+  </tbody>
+</table>
+<p>If none applies, draw it by hand. Recognising that is part of the skill.</p>
+
+<h2>Games and film</h2>
+<p>Entertainment is the largest employer of procedural techniques. In games the content is generated while the game runs, or by tools the level designers use. In film it is generated offline, most often in Houdini, where every effect is a network of procedures that can be rerun when the director changes a shot.</p>
+<ul>
+  <li><strong>Worlds:</strong> terrain, erosion, rivers, biomes, cities, road networks, building interiors.</li>
+  <li><strong>Living things:</strong> forests, grass, fur and hair, crowds of thousands with varied clothing and motion.</li>
+  <li><strong>Effects:</strong> fire, smoke, water, explosions, destruction, magic. Nearly all of visual effects is simulation (Lesson 8, Maths 4).</li>
+  <li><strong>Surfaces:</strong> materials built from noise instead of photographs, covered below.</li>
+  <li><strong>Structure:</strong> levels, puzzles, loot, quests and names.</li>
+</ul>
+<p>A level generator is a good first practical project because its requirements are strict: every room must be reachable, nothing may overlap, and it must work for every seed. The classic method combines two ideas you know. Recursive subdivision (Lesson 7) divides the map into regions. Each region gets a room. Then, as the recursion returns, the two halves of every split are joined by a corridor, which guarantees that the whole map is connected.</p>
+
+<div class="example" data-title="S2.1 A dungeon that is always connected">
+<script type="text/plain">
+const R = PA.rng();          // run again for a new level
+const cols = 60, rows = 60, cell = W / cols;
+const map = new Uint8Array(cols * rows);      // 0 = wall, 1 = floor
+const rooms = [];
+
+function carve(x0, y0, x1, y1) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) map[y * cols + x] = 1;
+}
+
+function corridor(a, b) {                     // an L-shaped passage between two room centres
+  for (let x = Math.min(a.cx, b.cx); x <= Math.max(a.cx, b.cx); x++) map[a.cy * cols + x] = 1;
+  for (let y = Math.min(a.cy, b.cy); y <= Math.max(a.cy, b.cy); y++) map[y * cols + b.cx] = 1;
+}
+
+function split(x, y, w, h, depth) {
+  if (depth === 0 || (w < 16 && h < 16)) {    // small enough: put a room here
+    const rw = R.int(Math.max(4, w >> 1), w - 3);
+    const rh = R.int(Math.max(4, h >> 1), h - 3);
+    const rx = x + R.int(1, w - rw - 1), ry = y + R.int(1, h - rh - 1);
+    carve(rx, ry, rx + rw, ry + rh);
+    const room = { cx: rx + (rw >> 1), cy: ry + (rh >> 1) };
+    rooms.push(room);
+    return room;
+  }
+  let a, b;
+  if (w > h) {
+    const cut = R.int(Math.floor(w * 0.4), Math.floor(w * 0.6));
+    a = split(x, y, cut, h, depth - 1);
+    b = split(x + cut, y, w - cut, h, depth - 1);
+  } else {
+    const cut = R.int(Math.floor(h * 0.4), Math.floor(h * 0.6));
+    a = split(x, y, w, cut, depth - 1);
+    b = split(x, y + cut, w, h - cut, depth - 1);
+  }
+  corridor(a, b);                             // join the two halves: this is what guarantees connection
+  return R.chance(0.5) ? a : b;
+}
+
+split(1, 1, cols - 2, rows - 2, 4);
+
+ctx.fillStyle = '#15171c';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#cdbf9f';
+for (let y = 0; y < rows; y++) {
+  for (let x = 0; x < cols; x++) {
+    if (map[y * cols + x]) ctx.fillRect(x * cell, y * cell, cell - 1, cell - 1);
+  }
+}
+
+function marker(room, colour) {
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.arc((room.cx + 0.5) * cell, (room.cy + 0.5) * cell, cell * 0.9, 0, PA.TAU);
+  ctx.fill();
+}
+marker(rooms[0], '#2a9d8f');                      // start
+marker(rooms[rooms.length - 1], '#e63946');       // exit
+ctx.fillStyle = '#fff';
+ctx.font = '13px monospace';
+ctx.fillText(rooms.length + ' rooms · green = start · red = exit', 10, H - 8);
+</script>
+</div>
+
+<h2>Graphic design and brand identity</h2>
+<p>A traditional brand identity is a fixed logo and a style guide. A <strong>generative identity</strong> is a system: rules that produce an unlimited family of marks, patterns and layouts that all clearly belong together. Since the 2000s, cultural institutions, festivals, universities and technology companies have used such systems so that every poster, ticket or business card is unique yet on-brand.</p>
+<p>The design principle is to separate two kinds of rule:</p>
+<ul>
+  <li><strong>Brand rules</strong> are fixed for every instance: layout, typeface, line weight, the kind of motif.</li>
+  <li><strong>Instance rules</strong> vary, and come from a seed: colour, counts, wave shapes.</li>
+</ul>
+<p>Too many fixed rules and the outputs are monotonous. Too few and they do not look related. Below, each product name seeds its own label. Edit the list of names: a new product gets a matching label for free, which is precisely the commercial value.</p>
+
+<div class="example" data-title="S2.2 One system, a product range">
+<script type="text/plain">
+const products = ['Juniper', 'Blood Orange', 'Sea Salt', 'Black Tea', 'Elderflower', 'Smoke'];
+
+function label(name, x, y, w, h) {
+  const R = PA.rng(name);                        // the product name is the seed
+
+  // instance rules: these come from the seed
+  const hue = R.range(360);
+  const bands = R.int(5, 11);
+  const amplitude = R.range(4, 16);
+  const frequency = R.range(0.02, 0.07);
+  const shift = R.range(0.2, 1.2);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+  // brand rules: these are the same for every product
+  ctx.fillStyle = PA.hsl(hue, 45, 88);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = PA.hsl(hue, 60, 35);
+  ctx.lineWidth = 3;
+  for (let b = 0; b < bands; b++) {
+    const by = y + 22 + b * ((h * 0.6) / bands);
+    ctx.beginPath();
+    for (let px = 0; px <= w; px += 4) ctx.lineTo(x + px, by + Math.sin(px * frequency + b * shift) * amplitude);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#fbf8f1';                     // the name plate is always in the same place
+  ctx.fillRect(x, y + h * 0.68, w, h * 0.32);
+  ctx.fillStyle = PA.hsl(hue, 60, 25);
+  ctx.font = 'bold 15px Georgia';
+  ctx.fillText(name.toUpperCase(), x + 12, y + h * 0.68 + 32);
+  ctx.font = '10px monospace';
+  ctx.fillText('SMALL BATCH · 330 ML', x + 12, y + h * 0.68 + 52);
+  ctx.restore();
+}
+
+ctx.fillStyle = '#22252b';
+ctx.fillRect(0, 0, W, H);
+products.forEach((name, k) => {
+  label(name, 15 + (k % 3) * 195, 15 + Math.floor(k / 3) * 292, 180, 277);
+});
+</script>
+</div>
+
+<h3>Automated layout</h3>
+<p>Layout itself can be generated. A poster system takes content (a headline, a date) and a seed, and produces compositions: a grid from recursive subdivision, the headline fitted to the largest suitable block, the remaining blocks filled by weighted choice from a small vocabulary. Designers use tools like this to produce a campaign of fifty related posters, or to explore options before refining one by hand. Type a headline and press the button.</p>
+
+<div class="example" data-title="S2.3 A poster system">
+<script type="text/plain">
+const headline = ui.text('headline', 'SUMMER JAZZ');
+let seed = 1;
+ui.button('new layout', () => { seed++; draw(); });
+
+function draw() {
+  const R = PA.rng(seed);
+  const [paper, ...inks] = PA.palettes[R.pick(['citrus', 'riso', 'dusk'])];
+  ctx.fillStyle = paper;
+  ctx.fillRect(0, 0, W, H);
+
+  // 1. layout: split the page into blocks, cutting only at thirds and halves
+  const blocks = [];
+  function split(x, y, w, h, depth) {
+    if (depth === 0 || R.chance(0.15)) { blocks.push({ x, y, w, h }); return; }
+    const f = R.pick([1 / 3, 1 / 2, 2 / 3]);
+    if (w > h) { split(x, y, w * f, h, depth - 1); split(x + w * f, y, w * (1 - f), h, depth - 1); }
+    else { split(x, y, w, h * f, depth - 1); split(x, y + h * f, w, h * (1 - f), depth - 1); }
+  }
+  split(30, 30, W - 60, H - 60, 3);
+
+  // 2. content: the widest block takes the headline, the others take a fill
+  blocks.sort((a, b) => b.w - a.w);
+  blocks.forEach((b, i) => {
+    const x = b.x + 4, y = b.y + 4, w = b.w - 8, h = b.h - 8;      // gutter between blocks
+    const ink = inks[i % inks.length];
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+    if (i === 0) {
+      const text = headline() || ' ';
+      ctx.font = 'bold 100px Georgia';
+      const fit = Math.min((w - 20) / (ctx.measureText(text).width || 1), (h - 20) / 100);
+      ctx.font = 'bold ' + 100 * fit + 'px Georgia';                 // scale the type to fill the block
+      ctx.fillStyle = inks[0];
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + 10, y + h / 2);
+    } else {
+      const kind = R.weighted(['solid', 'stripes', 'dots', 'empty'], [3, 3, 2, 2]);
+      ctx.fillStyle = ink;
+      ctx.strokeStyle = ink;
+      if (kind === 'solid') ctx.fillRect(x, y, w, h);
+      if (kind === 'stripes') {
+        ctx.lineWidth = 5;
+        for (let s = -h; s < w; s += 14) { ctx.beginPath(); ctx.moveTo(x + s, y + h); ctx.lineTo(x + s + h, y); ctx.stroke(); }
+      }
+      if (kind === 'dots') {
+        for (let dy = 10; dy < h; dy += 20) for (let dx = 10; dx < w; dx += 20) {
+          ctx.beginPath(); ctx.arc(x + dx, y + dy, 5, 0, PA.TAU); ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  });
+}
+
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Textures and materials</h2>
+<p>In 3D graphics, film and games, most surfaces are not photographs. They are <strong>procedural materials</strong>: formulas, mostly built on noise, that compute the colour, roughness and bumpiness of a surface at any point. Their advantages are practical. They have no resolution limit, they never visibly repeat, they need almost no storage, and one parameter can turn new oak into weathered oak. Whole applications exist for authoring them as networks of nodes.</p>
+<p>Each quadrant below is one short formula. All four are applications of Lesson 3 and Maths 1.</p>
+<ul>
+  <li><strong>Wood:</strong> rings are the distance from a centre, wobbled by noise, wrapped by <code>fract</code>.</li>
+  <li><strong>Marble:</strong> a sine wave across the surface, with its input pushed around by fBm noise.</li>
+  <li><strong>Brushed metal:</strong> noise sampled with a very high frequency in one direction and a very low one in the other.</li>
+  <li><strong>Woven cloth:</strong> two sets of stripes, with a checker rule deciding which is on top.</li>
+</ul>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="S2.4 Four materials from formulas">
+<script type="text/plain">
+const N = PA.noise('materials');
+const img = ctx.createImageData(W, H);
+const mix = (a, b, t) => [PA.lerp(a[0], b[0], t), PA.lerp(a[1], b[1], t), PA.lerp(a[2], b[2], t)];
+
+function wood(x, y) {
+  const d = Math.hypot(x - 40, y - 190) * 0.11 + N.fbm(x * 0.012, y * 0.012) * 5;   // wobbly distance from the pith
+  const ring = PA.fract(d);                                                         // wrap into growth rings
+  const grain = N.get(x * 0.9, y * 0.03) * 0.25;                                    // fine streaks along the grain
+  return mix([92, 58, 30], [176, 124, 74], PA.smoothstep(0, 0.8, ring) - grain);
+}
+function marble(x, y) {
+  const vein = Math.sin(x * 0.05 + N.fbm(x * 0.02, y * 0.02, { octaves: 5 }) * 16);
+  return mix([238, 236, 230], [70, 78, 92], Math.abs(vein) ** 6);                   // thin dark veins
+}
+function metal(x, y) {
+  const streak = N.fbm(x * 0.8, y * 0.012, { octaves: 3 });                         // stretched noise
+  const sheen = 0.5 + 0.5 * Math.cos((y - 75) * 0.03);
+  const v = 110 + streak * 90 + sheen * 40;
+  return [v, v + 4, v + 10];
+}
+function cloth(x, y) {
+  const u = PA.fract(x / 12), v = PA.fract(y / 12);
+  const over = (Math.floor(x / 12) + Math.floor(y / 12)) % 2 === 0;                 // which thread is on top
+  const shade = over ? 0.6 + 0.4 * Math.sin(u * Math.PI) : 0.6 + 0.4 * Math.sin(v * Math.PI);
+  return over ? [40 * shade + 30, 90 * shade + 40, 150 * shade + 50] : [200 * shade + 30, 170 * shade + 30, 110 * shade + 20];
+}
+
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const left = x < W / 2, top = y < H / 2;
+    const c = top ? (left ? wood(x, y) : marble(x, y)) : (left ? metal(x, y) : cloth(x, y));
+    const k = (y * W + x) * 4;
+    img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+</script>
+</div>
+
+<h2>Data as the input</h2>
+<p>When the numbers driving a generative system are measurements, the result is <strong>data visualisation</strong> if the aim is to read values accurately, and <strong>data art</strong> if the aim is to give the data a character. The two share all their techniques. The discipline that separates good data-driven work from decoration is a clear division of labour: <em>the data decides the large-scale form, and the procedure adds only texture</em>. If noise is strong enough to change what the data says, the piece has stopped being about the data.</p>
+<p>Below, twelve monthly values shape the outline of every ring. Noise adds a hand-drawn wobble that is deliberately much smaller than the differences in the data. Replace the numbers with your own: rainfall, steps walked, hours slept.</p>
+
+<div class="example" data-title="S2.5 A portrait of a year">
+<script type="text/plain">
+// one value per month. swap in any twelve numbers
+const data = [3, 4, 7, 11, 15, 18, 21, 20, 17, 12, 7, 4];
+const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
+const N = PA.noise('year');
+const lo = Math.min(...data), hi = Math.max(...data);
+
+ctx.fillStyle = '#10131a';
+ctx.fillRect(0, 0, W, H);
+ctx.lineWidth = 1.2;
+
+for (let ring = 0; ring < 28; ring++) {
+  ctx.beginPath();
+  for (let i = 0; i <= 360; i++) {
+    const a = (i / 360) * PA.TAU - Math.PI / 2;            // January at the top
+    const m = (i / 360) * 12;                              // how far through the year
+    const d0 = data[Math.floor(m) % 12], d1 = data[(Math.floor(m) + 1) % 12];
+    const value = PA.lerp(d0, d1, PA.smoothstep(0, 1, m % 1));    // smooth between months
+    const t = (value - lo) / (hi - lo);                    // normalise the data to 0-1
+
+    const wobble = (N.get(5 + Math.cos(a) * 2, 5 + Math.sin(a) * 2, ring * 0.15) - 0.5) * 12;
+    const r = 50 + ring * 3 + t * (30 + ring * 4) + wobble;       // data sets the shape, noise the texture
+    ctx.lineTo(W / 2 + Math.cos(a) * r, H / 2 + Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = PA.mix('#3a86ff', '#ffbe0b', ring / 27);
+  ctx.stroke();
+}
+
+ctx.fillStyle = '#cfd6dd';
+ctx.font = '12px monospace';
+ctx.textAlign = 'center';
+months.forEach((label, k) => {
+  const a = (k / 12) * PA.TAU - Math.PI / 2;
+  ctx.fillText(label, W / 2 + Math.cos(a) * 32, H / 2 + Math.sin(a) * 32 + 4);
+});
+</script>
+</div>
+
+<h2>Interfaces: default avatars</h2>
+<p>Every service with user accounts needs a picture for people who have not uploaded one. Generating it from the username gives each person something recognisable and costs nothing to store, because it can be recomputed at any time. The requirements are stricter than they look: the images must be told apart at a glance, must survive being shown at 16 pixels, and must never accidentally form anything offensive, which is one reason abstract symmetric grids are the usual choice.</p>
+
+<div class="example" data-title="S2.6 Twenty usernames, twenty avatars, three sizes">
+<script type="text/plain">
+const names = ['ada', 'grace', 'alan', 'katherine', 'linus', 'margaret', 'dennis', 'barbara', 'ken', 'radia',
+               'tim', 'hedy', 'guido', 'frances', 'john', 'jean', 'edsger', 'annie', 'claude', 'mary'];
+
+function avatar(name, x, y, size) {
+  const R = PA.rng(name);                           // the username is the seed
+  const hue = R.range(360);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, PA.TAU);
+  ctx.clip();                                       // a round frame
+  ctx.fillStyle = PA.hsl(hue, 55, 84);
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = PA.hsl(hue, 60, 36);
+  const n = 5, c = size / n;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < 3; i++) {                   // three columns are random, the other two mirror them
+      if (!R.chance(0.5)) continue;
+      ctx.fillRect(i * c, j * c, c + 0.5, c + 0.5);
+      ctx.fillRect((n - 1 - i) * c, j * c, c + 0.5, c + 0.5);
+    }
+  }
+  ctx.restore();
+}
+
+ctx.fillStyle = '#f4f1ea';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#555';
+ctx.font = '11px monospace';
+ctx.textAlign = 'center';
+names.forEach((name, k) => {
+  const x = 24 + (k % 5) * 114, y = 16 + Math.floor(k / 5) * 112;
+  avatar(name, x, y, 84);
+  ctx.fillText(name, x + 42, y + 100);
+});
+names.forEach((name, k) => avatar(name, 14 + k * 29, 478, 24));     // the same avatars at 24 pixels
+names.forEach((name, k) => avatar(name, 18 + k * 29, 530, 16));     // and at 16: still distinguishable?
+</script>
+</div>
+
+<h2>Architecture: a facade that follows the sun</h2>
+<p>Buildings use perforated and louvred screens to cut glare and heat while keeping daylight and views. On a curved facade each panel faces a slightly different way, so each needs a different amount of shading. Drawing hundreds of unique panels by hand is not practical. Computing them is trivial: for each panel, measure how directly the sun strikes it (a dot product, Maths 2) and close it in proportion. Move the sun and the whole facade re-derives itself.</p>
+
+<div class="example" data-title="S2.7 Shading panels computed from the sun's position">
+<script type="text/plain">
+const azimuth = ui.slider('sun direction', -90, 90, -35, 1);
+const elevation = ui.slider('sun height', 5, 85, 40, 1);
+
+const COLS = 24, ROWS = 12;
+
+function draw() {
+  ctx.fillStyle = '#dfe7ee';
+  ctx.fillRect(0, 0, W, H);
+  const az = azimuth() * Math.PI / 180, el = elevation() * Math.PI / 180;
+  const cw = (W - 60) / COLS, ch = 34;
+
+  for (let j = 0; j < ROWS; j++) {
+    for (let i = 0; i < COLS; i++) {
+      // the facade curves in plan: panels on the left face left, panels on the right face right
+      const facing = (i / (COLS - 1) - 0.5) * 2.2;                       // this panel's direction, in radians
+      // how squarely does the sun hit it?  1 = head on, 0 = glancing or behind
+      const exposure = Math.max(0, Math.cos(az - facing)) * Math.cos(el);
+      // design rules: close in proportion to exposure, but never fully, and less on upper floors
+      const closed = PA.clamp(exposure * 1.25 - j * 0.012, 0.08, 0.92);
+
+      const x = 30 + i * cw, y = 70 + j * ch;
+      ctx.fillStyle = '#5b7f9e';                                         // glass
+      ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
+      ctx.fillStyle = PA.hsl(32, 45, 78 - closed * 22);                  // the shade
+      ctx.fillRect(x + 1, y + 1, (cw - 2) * closed, ch - 2);
+    }
+  }
+
+  // a sun marker, and what the generator would hand to the fabricator
+  ctx.fillStyle = '#f4a100';
+  ctx.beginPath();
+  ctx.arc(W / 2 + Math.sin(az) * 260, 46 - Math.sin(el) * 22, 12, 0, PA.TAU);
+  ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.font = '13px monospace';
+  ctx.fillText(COLS * ROWS + ' panels, each with its own computed opening', 30, H - 20);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Textiles and surface pattern: the seamless repeat</h2>
+<p>Fabric, wallpaper, wrapping paper and game textures are all made from one small tile repeated edge to edge. The tile must join itself invisibly. The procedural solution is simple: whenever a motif is drawn near an edge, draw it again shifted by one tile width or height, so that the part that leaves on one side re-enters on the other. The example builds a tile that way on a hidden canvas and then repeats it across the fabric. The outlined square shows a single tile.</p>
+
+<div class="example" data-title="S2.8 A pattern tile that joins itself">
+<script type="text/plain">
+const R = PA.rng();                    // run again for a new print
+const T = 150;                         // tile size in pixels
+const palette = R.pick([['#f3e9d2', '#114b5f', '#c6dabf', '#e4572e'], ['#1b263b', '#e0e1dd', '#778da9', '#ffb703'], ['#fdf0d5', '#780000', '#669bbc', '#003049']]);
+
+const tile = document.createElement('canvas');       // a hidden canvas for one tile
+tile.width = tile.height = T;
+const t = tile.getContext('2d');
+t.fillStyle = palette[0];
+t.fillRect(0, 0, T, T);
+
+for (let k = 0; k < 26; k++) {
+  const x = R.range(T), y = R.range(T), size = R.range(8, 26), angle = R.range(PA.TAU);
+  const colour = R.pick(palette.slice(1));
+  // draw the motif nine times, shifted by whole tiles, so that anything crossing an edge wraps round
+  for (const ox of [-T, 0, T]) {
+    for (const oy of [-T, 0, T]) {
+      t.save();
+      t.translate(x + ox, y + oy);
+      t.rotate(angle);
+      t.fillStyle = colour;
+      t.beginPath();
+      t.ellipse(0, 0, size, size * 0.42, 0, 0, PA.TAU);                // a leaf
+      t.fill();
+      t.strokeStyle = palette[0];
+      t.lineWidth = 1.5;
+      t.beginPath(); t.moveTo(-size, 0); t.lineTo(size, 0); t.stroke();   // its midrib
+      t.restore();
+    }
+  }
+}
+
+ctx.fillStyle = ctx.createPattern(tile, 'repeat');   // repeat the tile across the whole fabric
+ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = '#ff006e';
+ctx.lineWidth = 2;
+ctx.strokeRect(T, T, T, T);
+</script>
+</div>
+
+<h2>Maps, and the names on them</h2>
+<p>Fantasy maps for novels, tabletop games and video games are a small industry, and most are generated. The map below combines three techniques from the course: an island from noise with a radial falloff (Lesson 3), territories from nearest-seed regions (Voronoi, Lesson 7), and, new here, <strong>names from a grammar</strong>. A name generator is a tiny procedural system of its own: lists of syllables and endings, chosen by weighted chance. The same idea, scaled up, writes item descriptions, quests and dialogue in games.</p>
+
+<div class="example" data-pixel data-w="600" data-h="600" data-title="S2.9 An island, its kingdoms and their names">
+<script type="text/plain">
+const R = PA.rng(), N = PA.noise();          // run again for a new world
+
+// a name grammar: start + middle (sometimes) + ending
+const starts = ['Ka', 'Mor', 'El', 'Tha', 'Bri', 'Vo', 'Sel', 'Dra', 'Am', 'Yr', 'Or', 'Ne'];
+const middles = ['la', 'ren', 'va', 'do', 'mi', 'th', 'ri', 'ndo'];
+const endings = ['ia', 'or', 'heim', 'mere', 'wick', 'ar', 'eth', 'os'];
+const makeName = () => R.pick(starts) + (R.chance(0.6) ? R.pick(middles) : '') + R.weighted(endings, [4, 3, 1, 2, 2, 3, 2, 2]);
+
+const realms = [];
+for (let i = 0; i < 9; i++) {
+  realms.push({ x: R.range(120, 480), y: R.range(120, 480), hue: R.range(360), name: makeName() });
+}
+
+const img = ctx.createImageData(W, H);
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const falloff = 1 - Math.hypot(x - W / 2, y - H / 2) / 300;                    // high in the middle, low at the edges
+    const land = N.fbm(x * 0.008, y * 0.008, { octaves: 5 }) * 0.8 + falloff * 0.45;
+
+    let c;
+    if (land < 0.62) c = land < 0.56 ? [44, 92, 132] : [74, 130, 168];             // sea, shallows
+    else {
+      let best = null, d1 = Infinity, d2 = Infinity;                               // nearest and second-nearest realm
+      const wobble = N.get(x * 0.02, y * 0.02) * 40;                               // makes the borders wander
+      for (const r of realms) {
+        const d = Math.hypot(x - r.x, y - r.y) + wobble * (r.hue / 360 - 0.5);
+        if (d < d1) { d2 = d1; d1 = d; best = r; } else if (d < d2) d2 = d;
+      }
+      const border = d2 - d1 < 3;
+      const shade = 0.75 + (land - 0.62) * 1.6;
+      const rgb = PA.cosPaletteRGB(best.hue / 360, [0.72, 0.7, 0.6], [0.14, 0.12, 0.12]);
+      c = border ? [90, 60, 40] : [rgb[0] * shade, rgb[1] * shade, rgb[2] * shade];
+    }
+    const k = (y * W + x) * 4;
+    img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+
+ctx.font = 'italic 17px Georgia';
+ctx.textAlign = 'center';
+for (const r of realms) {
+  ctx.fillStyle = 'rgba(255, 250, 235, 0.75)';
+  ctx.fillRect(r.x - ctx.measureText(r.name).width / 2 - 5, r.y - 15, ctx.measureText(r.name).width + 10, 21);
+  ctx.fillStyle = '#3a2a1a';
+  ctx.fillText(r.name, r.x, r.y);
+}
+</script>
+</div>
+
+<h2>Machine learning: synthetic training data</h2>
+<p>A model that finds objects in images needs thousands of examples in which every object is already outlined and named. Labelling photographs by hand is slow and expensive. A procedural generator produces the picture <em>and</em> its labels together, because it knows exactly what it drew and where. The generator varies everything that should not matter, such as background, lighting, position, size and clutter, so that the model learns only what does. This is called domain randomisation, and it is widely used in robotics and industrial inspection.</p>
+
+<div class="example" data-title="S2.10 Images that come with their own labels">
+<script type="text/plain">
+const R = PA.rng();
+const kinds = ['circle', 'square', 'triangle'];
+const SIZE = 180;                                  // each training image is 180 x 180 pixels
+let firstLabels = null;
+
+function sample(ox, oy) {
+  const labels = [];
+  ctx.save();
+  ctx.beginPath(); ctx.rect(ox, oy, SIZE, SIZE); ctx.clip();
+
+  // randomise what should not matter: background colour and texture
+  ctx.fillStyle = PA.hsl(R.range(360), R.range(5, 30), R.range(25, 85));
+  ctx.fillRect(ox, oy, SIZE, SIZE);
+  for (let i = 0; i < 300; i++) {
+    ctx.fillStyle = 'rgba(' + (R.chance(0.5) ? '0,0,0' : '255,255,255') + ',' + R.range(0.03, 0.12) + ')';
+    ctx.fillRect(ox + R.range(SIZE), oy + R.range(SIZE), R.range(2, 30), R.range(2, 30));
+  }
+
+  for (let i = 0; i < R.int(1, 3); i++) {
+    const kind = R.pick(kinds), r = R.range(14, 34);
+    const x = R.range(r + 4, SIZE - r - 4), y = R.range(r + 4, SIZE - r - 4);
+    ctx.fillStyle = PA.hsl(R.range(360), R.range(40, 90), R.range(35, 70));
+    ctx.beginPath();
+    if (kind === 'circle') ctx.arc(ox + x, oy + y, r, 0, PA.TAU);
+    else if (kind === 'square') ctx.rect(ox + x - r, oy + y - r, r * 2, r * 2);
+    else { ctx.moveTo(ox + x, oy + y - r); ctx.lineTo(ox + x + r, oy + y + r); ctx.lineTo(ox + x - r, oy + y + r); ctx.closePath(); }
+    ctx.fill();
+    // the label is free: the generator knows what it drew, and where
+    labels.push({ label: kind, box: [Math.round(x - r), Math.round(y - r), Math.round(r * 2), Math.round(r * 2)] });
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = '#00ff88';                      // draw the labels, to check them by eye
+  ctx.lineWidth = 1.5;
+  ctx.font = '10px monospace';
+  for (const l of labels) {
+    ctx.strokeRect(ox + l.box[0], oy + l.box[1], l.box[2], l.box[3]);
+    ctx.fillStyle = '#00ff88';
+    ctx.fillText(l.label, ox + l.box[0], oy + l.box[1] - 3);
+  }
+  return labels;
+}
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+for (let k = 0; k < 6; k++) {
+  const labels = sample(15 + (k % 3) * 195, 15 + Math.floor(k / 3) * 195);
+  if (k === 0) firstLabels = labels;
+}
+ctx.fillStyle = '#cfd6dd';
+ctx.font = '12px monospace';
+ctx.fillText('labels for the first image, as they would be saved:', 15, 425);
+ctx.fillStyle = '#9fe0c4';
+JSON.stringify(firstLabels, null, 1).split('\n').slice(0, 11).forEach((line, i) => ctx.fillText(line, 15, 445 + i * 14));
+</script>
+</div>
+
+<h2>Where else it is used</h2>
+<table>
+  <thead><tr><th>Field</th><th>What is generated</th><th>Techniques</th></tr></thead>
+  <tbody>
+    <tr><td>Web and app interfaces</td><td>Default avatars, placeholder images, backgrounds, loading animations, illustration systems</td><td>Seeded symmetry, noise gradients, shaders</td></tr>
+    <tr><td>Architecture</td><td>Facade patterns, shading screens that respond to sun angle, floor plans, structural forms</td><td>Fields driving panel size, Voronoi, optimisation</td></tr>
+    <tr><td>Product and industrial design</td><td>Grip textures, lattices, ventilation patterns, custom-fit items from body scans</td><td>Covered in Special Topic 3</td></tr>
+    <tr><td>Fashion and textiles</td><td>Print repeats, knit and weave structures, lace, laser-cut leather</td><td>Tiling, symmetry groups, cellular automata</td></tr>
+    <tr><td>Jewellery</td><td>Rings and pendants grown by simulation, each one unique</td><td>Differential growth, reaction–diffusion, Voronoi</td></tr>
+    <tr><td>Typography</td><td>Typefaces whose weight or shape responds to data, sound or position</td><td>Parametric curves, interpolation between designs</td></tr>
+    <tr><td>Music</td><td>Generative and adaptive scores, visuals for live shows</td><td>Rule systems, Markov chains, audio analysis</td></tr>
+    <tr><td>Maps and cartography</td><td>Fantasy maps for books and games, terrain styling, label placement</td><td>Noise, Voronoi regions, erosion</td></tr>
+    <tr><td>Science and engineering</td><td>Synthetic test data, meshes for simulation, models of growth and pattern</td><td>The same simulations, validated against measurement</td></tr>
+    <tr><td>Machine learning</td><td>Synthetic images with perfect labels, for training vision models</td><td>Procedural scenes with randomised lighting, texture and layout</td></tr>
+    <tr><td>Publishing</td><td>Unique covers for each copy of a book or magazine, generative illustration</td><td>A seed per copy, and variable-data printing</td></tr>
+    <tr><td>Commerce</td><td>Personalised posters and gifts, made-to-order products, long-form art editions</td><td>Customer input as the seed</td></tr>
+    <tr><td>Education</td><td>Endless practice problems, explorable explanations</td><td>Seeded parameters, interactive diagrams</td></tr>
+  </tbody>
+</table>
+
+<h2>What you deliver</h2>
+<p>Practical work ends in one of four kinds of deliverable, and it is worth agreeing which before you start.</p>
+<dl class="vocab">
+  <dt>An output</dt><dd>One image, video or object. The code is your private tool, like a brush. The client never sees it.</dd>
+  <dt>A set of assets</dt><dd>Hundreds of generated items: icons, textures, labels, levels. You curate, the client receives files.</dd>
+  <dt>A tool</dt><dd>The generator itself, with an interface, for other people to use. This needs sensible parameter ranges, guard rails and documentation, and is far more work than the algorithm.</dd>
+  <dt>A live system</dt><dd>Code that runs for the audience: on a website, in a game, in an installation. It must be fast, robust, and correct for every input it will ever see.</dd>
+</dl>
+<p>Each step down that list raises the standard. A private tool only has to work for the seeds you try. A live system has to work for all of them, which is the lesson of the contact sheet in Lesson 10.</p>
+
+<h2>Working practices that matter in practice</h2>
+<ul>
+  <li><strong>Make it reproducible.</strong> Record the seed and the code version with every output you deliver. A client will ask for "that one again, but bigger" six months later.</li>
+  <li><strong>Separate content from style.</strong> Text, data and brand colours go in as inputs. They will change.</li>
+  <li><strong>Encode the constraints.</strong> Margins, minimum sizes and contrast rules belong in the code, not in your memory.</li>
+  <li><strong>Test in bulk.</strong> Generate five hundred and look for the worst one.</li>
+  <li><strong>Leave room for a hand.</strong> The best results usually come from generating many options and then choosing or adjusting. A procedure is a collaborator, not a replacement for judgement.</li>
+  <li><strong>Know the rights.</strong> Be clear about who owns the code and who owns the outputs, and what licences cover any fonts, images or data you feed in.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Use a procedure when you need scale, variation, personalisation, responsiveness, exploration or guaranteed constraints.</li>
+  <li>A level generator must be correct for every seed. Building connection into the algorithm is better than checking for it afterwards.</li>
+  <li>A generative identity separates fixed brand rules from seeded instance rules.</li>
+  <li>Procedural materials compute a surface from formulas, with no resolution limit and no repeats.</li>
+  <li>In data-driven work, the data sets the form and the procedure adds only texture.</li>
+  <li>Decide whether you are delivering an output, assets, a tool or a live system. Each demands more robustness than the last.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 2</p>
+  <h2>A Generator Someone Could Use</h2>
+  <p>Pick a real, practical job and build the generator for it. The test is not whether it is beautiful but whether a person with that job could use the results tomorrow.</p>
+  <h3>Choose one brief</h3>
+  <ul>
+    <li><strong>Product range.</strong> A label or packaging system for a product line of at least eight items, seeded by product name, with space for real text.</li>
+    <li><strong>Level generator.</strong> Levels for a simple game: guaranteed path from start to exit, with keys, doors or hazards placed by rule, and difficulty controlled by one number.</li>
+    <li><strong>Avatar system.</strong> Default profile pictures for an app: readable at 32 pixels, clearly distinct from one another, never accidentally offensive or confusable.</li>
+    <li><strong>Data portrait.</strong> A real dataset of your own (a year of weather, sleep, spending or music listening) turned into a printable image that stays faithful to the numbers.</li>
+  </ul>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A written <strong>brief</strong> in a comment at the top: who it is for, what they need, what counts as a failure.</li>
+    <li>A clear split between <strong>fixed rules</strong> and <strong>seeded rules</strong>, labelled in the code.</li>
+    <li>At least three <strong>constraints that hold in every output</strong>, enforced by code. Examples: text never overlaps the pattern, every room is reachable, contrast is always sufficient.</li>
+    <li>A <strong>contact sheet</strong> of at least 24 outputs.</li>
+    <li>An <strong>export</strong> in the format the job needs: PNG at the right size, SVG, or data as text.</li>
+    <li>Every output is labelled with or traceable to its seed.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write the failure cases first. "The exit is unreachable" and "two labels look identical" are requirements in disguise.</li>
+    <li>Where a constraint is hard to guarantee by construction, generate, test, and regenerate with the next seed until it passes.</li>
+    <li>Show your contact sheet to someone and ask which output is the worst. Then fix the rule that produced it.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You have generated 200 outputs and checked that none breaks a constraint.</li>
+    <li>Someone else can produce a new output without reading the code.</li>
+  </ul>
+  <a class="start" href="../challenges/s2-useful-generator.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="01-interactivity.html">← Special Topic 1</a><a href="03-into-the-real-world.html">Special Topic 3: Into the Real World →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

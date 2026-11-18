@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths 6 · Linear Algebra</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="05-waves-chaos-and-chance.html">← Maths 5</a><span>Maths 6 of 6</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Maths 6</p>
+  <h1>Linear Algebra</h1>
+  <p class="lede">Maths 2 introduced vectors and the 2 × 2 matrix. This page goes further: grids built from any two arrows, the determinant and the inverse, chains of transformations, three dimensions and perspective, the directions a matrix leaves alone, and the idea that a whole shape can be treated as one vector.</p>
+</header>
+
+<h2>What "linear" means</h2>
+<p>Linear algebra is the study of two operations and what can be built from them: <strong>scaling</strong> a thing, and <strong>adding</strong> two things. A sum of scaled things is called a <strong>linear combination</strong>:</p>
+<p class="formula">result = u · A + v · B</p>
+<p>The "things" can be arrows, colours, sounds or whole shapes. You have used linear combinations since Lesson 1: <code>lerp(a, b, t)</code> is <code>(1 − t) · a + t · b</code>. Mixing two colours is one. So is adding octaves of noise. The subject is the general theory of everything that works that way, and it is why the same few lines of code turn up in drawing, 3D, colour and animation.</p>
+<p>Read <a href="02-vectors-and-transformations.html">Maths 2</a> first if you have not. This page assumes its definitions of a vector, the dot product, and applying and multiplying 2 × 2 matrices.</p>
+
+<h2>A basis: any two arrows make a grid</h2>
+<p>The ordinary pixel grid is built from two arrows: one step right, <code>(1, 0)</code>, and one step down, <code>(0, 1)</code>. The point <code>(3, 2)</code> means "three of the first arrow plus two of the second". Those two arrows are a <strong>basis</strong>, and <code>3</code> and <code>2</code> are the <strong>coordinates</strong> in that basis.</p>
+<p>Nothing requires the arrows to be at right angles or the same length. Choose any two arrows <code>e1</code> and <code>e2</code> that do not lie along the same line, and every point of the plane can be reached as:</p>
+<p class="formula">point = i · e1 + j · e2</p>
+<p>Let <code>i</code> and <code>j</code> run over the whole numbers and you get a <strong>lattice</strong>: a repeating grid of points. The choice of basis is the choice of grid. This is how every repeating pattern is laid out: brick bonds, triangular and hexagonal packings, isometric game maps, the unit cell of a wallpaper.</p>
+
+<div class="example" data-title="M6.1 Two arrows make a grid (drag the arrow tips)">
+<script type="text/plain">
+// The two basis arrows, in pixels. Press and drag either tip.
+const e1 = [60, 0], e2 = [30, 52];
+const cx = W / 2, cy = H / 2;
+let held = null;
+
+function arrow(e, colour, name) {
+  ctx.strokeStyle = colour;
+  ctx.fillStyle = colour;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + e[0], cy + e[1]); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + e[0], cy + e[1], 7, 0, PA.TAU); ctx.fill();
+  ctx.font = '14px monospace';
+  ctx.fillText(name + ' = (' + e[0].toFixed(0) + ', ' + e[1].toFixed(0) + ')', cx + e[0] + 12, cy + e[1] - 10);
+}
+
+loop((time) => {
+  if (mouse.down) {
+    const mx = mouse.x - cx, my = mouse.y - cy;
+    if (!held) held = Math.hypot(mx - e1[0], my - e1[1]) < Math.hypot(mx - e2[0], my - e2[1]) ? e1 : e2;
+    held[0] = mx; held[1] = my;
+  } else {
+    held = null;
+  }
+
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  // every point of the pattern is a whole number of steps along each arrow
+  for (let j = -14; j <= 14; j++) {
+    for (let i = -14; i <= 14; i++) {
+      const x = cx + i * e1[0] + j * e2[0];
+      const y = cy + i * e1[1] + j * e2[1];
+      if (x < -10 || x > W + 10 || y < -10 || y > H + 10) continue;
+      const wave = 0.5 + 0.5 * Math.sin(time * 2 - Math.hypot(i, j) * 0.9);
+      ctx.fillStyle = (i - j) % 3 === 0 ? '#ffd166' : '#3a7ca5';
+      ctx.beginPath();
+      ctx.arc(x, y, 3 + wave * 7, 0, PA.TAU);
+      ctx.fill();
+    }
+  }
+
+  arrow(e1, '#ef476f', 'e1');
+  arrow(e2, '#06d6a0', 'e2');
+});
+</script>
+</div>
+
+<p>The starting arrows are the same length and 60 degrees apart, which gives the triangular lattice that circles pack into most tightly. Drag <code>e2</code> to <code>(0, 60)</code> for a square grid, or to <code>(30, 30)</code> for a brick pattern. Notice that the colouring rule and the ripple are written in <code>i</code> and <code>j</code> and never mention pixels, so they follow the grid wherever you take it.</p>
+<p>Now drag one tip on top of the other arrow's line. The grid collapses onto a single line. Two arrows that point along the same line are not a basis, because no combination of them can leave that line. The next section gives the number that measures this.</p>
+<p>A basis and a matrix are the same object. Write <code>e1</code> and <code>e2</code> as the two columns of a matrix, and applying that matrix to <code>(i, j)</code> gives the point. That is what Maths 2 meant by "the first column is where one step right goes".</p>
+
+<h2>The determinant: how much area changes</h2>
+<p>Every 2 × 2 matrix has one number attached to it that tells you the most important fact about what it does:</p>
+<p class="formula">det = a·d − b·c</p>
+<p>The determinant is the <strong>factor by which the matrix multiplies area</strong>. Geometrically it is the area of the parallelogram made by the two basis arrows.</p>
+<ul>
+  <li><strong>det = 1:</strong> areas are unchanged. Rotations and shears are like this.</li>
+  <li><strong>det = 2:</strong> everything covers twice the area. <strong>det = 0.5:</strong> half.</li>
+  <li><strong>det is negative:</strong> the plane has been flipped over, as in a mirror. Text reads backwards.</li>
+  <li><strong>det = 0:</strong> the plane has been squashed onto a line or a point. Area is gone and cannot be recovered.</li>
+</ul>
+
+<div class="example" data-title="M6.2 One number for what a matrix does to area">
+<script type="text/plain">
+const a = ui.slider('a', -2, 2, 1, 0.05);
+const b = ui.slider('b', -2, 2, 0.6, 0.05);
+const c = ui.slider('c', -2, 2, 0, 0.05);
+const d = ui.slider('d', -2, 2, 1, 0.05);
+
+// a letter F inside the unit square, to show when things are mirrored
+const F = [[0.2, 0.9], [0.2, 0.1], [0.8, 0.1], [0.8, 0.28], [0.42, 0.28], [0.42, 0.42],
+           [0.7, 0.42], [0.7, 0.6], [0.42, 0.6], [0.42, 0.9]];
+const S = 95, ox = W / 2 - 50, oy = H / 2 + 10;      // pixels per unit, and where the origin is drawn
+
+function polygon(points, colour, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  for (const [x, y] of points) ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function draw() {
+  const m = [a(), b(), c(), d()];
+  const apply = (x, y) => [ox + (m[0] * x + m[1] * y) * S, oy + (m[2] * x + m[3] * y) * S];
+  const det = m[0] * m[3] - m[1] * m[2];
+
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  // the grid after the matrix
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let k = -5; k <= 5; k++) {
+    let p = apply(k, -5), q = apply(k, 5);
+    ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]);
+    p = apply(-5, k); q = apply(5, k);
+    ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]);
+  }
+  ctx.stroke();
+
+  // the unit square before (dashed) and after (filled)
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.strokeRect(ox, oy, S, S);
+  ctx.setLineDash([]);
+  polygon([[0, 0], [1, 0], [1, 1], [0, 1]].map((p) => apply(p[0], p[1])), det >= 0 ? '#2a9d8f' : '#e76f51', 0.6);
+  polygon(F.map((p) => apply(p[0], p[1])), '#f4efe6', 1);
+
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '15px monospace';
+  ctx.fillText('det = a·d − b·c = ' + det.toFixed(2), 16, 28);
+  ctx.fillText('area is multiplied by ' + Math.abs(det).toFixed(2), 16, 50);
+  if (Math.abs(det) < 0.03) {
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText('collapsed onto a line: nothing can undo this', 16, 72);
+  } else if (det < 0) {
+    ctx.fillStyle = '#e76f51';
+    ctx.fillText('negative: the plane is mirrored', 16, 72);
+  }
+}
+
+ui.onChange(draw);
+draw();
+</script>
+</div>
+
+<p>Set <code>a</code> to −1 and the F reads backwards. Set <code>a = 1, b = 2, c = 0.5, d = 1</code> and the square flattens to nothing, because the two columns now point along the same line.</p>
+<p>For design, the determinant answers practical questions. Will this transformation keep my line weights and dot densities the same (det = 1)? Did my symmetry operation include a mirror (negative)? Is this triangle clockwise or anticlockwise (the sign of the determinant of two of its edges)? Which side of a line is a point on (the same test)? That last one is the inside test behind the polygon clipping in Lesson 18.</p>
+
+<h2>The inverse: going back</h2>
+<p>If a matrix takes grid coordinates to screen positions, the <strong>inverse</strong> matrix takes screen positions back to grid coordinates. For a 2 × 2 matrix there is a formula:</p>
+<p class="formula">inverse of [a b; c d] = (1 / det) · [d −b; −c a]</p>
+<p>Swap the two numbers on the diagonal, negate the other two, and divide everything by the determinant. The division is why a matrix with a determinant of zero has no inverse: a collapsed plane cannot be un-collapsed.</p>
+<p>The inverse is how you answer "which cell is the mouse in?" on any grid that is not square. Below is an isometric board. The forward matrix places the tiles. The inverse turns the mouse position into tile coordinates, and flooring those gives the tile.</p>
+
+<div class="example" data-h="460" data-title="M6.3 Which tile is under the mouse? (move the mouse)">
+<script type="text/plain">
+const N = 10;
+const e1 = [28, 14], e2 = [-28, 14];            // one step along each side of a tile, in pixels
+const origin = [W / 2, 130];
+const det = e1[0] * e2[1] - e2[0] * e1[1];
+
+// forward: tile coordinates to the screen
+function toScreen(i, j) {
+  return [origin[0] + i * e1[0] + j * e2[0], origin[1] + i * e1[1] + j * e2[1]];
+}
+// inverse: the screen back to tile coordinates
+function toTile(x, y) {
+  x -= origin[0]; y -= origin[1];
+  return [(e2[1] * x - e2[0] * y) / det, (-e1[1] * x + e1[0] * y) / det];
+}
+
+function quad(p, q, r, s, colour) {
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.lineTo(r[0], r[1]); ctx.lineTo(s[0], s[1]);
+  ctx.closePath();
+  ctx.fill();
+}
+const up = (p, h) => [p[0], p[1] - h];
+
+const lift = new Float32Array(N * N);
+
+loop(() => {
+  ctx.fillStyle = '#0d1b2a';
+  ctx.fillRect(0, 0, W, H);
+
+  const [ti, tj] = toTile(mouse.x, mouse.y);        // the mouse, measured in tiles
+  const hi = Math.floor(ti), hj = Math.floor(tj);
+
+  for (let s = 0; s <= 2 * N - 2; s++) {            // back rows first, so near tiles cover far ones
+    for (let i = Math.max(0, s - N + 1); i <= Math.min(N - 1, s); i++) {
+      const j = s - i;
+      const far = Math.hypot(i + 0.5 - ti, j + 0.5 - tj);       // a distance in tiles, not pixels
+      const k = j * N + i;
+      lift[k] += (46 * Math.exp(-far * far / 4) - lift[k]) * 0.15;
+      const h = lift[k];
+
+      const top = toScreen(i, j), right = toScreen(i + 1, j);
+      const bottom = toScreen(i + 1, j + 1), left = toScreen(i, j + 1);
+      const light = 30 + h * 0.7 + ((i + j) % 2) * 5;
+
+      quad(up(left, h), up(bottom, h), bottom, left, PA.hsl(172, 45, light * 0.5));       // left wall
+      quad(up(bottom, h), up(right, h), right, bottom, PA.hsl(172, 45, light * 0.72));    // right wall
+      quad(up(top, h), up(right, h), up(bottom, h), up(left, h),
+        i === hi && j === hj ? '#ffd166' : PA.hsl(172, 45, light));                       // top
+    }
+  }
+
+  const onBoard = hi >= 0 && hj >= 0 && hi < N && hj < N;
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '15px monospace';
+  ctx.fillText(onBoard ? 'tile ' + hi + ', ' + hj : 'off the board', 16, 28);
+  ctx.fillText('mouse in tile units: ' + ti.toFixed(2) + ', ' + tj.toFixed(2), 16, 50);
+});
+</script>
+</div>
+
+<p>Two things are worth noticing. The picking is exact and costs four multiplications, with no searching through tiles. And once the mouse is in tile coordinates, everything else can be done there too: the bump is a bell curve of distance measured in tiles, so it is round on the board even though it looks squashed on screen.</p>
+<p>This is the general pattern. <strong>Do the thinking in the coordinate system where the problem is simple, and use a matrix and its inverse to get in and out.</strong> The same move finds which hexagon was clicked, maps a point on a slanted poster back to the flat artwork, and turns a camera's view of a projected image back into projector pixels (Special Topic 5).</p>
+
+<h2>Translation, and chains of transformations</h2>
+<p>A 2 × 2 matrix always leaves the origin where it is, so it cannot slide things sideways. The fix is a trick called <strong>homogeneous coordinates</strong>: give every point a third coordinate that is always 1, and use a 3 × 3 matrix. The extra column then holds the shift:</p>
+<p class="formula">x′ = a·x + b·y + tx   y′ = c·x + d·y + ty</p>
+<p>The bottom row of the 3 × 3 matrix is always <code>0, 0, 1</code>, so only six numbers need storing. Those are the six numbers of <code>ctx.setTransform</code> and of a CSS <code>matrix()</code>, and the canvas keeps one such matrix as its current state. Every call to <code>translate</code>, <code>rotate</code> or <code>scale</code> multiplies it by another.</p>
+<p>The value of putting rotation, scale and shift into one kind of object is that they can be <strong>chained by multiplying</strong>. An arm is a chain: the hand's matrix is the shoulder's, times the elbow's, times the wrist's. Change the shoulder and everything after it follows, because every later matrix was multiplied onto it. This is called <strong>forward kinematics</strong>, and it is how skeletons in games and parented objects in Blender and three.js work.</p>
+
+<div class="example" data-title="M6.4 A chain of matrices">
+<script type="text/plain">
+// A 3 x 3 matrix whose bottom row is 0, 0, 1, stored as its top two rows.
+const multiply = (p, q) => [                    // the matrix that does q first, then p
+  p[0] * q[0] + p[1] * q[3], p[0] * q[1] + p[1] * q[4], p[0] * q[2] + p[1] * q[5] + p[2],
+  p[3] * q[0] + p[4] * q[3], p[3] * q[1] + p[4] * q[4], p[3] * q[2] + p[4] * q[5] + p[5],
+];
+const translate = (x, y) => [1, 0, x, 0, 1, y];
+const rotate = (t) => [Math.cos(t), -Math.sin(t), 0, Math.sin(t), Math.cos(t), 0];
+const scale = (s) => [s, 0, 0, 0, s, 0];
+const apply = (m, x, y) => [m[0] * x + m[1] * y + m[2], m[3] * x + m[4] * y + m[5]];
+
+const ARMS = 8, JOINTS = 16, LENGTH = 26;
+
+loop((time) => {
+  ctx.fillStyle = '#0b132b';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let arm = 0; arm < ARMS; arm++) {
+    // the shoulder: move to the centre, then turn to face outward
+    let m = multiply(translate(W / 2, H / 2), rotate(arm / ARMS * PA.TAU + time * 0.1));
+
+    for (let k = 0; k < JOINTS; k++) {
+      const bend = 0.05 + 0.28 * Math.sin(time * 1.4 - k * 0.45 + arm * 1.7);
+      m = multiply(m, rotate(bend));                       // bend at this joint
+
+      // the same small shape, drawn through whatever the matrix has become
+      const w = 7;
+      const p = apply(m, 0, -w), q = apply(m, LENGTH, -w * 0.93);
+      const r = apply(m, LENGTH, w * 0.93), s = apply(m, 0, w);
+      ctx.fillStyle = PA.hsl(175 + k * 9, 70, 62 - k * 1.5);
+      ctx.beginPath();
+      ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.lineTo(r[0], r[1]); ctx.lineTo(s[0], s[1]);
+      ctx.fill();
+
+      m = multiply(m, translate(LENGTH, 0));               // move to the end of this segment
+      m = multiply(m, scale(0.93));                        // and make everything after it smaller
+    }
+  }
+});
+</script>
+</div>
+
+<p>Every segment is drawn with the same local coordinates: a little box from <code>0</code> to <code>LENGTH</code>. Its position, angle and size on screen all come from the matrix. Change the <code>0.93</code> and every later segment changes size and position at once, because both are accumulated in the chain.</p>
+<p>The order of multiplication is the order of the joints. Swap the bend and the translate and the segments rotate about their far ends. When a chain misbehaves, the order is the first thing to check.</p>
+
+<h2>Three dimensions and perspective</h2>
+<p>Nothing new is needed for 3D except one more coordinate. A vector has three numbers, a matrix is 3 × 3, and applying it is three lines in place of two. A rotation about the vertical axis leaves <code>y</code> alone and rotates <code>x</code> and <code>z</code> exactly as Maths 2 rotated <code>x</code> and <code>y</code>:</p>
+<p class="formula">rotateY(θ) = [cos θ, 0, sin θ;  0, 1, 0;  −sin θ, 0, cos θ]</p>
+<p>To draw a 3D point on a flat screen you need a <strong>projection</strong>. The one the eye and the camera use is perspective, and it is a single division: things twice as far away are drawn half the size.</p>
+<p class="formula">screen x = x · f / depth   screen y = y · f / depth</p>
+<p>That division is the only step in the whole pipeline that is not linear, and it is why distant railway lines converge. In three.js and Blender the rotation, the shift and the set-up for the division are packed into one 4 × 4 matrix, using the same homogeneous trick as the last section with one more dimension.</p>
+
+<div class="example" data-title="M6.5 Rotate in 3D, then divide by depth (move the mouse)">
+<script type="text/plain">
+const distance = ui.slider('camera distance', 3, 14, 4, 0.1);
+
+const rotateX = (t) => { const c = Math.cos(t), s = Math.sin(t); return [1, 0, 0,  0, c, -s,  0, s, c]; };
+const rotateY = (t) => { const c = Math.cos(t), s = Math.sin(t); return [c, 0, s,  0, 1, 0,  -s, 0, c]; };
+
+function multiply(p, q) {                       // 3 x 3 times 3 x 3
+  const out = [];
+  for (let row = 0; row < 3; row++)
+    for (let col = 0; col < 3; col++)
+      out.push(p[row * 3] * q[col] + p[row * 3 + 1] * q[3 + col] + p[row * 3 + 2] * q[6 + col]);
+  return out;
+}
+const apply = (m, v) => [
+  m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+  m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+  m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
+];
+
+// a wire ring, as pairs of 3D points
+const U = 48, V = 18;
+function torus(u, v) {
+  const a = u / U * PA.TAU, b = v / V * PA.TAU;
+  const r = 1.25 + 0.55 * Math.cos(b);
+  return [r * Math.cos(a), 0.55 * Math.sin(b), r * Math.sin(a)];
+}
+const segments = [];
+for (let u = 0; u < U; u++) {
+  for (let v = 0; v < V; v++) {
+    segments.push([torus(u, v), torus(u + 1, v)]);
+    segments.push([torus(u, v), torus(u, v + 1)]);
+  }
+}
+
+loop((time) => {
+  const turn = mouse.active ? (mouse.x / W - 0.5) * PA.TAU : time * 0.4;
+  const tilt = mouse.active ? (mouse.y / H - 0.5) * Math.PI : 0.9;
+  const m = multiply(rotateX(tilt), rotateY(turn));       // turn first, then tilt
+  const dist = distance();
+
+  ctx.fillStyle = '#0b0f14';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+
+  for (const [p, q] of segments) {
+    const a = apply(m, p), b = apply(m, q);
+    const fa = 150 * dist / (dist + a[2]);                // the perspective divide
+    const fb = 150 * dist / (dist + b[2]);
+    const near = PA.clamp(0.5 - (a[2] + b[2]) / 7.2, 0, 1);       // 1 is closest to the camera
+    ctx.strokeStyle = PA.hsl(190 - near * 150, 80, 30 + near * 40, 0.25 + near * 0.75);
+    ctx.lineWidth = 0.5 + near * 2;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 + a[0] * fa, H / 2 + a[1] * fa);
+    ctx.lineTo(W / 2 + b[0] * fb, H / 2 + b[1] * fb);
+    ctx.stroke();
+  }
+});
+</script>
+</div>
+
+<p>Move the slider. With the camera close, the near side of the ring is much larger than the far side: strong perspective, like a wide-angle lens. With the camera far away the two sides become the same size, and the picture approaches an <strong>orthographic</strong> projection, where depth is simply ignored. Isometric drawings, including the board in M6.3, are orthographic.</p>
+<p>The colour and line weight use the depth too, which is a cheap and effective way to make a wireframe read as solid. To draw filled faces you would also sort them from far to near, as M6.3 did by drawing the back rows first.</p>
+
+<h2>Eigenvectors: the directions a matrix does not turn</h2>
+<p>Apply a matrix to an arrow and the arrow usually comes out pointing somewhere new. For most matrices there are special directions where that does not happen: the arrow comes out along its own line, only longer, shorter or reversed. Those directions are the <strong>eigenvectors</strong>, and the factor each is stretched by is its <strong>eigenvalue</strong>, written λ:</p>
+<p class="formula">M · v = λ · v</p>
+<p>For a 2 × 2 matrix the eigenvalues come from two numbers you already know how to compute, the determinant and the trace (<code>a + d</code>):</p>
+<p class="formula">λ = (trace ± √(trace² − 4·det)) / 2</p>
+<p>Eigenvectors are the skeleton of a transformation. Apply a matrix over and over and everything is pulled toward the eigenvector with the largest eigenvalue. Use a matrix as a rule of motion, moving each point in the direction <code>M · position</code>, and the eigenvectors are the straight lines in the flow, with everything else bending round them. When the number under the square root is negative there are no such real directions, and every arrow turns: the flow is a spiral or a set of closed loops.</p>
+
+<div class="example" data-title="M6.6 The skeleton of a flow">
+<script type="text/plain">
+const a = ui.slider('a', -2, 2, 0.6, 0.05);
+const b = ui.slider('b', -2, 2, 1, 0.05);
+const c = ui.slider('c', -2, 2, 0.6, 0.05);
+const d = ui.slider('d', -2, 2, -0.4, 0.05);
+
+const S = 95;                                   // pixels per unit
+const R = PA.rng(4);
+const starts = [];
+for (let i = 0; i < 260; i++) starts.push([R.range(-3.2, 3.2), R.range(-3.2, 3.2)]);
+
+function trace(m, start, direction) {
+  let [x, y] = start;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 + x * S, H / 2 + y * S);
+  for (let i = 0; i < 70; i++) {
+    const vx = m[0] * x + m[1] * y, vy = m[2] * x + m[3] * y;     // the matrix says which way to move
+    const speed = Math.hypot(vx, vy);
+    if (speed < 1e-4) break;
+    x += vx / speed * 0.035 * direction;
+    y += vy / speed * 0.035 * direction;
+    ctx.lineTo(W / 2 + x * S, H / 2 + y * S);
+  }
+  ctx.stroke();
+}
+
+function draw() {
+  const m = [a(), b(), c(), d()];
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineWidth = 1.2;
+
+  for (const start of starts) {
+    ctx.strokeStyle = 'rgba(91, 192, 190, 0.4)';  trace(m, start, -1);    // where it came from
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.7)'; trace(m, start, 1);     // where it is going
+  }
+
+  const tr = m[0] + m[3], det = m[0] * m[3] - m[1] * m[2];
+  const disc = tr * tr - 4 * det;
+  ctx.font = '15px monospace';
+  let kind;
+
+  if (disc >= 0) {
+    const root = Math.sqrt(disc);
+    [(tr + root) / 2, (tr - root) / 2].forEach((lambda, n) => {
+      // a direction that the matrix does not turn
+      let vx, vy;
+      if (Math.abs(m[1]) > 1e-6) { vx = m[1]; vy = lambda - m[0]; }
+      else if (Math.abs(m[2]) > 1e-6) { vx = lambda - m[3]; vy = m[2]; }
+      else [vx, vy] = (n === 0) === (m[0] >= m[3]) ? [1, 0] : [0, 1];
+      const len = Math.hypot(vx, vy);
+      vx /= len; vy /= len;
+
+      ctx.strokeStyle = ctx.fillStyle = lambda > 0 ? '#ef476f' : '#8ecae6';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(W / 2 - vx * 3.1 * S, H / 2 - vy * 3.1 * S);
+      ctx.lineTo(W / 2 + vx * 3.1 * S, H / 2 + vy * 3.1 * S);
+      ctx.stroke();
+      ctx.fillText('λ = ' + lambda.toFixed(2) + (lambda > 0 ? '  pushes out' : '  pulls in'), 16, H - 40 + n * 22);
+    });
+    kind = Math.abs(det) < 0.01 ? 'collapsed: a whole line of points stands still'
+      : det < 0 ? 'saddle: in along one line, out along the other'
+      : tr < 0 ? 'node: everything flows in' : 'node: everything flows out';
+  } else {
+    kind = Math.abs(tr) < 0.03 ? 'centre: closed loops, no real eigenvectors'
+      : tr < 0 ? 'spiral inward: no real eigenvectors' : 'spiral outward: no real eigenvectors';
+  }
+
+  ctx.fillStyle = '#cfd6dd';
+  ctx.fillText(kind, 16, 28);
+  ctx.fillText('trace ' + tr.toFixed(2) + '   det ' + det.toFixed(2), 16, 50);
+}
+
+ui.onChange(draw);
+draw();
+</script>
+</div>
+
+<p>Each line is drawn in two halves from its starting point: blue-green behind it, yellow ahead. The thick lines are the eigenvectors. Try these:</p>
+<ul>
+  <li><code>a = 0, b = −1, c = 1, d = 0</code>: a pure rotation. No real eigenvectors, and the flow is circles.</li>
+  <li><code>a = −0.3, b = −1, c = 1, d = −0.3</code>: the same with a little shrinking. A spiral inward.</li>
+  <li><code>a = 1, b = 0, c = 0, d = −1</code>: a saddle with its eigenvectors along the axes.</li>
+  <li><code>a = −1, b = 0, c = 0, d = −0.3</code>: a node. Everything arrives along the slower direction.</li>
+</ul>
+<p>These five pictures, node, saddle, spiral, centre and collapse, together with the borderline cases between them, are everything a linear flow can do, and the trace and determinant tell you which you have. Maths 4's springs and pendulums are the same pictures: a damped spring is the inward spiral. Near any resting point, a complicated flow field looks like one of these, which makes them a vocabulary for designing fields on purpose and not only taking what noise gives you.</p>
+<p>The same idea, applied to data, finds the long axis of a cloud of points. That is called principal component analysis, and it is how you would fit an ellipse to a scatter or find the direction a shape is facing.</p>
+
+<h2>A shape is a vector</h2>
+<p>A vector does not have to be an arrow in the plane. Any list of numbers that can be scaled and added is a vector. An outline made of 120 points is a list of 240 numbers: one vector in a space of 240 dimensions. That sounds abstract, but the consequence is concrete. Everything on this page applies to whole shapes.</p>
+<p>In particular, shapes can be combined linearly. Take three outlines with the same number of points, and three weights that add up to 1:</p>
+<p class="formula">shape = w<sub>1</sub> · circle + w<sub>2</sub> · star + w<sub>3</sub> · square</p>
+<p>Every choice of weights is a new shape, and the three originals are the corners of a triangle of possibilities. Weights that add up to 1 are called <strong>barycentric coordinates</strong>. Turning a position in the triangle into its three weights means solving two equations with two unknowns, which is a job for the inverse matrix.</p>
+
+<div class="example" data-title="M6.7 A triangle of shapes (move the mouse)">
+<script type="text/plain">
+const COUNT = 120;
+
+// a closed outline as a list of points: one vector of 240 numbers
+function shape(radius) {
+  const points = [];
+  for (let i = 0; i < COUNT; i++) {
+    const t = i / COUNT * PA.TAU;
+    const r = radius(t);
+    points.push([Math.sin(t) * r, -Math.cos(t) * r]);
+  }
+  return points;
+}
+const shapes = [
+  shape(() => 0.8),                                                        // circle
+  shape((t) => 0.42 + 0.58 * Math.abs(Math.cos(t * 2.5)) ** 3),            // star
+  shape((t) => 0.74 / (Math.cos(t) ** 4 + Math.sin(t) ** 4) ** 0.25),      // square
+];
+const names = ['circle', 'star', 'square'];
+const colours = [[255, 209, 102], [239, 71, 111], [91, 192, 190]];
+const corners = [[W / 2, 80], [70, 530], [W - 70, 530]];
+
+// the weighted sum of the shapes, and of their colours
+function drawBlend(w, x, y, size, filled) {
+  const rgb = [0, 1, 2].map((k) => Math.round(w[0] * colours[0][k] + w[1] * colours[1][k] + w[2] * colours[2][k]));
+  ctx.beginPath();
+  for (let i = 0; i < COUNT; i++) {
+    const px = w[0] * shapes[0][i][0] + w[1] * shapes[1][i][0] + w[2] * shapes[2][i][0];
+    const py = w[0] * shapes[0][i][1] + w[1] * shapes[1][i][1] + w[2] * shapes[2][i][1];
+    ctx.lineTo(x + px * size, y + py * size);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = ctx.fillStyle = 'rgb(' + rgb.join(',') + ')';
+  ctx.lineWidth = 2;
+  if (filled) ctx.fill(); else ctx.stroke();
+}
+
+const place = (w) => [
+  w[0] * corners[0][0] + w[1] * corners[1][0] + w[2] * corners[2][0],
+  w[0] * corners[0][1] + w[1] * corners[1][1] + w[2] * corners[2][1],
+];
+
+// Which weights put you at (x, y)? Two equations, two unknowns: use the inverse.
+function weightsAt(x, y) {
+  const [A, B, C] = corners;
+  const m = [A[0] - C[0], B[0] - C[0], A[1] - C[1], B[1] - C[1]];
+  const det = m[0] * m[3] - m[1] * m[2];
+  const px = x - C[0], py = y - C[1];
+  let w0 = (m[3] * px - m[1] * py) / det;
+  let w1 = (-m[2] * px + m[0] * py) / det;
+  let w2 = 1 - w0 - w1;
+  // outside the triangle a weight goes negative: clamp, then make them add up to 1 again
+  w0 = Math.max(0, w0); w1 = Math.max(0, w1); w2 = Math.max(0, w2);
+  const sum = w0 + w1 + w2;
+  return [w0 / sum, w1 / sum, w2 / sum];
+}
+
+loop(() => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  const STEPS = 8;
+  for (let i = 0; i <= STEPS; i++) {
+    for (let j = 0; j <= STEPS - i; j++) {
+      const w = [i / STEPS, j / STEPS, (STEPS - i - j) / STEPS];
+      const [x, y] = place(w);
+      drawBlend(w, x, y, 24, false);
+    }
+  }
+
+  const w = weightsAt(mouse.x, mouse.y);
+  const [x, y] = place(w);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, 30, 0, PA.TAU); ctx.stroke();
+
+  drawBlend(w, 100, 105, 84, true);
+  ctx.font = '15px monospace';
+  for (let k = 0; k < 3; k++) {
+    ctx.fillStyle = 'rgb(' + colours[k].join(',') + ')';
+    ctx.fillText(w[k].toFixed(2) + ' × ' + names[k], W - 190, 34 + k * 22);
+  }
+});
+</script>
+</div>
+
+<p>The triangle is a map of a <strong>design space</strong>. The three corners were designed. Everything between them was calculated. The colour of each shape is blended with the same three weights, because a colour is a vector too.</p>
+<p>This is how a variable font gets every weight between Light and Black from a few drawn masters, how a character's face is posed from a set of sculpted expressions, and how a long-form series can move smoothly between a few hand-tuned parameter sets (Lesson 10). The requirement is that the things being blended are lists of the same length in the same order. Meeting that requirement is most of the work.</p>
+
+<h2>Where the course already uses this</h2>
+<table>
+  <thead><tr><th>Where</th><th>The linear algebra in it</th></tr></thead>
+  <tbody>
+    <tr><td><code>ctx.translate</code>, <code>rotate</code>, <code>scale</code> (Lesson 1 onward)</td><td>Multiplying the canvas's current 3 × 3 matrix</td></tr>
+    <tr><td>The fern (Lesson 6)</td><td>Four matrices with shifts, applied at random</td></tr>
+    <tr><td>Lighting a surface (Lesson 9, Maths 3)</td><td>A dot product between the normal and the light direction</td></tr>
+    <tr><td>OKLCH colour (Lesson 11)</td><td>Two 3 × 3 matrices convert between colour spaces</td></tr>
+    <tr><td>Image kernels (Lesson 13)</td><td>Each output pixel is a linear combination of its neighbours</td></tr>
+    <tr><td>Clipping and winding (Lesson 18)</td><td>The sign of a 2 × 2 determinant</td></tr>
+    <tr><td>Corner pinning (Special Topic 5)</td><td>A 3 × 3 matrix with a perspective divide</td></tr>
+    <tr><td>three.js and Blender</td><td>Every object carries a 4 × 4 matrix; parents multiply onto children</td></tr>
+    <tr><td>Shaders</td><td><code>mat2</code>, <code>mat3</code> and <code>mat4</code> are built-in types</td></tr>
+  </tbody>
+</table>
+
+<h2>From formula to design</h2>
+<table>
+  <thead><tr><th>Idea</th><th>Formula</th><th>Designs it makes</th></tr></thead>
+  <tbody>
+    <tr><td>Basis</td><td><code>i · e1 + j · e2</code></td><td>Lattices, brick and hexagon layouts, isometric maps, pattern repeats</td></tr>
+    <tr><td>Determinant</td><td><code>a·d − b·c</code></td><td>Area-preserving warps, mirror tests, inside tests</td></tr>
+    <tr><td>Inverse</td><td><code>[d −b; −c a] / det</code></td><td>Picking on slanted grids, un-warping, solving for weights</td></tr>
+    <tr><td>Homogeneous matrices</td><td>Six numbers, multiplied in a chain</td><td>Tentacles, trees, skeletons, nested motion</td></tr>
+    <tr><td>3D rotation and projection</td><td><code>x · f / depth</code></td><td>Wireframes, point clouds, isometric and perspective views</td></tr>
+    <tr><td>Eigenvectors</td><td><code>M · v = λ · v</code></td><td>Designed flow fields: saddles, spirals, nodes</td></tr>
+    <tr><td>Linear combination</td><td>Weights that add up to 1</td><td>Morphing, design spaces, blends of palettes and shapes</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Linear algebra is about scaling and adding. Anything that can be scaled and added is a vector.</li>
+  <li>Any two arrows that are not along the same line are a basis, and give a grid. A matrix is a basis written as columns.</li>
+  <li>The determinant is the factor by which area changes. Negative means mirrored. Zero means collapsed.</li>
+  <li>The inverse matrix goes back the other way. It is how you find the cell under the mouse on any grid.</li>
+  <li>With a third coordinate fixed at 1, a matrix can shift as well as rotate and scale, and matrices can be chained.</li>
+  <li>3D needs one more coordinate, and one division by depth for perspective.</li>
+  <li>Eigenvectors are the directions a matrix does not turn. They are the skeleton of the flow it produces.</li>
+  <li>Whole shapes and colours are vectors too, so they can be blended with weights.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <p>Do these in the <a href="../challenges/math-sandbox.html">maths sandbox file</a>, or by editing the examples above.</p>
+  <ul>
+    <li><strong>Isometric town.</strong> Using the basis and the inverse from M6.3, draw a board of blocks whose heights come from noise. A click raises the block under the mouse and a click with a key held lowers it. Then change the two basis arrows and confirm that picking still works without touching any other line.</li>
+    <li><strong>A tree from matrices.</strong> Rebuild the branching tree of Lesson 6 without <code>ctx.save</code>, <code>ctx.restore</code> or <code>ctx.rotate</code>. Each branch receives a matrix, draws itself through it, and passes two new matrices to its children: the parent's matrix multiplied by a move, a turn and a shrink. Then make the whole tree lean toward the mouse by changing only the matrix at the root.</li>
+    <li><strong>A field with a plan.</strong> Choose three points on the canvas and give each its own 2 × 2 matrix: a spiral, a saddle and a node. At any position, take the flow from each matrix (applied to the offset from its point) and blend the three with weights that fall off with distance. Trace lines through the result as in Lesson 5. You have designed a flow field where noise would have given you an accident.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="05-waves-chaos-and-chance.html">← Maths 5</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

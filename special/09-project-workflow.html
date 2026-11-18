@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 9 · Project Workflow</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="08-publishing.html">← Special 8</a><span>Special topic 9 of 9</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 9</p>
+  <h1>Project Workflow</h1>
+  <p class="lede">A generative practice produces thousands of files and hundreds of small programs, and the one you need is always the one you cannot find or cannot reproduce. This page is about the habits that prevent that: version control, saving the recipe with every output, and building a library of your own.</p>
+</header>
+
+<h2>The three things that go wrong</h2>
+<ol>
+  <li><strong>"I can't make that image again."</strong> The seed was not recorded, or the code has changed since.</li>
+  <li><strong>"It worked yesterday."</strong> A change broke something and there is no way back.</li>
+  <li><strong>"I've written this before."</strong> The same helper functions are retyped, slightly differently, in every sketch.</li>
+</ol>
+<p>Each has a standard cure, and none takes more than a few minutes to set up.</p>
+
+<h2>Save the recipe with every output</h2>
+<p>An output of a generative system is fully described by three things: the <strong>code</strong>, the <strong>seed</strong>, and the <strong>parameters</strong>. If you keep all three, the image can always be regenerated, at any size. If you lose one, it is gone.</p>
+<p>The habit that makes this automatic:</p>
+<ul>
+  <li>Put every adjustable value in <strong>one object</strong>, not scattered through the code.</li>
+  <li>Whenever you save an image, save that object beside it as a small text file, with the <strong>same file name</strong>.</li>
+  <li>Put the seed and a short fingerprint of the parameters <strong>in the file name</strong>, so that files identify themselves and never overwrite each other.</li>
+  <li>Include the <strong>code version</strong> in the object.</li>
+</ul>
+<p>The example does all four. Click the canvas to save the image and its recipe together.</p>
+
+<div class="example" data-title="S9.1 An image and its recipe (click the canvas to save both)">
+<script type="text/plain">
+// every adjustable value lives here, and nowhere else
+const params = {
+  title: 'drift',
+  seed: 2041,
+  count: 150,
+  twist: 2.4,
+  palette: 'riso',
+  codeVersion: '1.3.0',
+};
+
+function render(p) {
+  const R = PA.rng(p.seed), N = PA.noise(p.seed);
+  const [paper, ...inks] = PA.palettes[p.palette];
+  ctx.fillStyle = paper;
+  ctx.fillRect(0, 0, 360, H);
+  ctx.lineCap = 'round';
+  for (let k = 0; k < p.count; k++) {
+    let x = R.range(30, 330), y = R.range(30, H - 30);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let s = 0; s < 30; s++) {
+      const a = N.get(x * 0.006, y * 0.006) * PA.TAU * p.twist;
+      x += Math.cos(a) * 4; y += Math.sin(a) * 4;
+      if (x < 24 || x > 336 || y < 24 || y > H - 24) break;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = R.pick(inks);
+    ctx.lineWidth = R.pick([1, 2, 5]);
+    ctx.stroke();
+  }
+}
+render(params);
+
+// the recipe as text, a short fingerprint of it, and a file name built from both
+const recipe = JSON.stringify(params, null, 2);
+const fingerprint = PA.hashString(recipe).toString(16).padStart(8, '0');
+const name = params.title + '-s' + params.seed + '-' + fingerprint;
+
+ctx.fillStyle = '#15171b';
+ctx.fillRect(360, 0, 240, H);
+ctx.font = '12px monospace';
+ctx.fillStyle = '#9fe0c4';
+recipe.split('\n').forEach((line, i) => ctx.fillText(line, 372, 40 + i * 18));
+ctx.fillStyle = '#ffd166';
+ctx.fillText(name + '.png', 372, 240);
+ctx.fillText(name + '.json', 372, 258);
+ctx.fillStyle = '#8b96a5';
+ctx.fillText('click to save both files', 372, 300);
+
+function save(filename, blob) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+}
+canvas.onclick = () => {
+  canvas.toBlob((blob) => save(name + '.png', blob));
+  save(name + '.json', new Blob([recipe], { type: 'application/json' }));
+};
+</script>
+</div>
+
+<p>To bring an old output back, read its recipe file and pass it to the same <code>render</code> function. Two refinements are worth adding to your own sketches. Put the parameters in the page address as well (Special Topic 1), so that any state can be shared as a link. And make "save" a single key, so that you press it whenever something catches your eye, without deciding whether it is worth it.</p>
+
+<h2>Version control</h2>
+<p>Version control records the state of your files each time you tell it to, and lets you return to any earlier state. The standard tool is <strong>Git</strong>. It is free, it works on your own computer with no account, and for a single artist five commands are enough.</p>
+<pre><code>git init                                  # once, in the project folder: start recording
+git add .                                 # choose what to include: here, everything changed
+git commit -m "Flow field with margins"   # record the current state, with a note
+git log --oneline                         # list the recorded states
+git checkout a1b2c3d                      # go back to the state called a1b2c3d   (git switch - to return)</code></pre>
+<p>These are standard commands. They were not run as part of preparing this page.</p>
+<h3>How to use it for sketches</h3>
+<ul>
+  <li><strong>Commit whenever something works</strong> or looks interesting, however small. A commit is a save point you can return to. Many small ones are better than a few large ones.</li>
+  <li><strong>Write the note for your future self:</strong> what changed, in a few words. "Thicker lines near centre", not "update".</li>
+  <li><strong>Commit before every experiment.</strong> Then no change is risky: if it fails, go back.</li>
+  <li><strong>Tag the version behind every finished piece</strong>: <code>git tag tidewater-v1</code>. The code version in a recipe file should name a tag or commit, which makes the recipe complete.</li>
+  <li><strong>Keep outputs out of it.</strong> List your output folder in a file called <code>.gitignore</code>. Git is for code and small text files. Thousands of images make it slow, and they can be regenerated.</li>
+  <li><strong>Put a copy elsewhere.</strong> Pushing the repository to a hosting service such as GitHub is also your off-site backup of the code.</li>
+</ul>
+
+<h3>A folder layout that scales</h3>
+<pre><code>procedural/
+  lib/                     your own library: the code every sketch shares
+  sketches/
+    2026-11-flow-margins/  one folder per sketch, dated
+      index.html
+      sketch.js
+      notes.md             what you were trying, what you learned
+  projects/
+    tidewater/             finished or serious work, each its own Git repository
+      src/
+      lib/                 a COPY of the library as it was when the piece was made
+      output/              images and their recipe files (not in Git)
+      README.md            statement, edition details, how to run it
+  reference/               images and links you are studying</code></pre>
+<p>The distinction between sketches and projects matters. A sketch is disposable: date it, keep it, never tidy it. When one turns into real work, move it to a project of its own.</p>
+
+<h2>A library of your own</h2>
+<p>This course's <code>PA</code> is a personal library: seeded randomness, noise, colour helpers, a few algorithms. Yours will end up different, because it will hold the things <em>you</em> reach for. Building it is one of the best investments in a practice, since each new piece starts from everything you have already solved.</p>
+<ul>
+  <li><strong>Extract on the third use.</strong> The first time you write something, just write it. The second time, copy it. The third time, move it into the library.</li>
+  <li><strong>Small functions that do one thing</strong> and take everything they need as arguments. No hidden dependence on a global canvas or a global random generator.</li>
+  <li><strong>Your defaults belong here:</strong> your palettes, your margins, your grain, your line quality. This is where a style becomes reusable.</li>
+  <li><strong>Document with one line and one example</strong> per function. You will forget.</li>
+  <li><strong>Never change what an existing function returns for a given input.</strong> If you improve <code>noise</code>, every old piece that used it changes. Add a new function instead, or bump the version.</li>
+  <li><strong>Freeze the library into finished projects.</strong> Copy the version you used into the project's own folder. The piece then depends on nothing that can change under it.</li>
+</ul>
+
+<h3>Checking that nothing has changed</h3>
+<p>How do you know an edit to your library has not altered old work? Compare outputs before and after. Doing that by eye is unreliable, so reduce each output to a short <strong>fingerprint</strong> and compare those. A fingerprint is a hash, as in Lesson 2: any change to the data, however small, gives a different number.</p>
+<p>Fingerprint the <em>data</em> a generator produces, its list of positions and sizes, not the pixels, because the same drawing can differ by a hair between browsers. Record the fingerprints of a few seeds. From then on, a check takes a moment and catches any accidental change. Programmers call this a snapshot test.</p>
+
+<div class="example" data-title="S9.2 A fingerprint check on a generator">
+<script type="text/plain">
+// the generator under test: returns data, and does no drawing
+function layout(seed) {
+  const R = PA.rng(seed), N = PA.noise(seed), items = [];
+  for (let i = 0; i < 60; i++) {
+    const x = R.range(40, 560), y = R.range(40, 560);
+    items.push({ x, y, r: 4 + N.fbm(x * 0.01, y * 0.01) * 40, hue: R.int(0, 359) });
+  }
+  return items;
+}
+
+// a fingerprint of the data, rounded so that harmless differences in the last decimal place are ignored
+const fingerprint = (items) => PA.hashString(JSON.stringify(items.map((c) => [c.x.toFixed(3), c.y.toFixed(3), c.r.toFixed(3), c.hue]))).toString(16);
+
+// recorded when the generator was last known to be right
+const expected = { 1: '24ffae2', 2: '758bbcaf', 3: '23729346' };
+
+ctx.fillStyle = '#12151c';
+ctx.fillRect(0, 0, W, H);
+for (const c of layout(1)) {
+  ctx.fillStyle = PA.oklch(0.7, 0.14, c.hue, 0.8);
+  ctx.beginPath(); ctx.arc(c.x, c.y * 0.62, c.r * 0.62, 0, PA.TAU); ctx.fill();
+}
+
+ctx.font = '14px monospace';
+let allPass = true;
+Object.entries(expected).forEach(([seed, want], i) => {
+  const got = fingerprint(layout(Number(seed)));
+  const pass = got === want;
+  if (!pass) allPass = false;
+  ctx.fillStyle = pass ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText('seed ' + seed + '   expected ' + want + '   got ' + got + '   ' + (pass ? 'unchanged' : 'CHANGED'), 20, 430 + i * 26);
+});
+ctx.fillStyle = '#cfd6dd';
+ctx.fillText(allPass ? 'The generator behaves exactly as recorded.' : 'Something has changed: old pieces will no longer regenerate.', 20, 530);
+ctx.fillStyle = '#8b96a5';
+ctx.fillText('try it: change 40 to 41 in the layout function and run again', 20, 560);
+</script>
+</div>
+
+<h2>Daily practice</h2>
+<ul>
+  <li><strong>Sketch often and small.</strong> Twenty minutes with a narrow question beats a weekend with a vague one. Many generative artists keep a daily habit for exactly this reason.</li>
+  <li><strong>Keep notes.</strong> One line per session: what you tried, what happened. Ideas that failed today are raw material in a year.</li>
+  <li><strong>Save surprises immediately,</strong> with their recipe. You will not find that seed again.</li>
+  <li><strong>Review monthly.</strong> Look through the saved folder. Promote the best to projects, and notice what you keep returning to.</li>
+  <li><strong>Back up in three places:</strong> the working copy, a second drive, and somewhere off-site. Code goes to a hosting service. Finished master files go to cloud storage as well.</li>
+  <li><strong>Finish.</strong> Give things titles, export them, record them. Finishing is a skill, and it is only learned by doing it.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Code, seed and parameters together are the recipe for an output. Keep all three, always.</li>
+  <li>One parameters object, saved beside every image under the same name.</li>
+  <li>Commit small and often. Commit before experiments. Tag what finished pieces were made with.</li>
+  <li>Sketches are disposable and dated. Projects are separate and self-contained.</li>
+  <li>Extract shared code into your own library on the third use, and freeze a copy into finished work.</li>
+  <li>Fingerprint a generator's data to catch accidental changes.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 9</p>
+  <h2>A Workshop of Your Own</h2>
+  <p>Set up the working environment you will use from now on, and prove it by moving one of your course pieces into it.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>folder layout</strong> with separate places for the library, dated sketches and projects, under Git, with outputs ignored.</li>
+    <li>A <strong>personal library</strong> file of at least eight functions that you wrote or adapted during this course, each with a one-line description. At least three should express your own preferences: a palette, a margin rule, a texture.</li>
+    <li>A <strong>sketch template</strong>: the file you copy to begin anything new. It has one parameters object, a seeded generator, a key that saves the image together with its recipe, and parameters readable from the page address.</li>
+    <li>A <strong>loader</strong>: given a saved recipe file, the template reproduces the image exactly.</li>
+    <li>A <strong>fingerprint check</strong> for at least two library functions, with recorded values.</li>
+    <li>One earlier challenge piece <strong>moved into a project</strong> on the new structure, with a frozen copy of the library, a README, and a tagged commit.</li>
+    <li>At least <strong>ten commits</strong> with notes that say what changed.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Build the template first and use it for everything else in this challenge.</li>
+    <li>For the loader, a file picker reading the recipe with <code>JSON.parse</code> is enough.</li>
+    <li>When you record fingerprints, look at the outputs first. A fingerprint only proves that nothing changed, not that it was right to begin with.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You can start a new sketch in under a minute.</li>
+    <li>You can pick any image from your output folder and regenerate it from its recipe.</li>
+    <li>You would not be afraid to try a risky change.</li>
+  </ul>
+  <a class="start" href="../challenges/s9-sketch-template.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="08-publishing.html">← Special Topic 8</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

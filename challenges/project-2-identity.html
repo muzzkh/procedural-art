@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project 2 · A Living Identity</title>
+<style>
+  html, body { margin: 0; background: #e9e5de; color: #1c1a18; font-family: system-ui, sans-serif; }
+  #hero { display: block; width: 100%; height: 70vh; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  #formats { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  #formats canvas { background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<canvas id="hero"></canvas>
+<main>
+  <h1>Formats</h1>
+  <div id="formats"></div>
+  <!-- TODO: controls for the seed and the name, and export buttons -->
+</main>
+<script src="../assets/pa.js"></script>
+<script>
+/* PROJECT 2 — A LIVING IDENTITY
+   Full brief: ../projects/02-living-identity.html
+
+   The client, in two sentences:
+   -
+   Three words for how it should feel:
+   -
+   Lessons I am combining (at least four, including colour, typography and animation):
+   -
+   -
+   -
+   -
+
+   Milestones
+   [ ] 1 The client and the words, written above
+   [ ] 2 The mark: thirty variations, all recognisably the same mark
+   [ ] 3 Colour and type: palette with roles; the name with a behaviour of its own
+   [ ] 4 Motion: an entrance, and an idle state that loops perfectly
+   [ ] 5 Response: one input that suits the client
+   [ ] 6 Formats: five rectangles from one function, one no larger than 64 px
+   [ ] 7 The page: seed and name controls, export buttons
+
+   Requirements
+   [ ] All variables live in the one state object
+   [ ] Text contrast of at least 4.5, checked in code for every seed
+   [ ] PNG export of each format, and the state as JSON
+   [ ] Reduced motion respected; works by touch */
+
+// Everything that can vary. Nothing else may.
+const state = {
+  seed: 1,
+  name: 'NAME',
+  energy: 0.5,      // 0 to 1: what your chosen input drives
+  time: 0,          // seconds
+};
+
+// The formats the client needs, in pixels. Add your own; keep one at 64 or smaller.
+const FORMATS = [
+  { id: 'poster', w: 420, h: 594 },
+  { id: 'avatar', w: 320, h: 320 },
+  { id: 'banner', w: 720, h: 240 },
+  // ---- two more ----
+];
+
+// Draw the whole identity into the rectangle (0, 0, w, h) of any context.
+// Use proportions of w and h, never fixed pixel sizes.
+function drawIdentity(ctx, w, h, s) {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  // ---- palette from s.seed ----
+  // ---- the mark ----
+  // ---- the name ----
+}
+
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const hero = document.getElementById('hero');
+const heroCtx = hero.getContext('2d');
+function sizeHero() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  hero.width = hero.clientWidth * dpr;
+  hero.height = hero.clientHeight * dpr;
+}
+addEventListener('resize', sizeHero);
+sizeHero();
+
+const formatCanvases = FORMATS.map((f) => {
+  const c = document.createElement('canvas');
+  c.width = f.w; c.height = f.h; c.title = f.id;
+  document.getElementById('formats').appendChild(c);
+  return c;
+});
+
+function frame(ms) {
+  state.time = reducedMotion ? 0 : ms / 1000;
+  // ---- update state.energy from your input ----
+  drawIdentity(heroCtx, hero.width, hero.height, state);
+  formatCanvases.forEach((c) => drawIdentity(c.getContext('2d'), c.width, c.height, state));
+  if (!reducedMotion) requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// TODO: pointer and touch input, seed and name controls, PNG and JSON export
+</script>
+</body>
+</html>

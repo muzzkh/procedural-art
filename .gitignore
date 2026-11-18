@@ -1,0 +1,12 @@
+# local tool settings
+.claude/
+
+# Python and Blender leftovers
+__pycache__/
+*.pyc
+*.blend1
+
+# operating system files
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 9 · The Shader Sigil</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; }
+  pre { position: fixed; left: 0; bottom: 0; margin: 0; padding: 12px; color: #ff9d94; background: #2b1111; font: 13px/1.5 Consolas, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<pre id="errors" hidden></pre>
+<script>
+/* CHALLENGE 9 — THE SHADER SIGIL
+   Full brief: ../lessons/09-shaders-and-distance-fields.html
+
+   An animated emblem written entirely as one fragment shader.
+
+   Checklist
+   [ ] At least three SDF primitives, one of them worked out by you
+   [ ] At least two combining operations, including a smooth union or a subtraction
+   [ ] At least one domain operation: mirror, rotate, repeat or warp
+   [ ] Colour from a cosine palette with phases you chose
+   [ ] The animation loops with no visible jump
+   [ ] All edges anti-aliased with smoothstep
+   [ ] You can explain what every line contributes
+
+   Your shader goes in the FRAGMENT string below. Available inputs:
+     u_res    canvas size in pixels (vec2)
+     u_time   seconds since the page loaded (float)
+     u_mouse  mouse position in pixels (vec2)
+   Compile errors appear at the bottom of the page. The line numbers count from the start of FRAGMENT. */
+
+const FRAGMENT = `
+precision highp float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  // ---- your shader here ----
+  vec3 col = vec3(0.07, 0.09, 0.12);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+/* ------------------------------------------------------------------------
+   Everything below is plumbing: it compiles the shader and draws it on a
+   full-canvas rectangle every frame. You do not need to change it.
+   ------------------------------------------------------------------------ */
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl');
+const errors = document.getElementById('errors');
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    errors.textContent = gl.getShaderInfoLog(shader);
+    errors.hidden = false;
+    throw new Error(gl.getShaderInfoLog(shader));
+  }
+  return shader;
+}
+
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, 'attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }'));
+gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT.trim()));
+gl.linkProgram(program);
+gl.useProgram(program);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const position = gl.getAttribLocation(program, 'p');
+gl.enableVertexAttribArray(position);
+gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+const uRes = gl.getUniformLocation(program, 'u_res');
+const uTime = gl.getUniformLocation(program, 'u_time');
+const uMouse = gl.getUniformLocation(program, 'u_mouse');
+const mouse = { x: 0, y: 0 };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * canvas.width;
+  mouse.y = (1 - (e.clientY - r.top) / r.height) * canvas.height;
+});
+
+function frame(ms) {
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, ms / 1000);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

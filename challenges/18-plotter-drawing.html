@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 18 · A Drawing for the Plotter</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 90vmin; max-height: 84vmin; background: #f6f1e4; }
+  #report { margin: 0; padding: 10px; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 18 — A DRAWING FOR THE PLOTTER
+   Full brief: ../lessons/18-geometry.html
+
+   Checklist
+   [ ] At least twelve overlapping shapes, seeded, with a clear front-to-back order
+   [ ] Hidden lines are removed
+   [ ] Shapes are shaded with lines (hatching or nested offsets), clipped to their own shape and by shapes in front
+   [ ] At least three densities of shading, chosen by a rule
+   [ ] The drawing is held as data: both the preview and the file come from the same list
+   [ ] SVG export in millimetres: no fills, rounded coordinates, nothing shorter than 0.3 mm
+   [ ] A readout of the number of paths and the total drawn length in metres
+   [ ] Zooming in shows no line passing behind another shape, and no doubled lines */
+
+// ---- the sheet, in millimetres ----
+const SHEET_W = 210, SHEET_H = 297, MARGIN = 15, PEN = 0.4;
+const PX_PER_MM = 3.2;                    // preview only
+
+const canvas = document.getElementById('canvas');
+canvas.width = SHEET_W * PX_PER_MM;
+canvas.height = SHEET_H * PX_PER_MM;
+const ctx = canvas.getContext('2d');
+ctx.scale(PX_PER_MM, PX_PER_MM);          // from here on, draw in millimetres
+
+let seed = 1;
+let segments = [];                        // the drawing: [[x1, y1], [x2, y2]] in millimetres
+
+function insidePolygon(point, polygon) {
+  // ---- your point-in-polygon test ----
+  return false;
+}
+
+// The visible pieces of segment a-b, given the shapes in front of it.
+function visiblePieces(a, b, nearerShapes) {
+  // ---- your hidden-line removal ----
+  return [[a, b]];
+}
+
+function build(seed) {
+  const R = PA.rng(seed);
+  segments = [];
+  // ---- generate the shapes, then their outlines and shading, sending every line through visiblePieces ----
+}
+
+function preview() {
+  ctx.clearRect(0, 0, SHEET_W, SHEET_H);
+  ctx.strokeStyle = '#1d2433';
+  ctx.lineWidth = PEN;                    // the real pen width
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const [a, b] of segments) { ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
+  ctx.stroke();
+
+  let length = 0;
+  for (const [a, b] of segments) length += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  document.getElementById('report').textContent =
+    'seed ' + seed + ' · ' + segments.length + ' segments · ' + (length / 1000).toFixed(2) + ' m drawn';
+}
+
+function toSVG() {
+  // ---- return the SVG file as a string ----
+  return '';
+}
+
+build(seed);
+preview();
+
+// TODO: keys for a new seed and for downloading the SVG
+</script>
+</body>
+</html>

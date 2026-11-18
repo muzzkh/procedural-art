@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Printing 5 · Generative Toolpaths</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="04-gcode-fundamentals.html">← 3D Printing 4</a><span>3D printing 5 of 5</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">3D Printing 5</p>
+  <h1>Generative Toolpaths</h1>
+  <p class="lede">A slicer turns a shape into a path. Here you skip the shape and design the path itself. The nozzle becomes a pen in three dimensions, and effects appear that no model could describe: walls one bead thick that ripple, weave or change width as they rise.</p>
+</header>
+
+<div class="note">
+<p><strong>This is the advanced end of the course, and the riskiest.</strong> Everything from Lesson 4's warning applies with more force. Generated toolpaths bypass every check the slicer makes. Run the preflight checker, preview the file, start with small, low prints in PLA, and stay with the printer for the first layers.</p>
+<p>The examples here export the <em>body</em> of a print only. They are deliberately not printable as downloaded. The section "Making a printable file" explains how to combine a body with your own printer's start and end sequences.</p>
+</div>
+
+<h2>Thinking in toolpaths</h2>
+<p>When you design the path, the questions change. They are no longer "what shape is it?" but:</p>
+<ul>
+  <li><strong>Where does the nozzle go,</strong> and in what order? One continuous line is ideal: every stop and start leaves a blemish.</li>
+  <li><strong>How much plastic</strong> comes out along the way? Width can vary continuously.</li>
+  <li><strong>How fast?</strong> Speed changes cooling, gloss and how far a bead can stretch.</li>
+  <li><strong>What is underneath?</strong> Every bead needs support from the layer below, or must be drawn as a deliberate bridge.</li>
+</ul>
+<p>An open-source project, FullControl, is built entirely round this idea and is the place to go next. It lets you describe a print as a list of points and settings, and it includes a device profile for the Bambu Lab X1, the P1S's close relative. The lessons here build the same thing from scratch so that you can see every part.</p>
+
+<h2>The continuous spiral</h2>
+<p>A normal print finishes a layer, then steps up. The step leaves a visible seam. <strong>Spiral</strong> or vase mode removes it: Z rises a little with every move, so the wall is one unbroken helix from bottom to top.</p>
+<p>Three details make it work:</p>
+<ol>
+  <li><strong>A base.</strong> The spiral needs something to stand on. Here it is two flat layers, each drawn as an in-plane spiral from the centre outward.</li>
+  <li><strong>A transition turn.</strong> The first turn of the wall is flat. Over the second turn the nozzle climbs from zero to one full layer height above it, and the extrusion is scaled to the gap beneath, so the bead grows from nothing to full size without a step.</li>
+  <li><strong>A fixed number of points per turn,</strong> so that features such as ripples line up from one turn to the next, or deliberately do not.</li>
+</ol>
+<p>The ripple slider adds a wave to the radius. With "alternate" on, the wave shifts by half a wavelength on every turn, so peaks sit on troughs and the wall becomes a woven-looking mesh. That texture exists only as a toolpath: no slicer would generate it from a model.</p>
+
+<div class="example" data-title="P5.1 A spiral vase as a toolpath (click to download the body G-code)">
+<script type="text/plain">
+const ripples = ui.slider('ripples', 0, 60, 24, 1);
+const depth = ui.slider('ripple mm', 0, 3, 1.2, 0.1);
+const alternate = ui.slider('alternate', 0, 1, 1, 1);
+
+const CX = 128, CY = 128;                         // middle of the bed
+const HEIGHT = 60, BASE_R = 28;                   // millimetres
+const LAYER = 0.2, WIDTH = 0.6, BASE_LAYERS = 2;  // a 0.6 mm bead from a 0.4 mm nozzle is fine for a single wall
+const POINTS = 144;                               // points per turn
+const SPEED = 40, FIRST_SPEED = 20;               // mm/s
+const FILAMENT_AREA = Math.PI * (1.75 / 2) ** 2;
+const beadArea = (w, h) => (w - h) * h + Math.PI * (h / 2) ** 2;
+
+let gcode = [], path = [], stats = '';
+
+function build() {
+  gcode = []; path = [];
+  let x = CX, y = CY, z = LAYER, filament = 0, seconds = 0;
+  const say = (line) => gcode.push(line);
+
+  // one extruding move. "h" is the gap under the nozzle, which sets how much plastic is needed
+  function draw(nx, ny, nz, h, speed) {
+    const length = Math.hypot(nx - x, ny - y, nz - z);
+    const e = beadArea(WIDTH, Math.max(h, 0.02)) * length / FILAMENT_AREA;
+    say('G1 X' + nx.toFixed(3) + ' Y' + ny.toFixed(3) + ' Z' + nz.toFixed(3) + ' E' + e.toFixed(5) + ' F' + speed * 60);
+    const t = nz / HEIGHT;
+    path.push([x, y, z, nx, ny, nz, 1, 0.75 - t * 0.4, 0.3 + t * 0.6]);
+    filament += e; seconds += length / speed;
+    x = nx; y = ny; z = nz;
+  }
+
+  // the design: radius of the wall at height z and angle a, on turn number "turn"
+  const radius = (zz, a, turn) => {
+    const v = zz / HEIGHT;
+    const profile = BASE_R * (0.85 + 0.3 * Math.sin(v * 3 + 0.3) - 0.1 * v);
+    const phase = alternate() ? turn * Math.PI : 0;                       // shift every other turn by half a wave
+    return profile + depth() * PA.smoothstep(0.02, 0.12, v) * Math.sin(a * ripples() + phase);
+  };
+
+  say('; BODY ONLY: spiral vase. Not printable by itself.');
+  say('; Add your own printer\'s start and end G-code (see the lesson).');
+  say('M83 ; relative extrusion');
+  say('G1 Z' + LAYER + ' F1200');
+  say('G0 X' + CX + ' Y' + CY + ' F9000');
+
+  // 1. the base: flat spirals from the centre out to the wall
+  const baseR = radius(0, 0, 0);
+  for (let b = 0; b < BASE_LAYERS; b++) {
+    const zz = (b + 1) * LAYER;
+    if (b > 0) { say('G0 X' + CX + ' Y' + CY + ' Z' + zz.toFixed(3) + ' F9000'); x = CX; y = CY; z = zz; }
+    const turns = baseR / (WIDTH * 0.95);                                 // neighbouring turns overlap slightly
+    for (let i = 1; i <= turns * 48; i++) {
+      const a = (i / 48) * PA.TAU, r = (a / PA.TAU) * WIDTH * 0.95;
+      draw(CX + Math.cos(a) * r, CY + Math.sin(a) * r, zz, LAYER, b === 0 ? FIRST_SPEED : SPEED);
+    }
+  }
+  say('M106 P1 S255 ; part cooling on for the wall');
+
+  // 2. the wall: turn 0 is flat, turn 1 ramps up, then a steady climb
+  const z0 = (BASE_LAYERS + 1) * LAYER;
+  const turns = Math.floor((HEIGHT - z0) / LAYER);
+  for (let i = 0; i <= turns * POINTS; i++) {
+    const turn = Math.floor(i / POINTS), a = ((i % POINTS) / POINTS) * PA.TAU;
+    const climb = Math.max(0, i / POINTS - 1);                            // nothing during turn 0
+    const zz = z0 + climb * LAYER;
+    const gap = Math.min(LAYER, zz - (turn === 0 ? z0 - LAYER : z0 + Math.max(0, climb - 1) * LAYER));
+    const r = radius(zz, a, turn);
+    const nx = CX + Math.cos(a) * r, ny = CY + Math.sin(a) * r;
+    if (i === 0) { say('G0 X' + nx.toFixed(3) + ' Y' + ny.toFixed(3) + ' Z' + zz.toFixed(3) + ' F9000'); x = nx; y = ny; z = zz; }
+    else draw(nx, ny, zz, gap, SPEED);
+  }
+
+  const grams = filament * FILAMENT_AREA / 1000 * 1.24;                   // PLA is about 1.24 g per cm3
+  stats = gcode.length + ' lines · ' + (filament / 1000).toFixed(1) + ' m (' + grams.toFixed(0) + ' g PLA) · about ' +
+    Math.round(seconds / 60) + ' min · flow ' + (beadArea(WIDTH, LAYER) * SPEED).toFixed(1) + ' mm³/s';
+}
+build();
+ui.onChange(build);
+
+loop((t) => {
+  MESH.lines(ctx, W, H, path, { spin: t * 0.3, tilt: 0.35 });
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '13px monospace';
+  ctx.fillText(stats, 12, H - 14);
+});
+canvas.onclick = () => MESH.download('spiral-vase-body.gcode', gcode.join('\n'), 'text/plain');
+</script>
+</div>
+
+<h2>Changing the bead as you go</h2>
+<p>In sliced prints the bead is the same everywhere. In a generated path the amount of plastic is yours to vary along the line, which gives several distinct effects.</p>
+<table>
+  <thead><tr><th>Vary…</th><th>Keeping…</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td>Width (extrusion per mm)</td><td>Speed</td><td>A wall that is thick and thin in a pattern: images, gradients of translucency, stiffness where needed</td></tr>
+    <tr><td>Speed</td><td>Extrusion per mm</td><td>Same geometry, different surface: slow sections are glossier and hotter, fast ones matt. Subtle but visible.</td></tr>
+    <tr><td>Height above the layer below</td><td>Width</td><td>Non-flat layers: gentle waves across a top surface</td></tr>
+    <tr><td>Position, with a random offset</td><td>Everything else</td><td>A deliberately rough, fuzzy skin</td></tr>
+    <tr><td>Temperature</td><td>The path</td><td>Colour and gloss shifts in some filaments (wood-filled and silk types especially)</td></tr>
+  </tbody>
+</table>
+<p>The usable range of bead width for a 0.4 mm nozzle is roughly 0.3 to 0.9 mm. Below that the line breaks up. Above it, plastic squeezes out sideways unpredictably. Always check the resulting flow against the limit from Lesson 1: a wide bead at speed asks a lot of the hotend.</p>
+<p>The example draws a flat medallion as one outward spiral with a constant spacing between turns. A pattern function sets the bead width at each point. Where the bead is wider than the spacing, neighbouring turns fuse into a solid surface. Where it is narrower, light shows through. Printed in a single layer of translucent filament, the pattern appears when held to a window.</p>
+
+<div class="example" data-title="P5.2 One layer, variable width (click to download the body G-code)">
+<script type="text/plain">
+const lobes = ui.slider('lobes', 2, 12, 5, 1);
+const contrast = ui.slider('contrast', 0, 1, 0.8, 0.05);
+
+const CX = 128, CY = 128, RADIUS = 38;            // millimetres
+const LAYER = 0.24, PITCH = 0.62;                 // distance between turns of the spiral
+const W_MIN = 0.34, W_MAX = 0.86;                 // usable bead widths for a 0.4 mm nozzle
+const SPEED = 25, FLOW_LIMIT = 20;
+const FILAMENT_AREA = Math.PI * (1.75 / 2) ** 2;
+const beadArea = (w, h) => (w - h) * h + Math.PI * (h / 2) ** 2;
+
+let gcode = [], worstFlow = 0;
+
+function draw() {
+  // the image: 0 = thinnest, 1 = thickest
+  const pattern = (x, y) => {
+    const r = Math.hypot(x, y) / RADIUS, a = Math.atan2(y, x);
+    return 0.5 + 0.5 * Math.sin(r * 14 + Math.sin(a * lobes()) * 2.5);
+  };
+
+  ctx.fillStyle = '#eef3f8';                      // a light table, seen through the print
+  ctx.fillRect(0, 0, W, H);
+  const S = 7;                                    // preview: 7 px per mm
+  ctx.strokeStyle = 'rgba(20, 60, 110, 0.85)';
+  ctx.lineCap = 'round';
+
+  gcode = ['; BODY ONLY: single-layer medallion. Not printable by itself.', 'M83', 'G1 Z' + LAYER + ' F1200',
+           'G0 X' + CX + ' Y' + CY + ' F9000'];
+  worstFlow = 0;
+  let x = 0, y = 0;
+  const steps = Math.floor((RADIUS / PITCH) * 90);
+  for (let i = 1; i <= steps; i++) {
+    const a = (i / 90) * PA.TAU, r = (a / PA.TAU) * PITCH;
+    const nx = Math.cos(a) * r, ny = Math.sin(a) * r;
+    const t = PA.lerp(0.5, pattern(nx, ny), contrast());
+    const width = PA.lerp(W_MIN, W_MAX, t);                       // the pattern sets the bead width
+    const length = Math.hypot(nx - x, ny - y);
+    const e = beadArea(width, LAYER) * length / FILAMENT_AREA;
+    worstFlow = Math.max(worstFlow, beadArea(width, LAYER) * SPEED);
+    gcode.push('G1 X' + (CX + nx).toFixed(3) + ' Y' + (CY + ny).toFixed(3) + ' E' + e.toFixed(5) + ' F' + SPEED * 60);
+
+    ctx.lineWidth = width * S;                                    // preview at true width
+    ctx.beginPath();
+    ctx.moveTo(W / 2 + x * S, H / 2 - y * S);
+    ctx.lineTo(W / 2 + nx * S, H / 2 - ny * S);
+    ctx.stroke();
+    x = nx; y = ny;
+  }
+
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, H - 34, W, 34);
+  ctx.font = '13px monospace';
+  ctx.fillStyle = worstFlow <= FLOW_LIMIT ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(gcode.length + ' lines · bead ' + W_MIN + ' to ' + W_MAX + ' mm · peak flow ' + worstFlow.toFixed(1) + ' mm³/s', 12, H - 12);
+}
+draw();
+ui.onChange(draw);
+canvas.onclick = () => MESH.download('medallion-body.gcode', gcode.join('\n'), 'text/plain');
+</script>
+</div>
+
+<h2>More toolpath techniques</h2>
+<table>
+  <thead><tr><th>Technique</th><th>How it is done</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Travel without stringing</td><td>Retract before a travel (<code>G1 E-0.8 F1800</code>), move, then push back (<code>G1 E0.8 F1800</code>)</td><td>0.8 mm is the P1S stock value. Direct-drive extruders need very little.</td></tr>
+    <tr><td>Z-hop</td><td>Lift 0.4 mm before a travel and lower after</td><td>Stops the nozzle scraping across finished surfaces</td></tr>
+    <tr><td>Wipe</td><td>After a line, move back along it a few millimetres without extruding</td><td>Hides the blob at the end of a line</td></tr>
+    <tr><td>Seam placement</td><td>Choose where each loop starts: one corner, or scattered</td><td>In a generated path you decide exactly</td></tr>
+    <tr><td>Arcs</td><td><code>G2</code> and <code>G3</code> draw true arcs from one line</td><td>Smaller files and smoother curves than many short segments</td></tr>
+    <tr><td>Slowing for small layers</td><td>If a layer would take under about 8 seconds, slow down or dwell</td><td>Otherwise the plastic below is still soft</td></tr>
+    <tr><td>First layer</td><td>Slower (20 mm/s), slightly wider, at the filament's first-layer temperature, fan off</td><td>Adhesion decides whether the print succeeds</td></tr>
+    <tr><td>Brim</td><td>A few flat loops round the first layer</td><td>Extra grip for tall, thin objects</td></tr>
+    <tr><td>Bridges and strings</td><td>Straight spans in mid-air between two supports: full fan, moderate speed, slightly reduced flow</td><td>Enables lattices, harps and "drawn in air" structures</td></tr>
+    <tr><td>Non-flat layers</td><td>Vary Z within a layer by small amounts</td><td>Keep the variation well under the nozzle's clearance, or its flat underside will plough into the print</td></tr>
+    <tr><td>Acceleration</td><td><code>M204 S…</code> before a section</td><td>Lower values (2000 to 5000) reduce ringing on visible walls</td></tr>
+  </tbody>
+</table>
+
+<h2>Bambu-specific commands</h2>
+<p>These appear in the stock P1S start, end and layer-change G-code. They are not officially documented, so the meanings come from the comments in that profile and from community notes. Use them to <em>read</em> your sliced files. Be cautious about writing them.</p>
+<table>
+  <thead><tr><th>Command</th><th>What it does in the stock profile</th></tr></thead>
+  <tbody>
+    <tr><td><code>M106 P1</code> / <code>P2</code> / <code>P3</code></td><td>Part-cooling fan, auxiliary ("big") fan, chamber fan. <code>S</code> from 0 to 255.</td></tr>
+    <tr><td><code>M400 U1</code></td><td>Pause until the user resumes</td></tr>
+    <tr><td><code>M73 P… R…</code>, <code>M73 L…</code></td><td>Progress per cent and minutes remaining; current layer number</td></tr>
+    <tr><td><code>M991 S0 P…</code></td><td>Notify the printer of a layer change</td></tr>
+    <tr><td><code>M1002 gcode_claim_action : n</code></td><td>Sets the status shown on screen: 1 bed levelling, 13 homing, 14 cleaning the nozzle, 54 heating the bed, 0 clears it</td></tr>
+    <tr><td><code>M1002 judge_flag …</code> with <code>M622 J1</code> … <code>M623</code></td><td>A conditional block: the enclosed lines run only if a printer-side flag is set, for example whether bed levelling was requested</td></tr>
+    <tr><td><code>G29</code>, <code>G29.1</code>, <code>G29.2</code></td><td>Probe the bed over the first layer's area; set a Z offset (used for the textured plate); switch levelling compensation off and on</td></tr>
+    <tr><td><code>M975 S1</code></td><td>Turn on vibration suppression. It is also the last line of the stock start sequence.</td></tr>
+    <tr><td><code>M620</code>, <code>M621</code>, <code>T…</code></td><td>AMS filament switching. Leave entirely to the slicer.</td></tr>
+    <tr><td><code>M412 S1</code></td><td>Filament run-out detection on</td></tr>
+    <tr><td><code>M971</code>, <code>M1004</code></td><td>Time-lapse capture, in the time-lapse G-code</td></tr>
+    <tr><td><code>M960 S5 P1</code></td><td>Logo lamp on</td></tr>
+    <tr><td><code>M17 X… Y… Z…</code></td><td>Stepper motor current. Do not change.</td></tr>
+  </tbody>
+</table>
+
+<h2>Making a printable file</h2>
+<p>A body needs the printer's start sequence before it and its end sequence after it. The reliable source for both is a file that Bambu Studio sliced for <em>your</em> printer, plate and filament. Call it the donor.</p>
+<ol>
+  <li><strong>Make a donor model:</strong> a simple box with the same footprint as your design, placed at the same position on the plate, and at least as tall.</li>
+  <li><strong>Slice it</strong> with the filament and plate you will really use, and export the G-code.</li>
+  <li><strong>Find the two joins</strong> in a text editor. The start sequence runs from the top of the file through the prime line. In the stock P1S profile its final line is <code>M975 S1 ; turn on mech mode supression</code>, followed by a little filament set-up before the first layer's moves. The end sequence begins after the last layer, with a retraction (<code>G1 E-0.8 F1800</code>) and a lift.</li>
+  <li><strong>Replace everything between them</strong> with your body.</li>
+  <li><strong>Run the preflight checker</strong> on the result, then open it in Bambu Studio's G-code preview and scrub through every layer.</li>
+</ol>
+<p>The donor's shape matters for three reasons, each of which has damaged prints:</p>
+<table>
+  <thead><tr><th>What the donor sets</th><th>Why your design must fit inside it</th></tr></thead>
+  <tbody>
+    <tr><td>The bed-levelling area</td><td>The start sequence probes only the rectangle covered by the donor's first layer. Print outside it and the first layer is uncompensated.</td></tr>
+    <tr><td>The heights in the end sequence</td><td>The end G-code lifts to the donor's height plus half a millimetre before moving away. If your print is taller than the donor, that move goes <em>through</em> your print.</td></tr>
+    <tr><td>Temperatures and plate offset</td><td>They are baked in from the donor's filament and plate type. A different plate or material needs a new donor.</td></tr>
+  </tbody>
+</table>
+<p>Your body should also set what the slicer would have set: <code>M83</code> at the top, the part-cooling fan after the first layer, and any speed or temperature changes. The stock start sequence ends with all fans off.</p>
+
+<h3>Getting the file to the printer</h3>
+<p>Bambu Studio's normal output is a <code>.gcode.3mf</code> package, sent over the network or saved to the microSD card. That route is reliable. For a hand-assembled plain <code>.gcode</code> file I could not confirm from official documentation whether the P1S will list and print it from the card on current firmware: reports differ. Test with a tiny, harmless file first. If plain G-code is refused, the alternative is to let Bambu Studio do the packaging: add your body to a sliced project through its post-processing script setting, which runs a program of yours on the G-code before it is packaged. Check that your version offers it, under the process settings.</p>
+
+<h2>A safety checklist for custom G-code</h2>
+<ul>
+  <li>The donor was sliced for this printer, this nozzle, this plate type and this filament.</li>
+  <li>The body lies inside the donor's footprint, and is no taller than the donor.</li>
+  <li>Nothing is extruded in the front-left 18 × 28 mm or across the prime line at the front.</li>
+  <li>The preflight checker reports no problems, and peak flow is under the filament's limit.</li>
+  <li>The first layer is slow, at the right height, and starts with a travel move at a safe Z.</li>
+  <li>Extrusion is relative, and every move's E was computed from its own length.</li>
+  <li>You have scrubbed through the whole file in a G-code preview.</li>
+  <li>The first print of any new generator is small and in PLA, and you are watching it.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Designing the path instead of the shape gives effects no model can describe.</li>
+  <li>A spiral path needs a base, a flat first turn, and a ramped second turn with scaled extrusion.</li>
+  <li>Bead width, speed and height can all vary along a line, within the nozzle's and hotend's limits.</li>
+  <li>Bambu's own commands are undocumented. Read them in your sliced files and reuse the start and end sequences unchanged.</li>
+  <li>A donor file supplies start and end. Your design must fit inside the donor's footprint and height.</li>
+  <li>Preflight, preview, then a small first print while you watch.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">3D printing challenge 3</p>
+  <h2>A Toolpath of Your Own</h2>
+  <p>Design an object that could only exist as a generated toolpath, and take it as far as a checked, previewed file.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A generator that writes the <strong>body G-code</strong> for an object of your design, with every E value computed from bead size and move length.</li>
+    <li>The path is <strong>continuous</strong> wherever possible: no more than one travel move per layer, and none in a spiral section.</li>
+    <li>At least <strong>one property varies along the path</strong> by a rule: width, speed, radius offset or height.</li>
+    <li>A correct <strong>first layer</strong>: slower, at the right height, fan off, and a base that the rest stands on.</li>
+    <li>A <strong>3D preview</strong> of the path, and a readout of line count, filament length, estimated time and peak flow.</li>
+    <li>Your own <strong>preflight function</strong> runs on the output and the sketch refuses to download while it reports problems.</li>
+    <li>All limits (<code>BED</code>, <code>MAX_Z</code>, <code>FLOW_LIMIT</code>, the excluded corner) are named constants taken from Lesson 4.</li>
+    <li>A written plan, in a comment, for the donor file: its footprint, height, filament and plate.</li>
+  </ul>
+  <h3>Ideas</h3>
+  <ul>
+    <li>A lampshade whose wall ripples in a pattern taken from noise, so no two are alike.</li>
+    <li>A bowl drawn as a single spiral whose radius follows a rose curve from Lesson 4.</li>
+    <li>A flat panel of flow-field streamlines from Lesson 5, each printed as one bead, as wall art.</li>
+    <li>A woven coaster: two layers of parallel wavy lines at right angles.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The preflight is clean for at least five seeds.</li>
+    <li>The assembled file looks right at every layer in a G-code preview.</li>
+    <li>If you have the printer: a small version has printed while you watched.</li>
+  </ul>
+  <a class="start" href="../challenges/p5-toolpath.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="04-gcode-fundamentals.html">← 3D Printing 4</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

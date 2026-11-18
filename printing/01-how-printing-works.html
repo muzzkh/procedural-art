@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Printing 1 · How Printing Works</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>3D printing 1 of 5</span><a href="02-models-from-code.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">3D Printing 1</p>
+  <h1>How Printing Works</h1>
+  <p class="lede">Before generating models or toolpaths you need a clear picture of what the machine physically does, because every design rule follows from it. This lesson covers the process, the Bambu Lab P1S in particular, and the three places where a procedural designer can intervene.</p>
+</header>
+
+<h2>The process in one paragraph</h2>
+<p>A filament printer melts a plastic thread and squeezes it through a small nozzle, drawing a thin bead of plastic along a path. It draws one flat layer, moves up a fraction of a millimetre, and draws the next on top. An object is nothing but stacked drawings made of one continuous line. This is called FDM or FFF.</p>
+<p>That description already explains the main limits. Each layer needs something underneath to rest on, so steep overhangs sag. The bead has a fixed width, so nothing thinner than it can exist. Layers bond less strongly to each other than a bead is along its own length, so parts split more easily between layers.</p>
+
+<h2>The Bambu Lab P1S</h2>
+<p>These lessons target the P1S. The figures below are from Bambu Lab's product specification and from the printer profile that ships with Bambu Studio.</p>
+<table>
+  <thead><tr><th>Property</th><th>Value</th><th>What it means for you</th></tr></thead>
+  <tbody>
+    <tr><td>Motion system</td><td>CoreXY, enclosed</td><td>The head moves in X and Y. The bed moves only in Z, downward as the print grows.</td></tr>
+    <tr><td>Build volume</td><td>256 × 256 × 256 mm</td><td>Bambu Studio's P1S profile limits print height to 250 mm. Design within 250.</td></tr>
+    <tr><td>Excluded corner</td><td>18 × 28 mm at the front left</td><td>Reserved for the filament cutter. Nothing may print there.</td></tr>
+    <tr><td>Nozzle</td><td>0.4 mm standard (0.2, 0.6 and 0.8 available)</td><td>Sets the bead width, about 0.42 mm by default.</td></tr>
+    <tr><td>Filament</td><td>1.75 mm diameter</td><td>Used in the extrusion calculations of Lesson 4.</td></tr>
+    <tr><td>Hotend</td><td>Up to 300 °C</td><td>PLA about 220 °C, PETG about 250 °C, ABS and ASA about 260 °C.</td></tr>
+    <tr><td>Heated bed</td><td>Up to 100 °C</td><td>PLA 55 to 65 °C, PETG about 70 °C, ABS about 90 to 100 °C.</td></tr>
+    <tr><td>Top speed</td><td>500 mm/s in X and Y, 20 mm/s in Z</td><td>Real printing speed is usually limited by how fast plastic can be melted, not by motion.</td></tr>
+    <tr><td>Acceleration</td><td>Up to 20,000 mm/s²</td><td>The slicer uses lower values for outer walls to keep them clean.</td></tr>
+    <tr><td>Fans</td><td>Part cooling, auxiliary, chamber</td><td>Three separately controlled fans, addressed in G-code as P1, P2 and P3.</td></tr>
+  </tbody>
+</table>
+
+<h2>From idea to object</h2>
+<p class="formula">model (STL or 3MF) → slicer → G-code → printer</p>
+<dl class="vocab">
+  <dt>Model</dt><dd>A closed 3D surface made of triangles. Lessons 2 and 3 generate these from code.</dd>
+  <dt>Slicer</dt><dd>Bambu Studio, for this printer. It cuts the model into layers and plans the path of the nozzle for each: outlines, fill, supports, travel moves.</dd>
+  <dt>G-code</dt><dd>The slicer's output: a plain text list of moves and settings, one per line. Lessons 4 and 5 read, modify and generate it.</dd>
+  <dt>Printer</dt><dd>Executes the G-code exactly, line by line. It does not know what the object is.</dd>
+</dl>
+<p>A procedural designer can step in at three points, and they suit different goals:</p>
+<table>
+  <thead><tr><th>Where</th><th>You generate</th><th>Good for</th><th>You give up</th></tr></thead>
+  <tbody>
+    <tr><td>The model</td><td>Geometry</td><td>Any shape. The slicer handles all the printing detail, safely.</td><td>Control over exactly how the nozzle moves</td></tr>
+    <tr><td>The slicer's settings</td><td>Per-layer snippets of G-code</td><td>Pauses, temperature or speed changes at chosen heights</td><td>Little. This is the low-risk way to customise.</td></tr>
+    <tr><td>The G-code itself</td><td>Every move of the nozzle</td><td>Effects no slicer produces: single-line textures, woven walls, non-flat layers</td><td>All the slicer's safety checks. You are responsible for every line.</td></tr>
+  </tbody>
+</table>
+
+<h2>What a slicer does to your model</h2>
+<p>Each layer is a horizontal cross-section of the model. The slicer finds its outline and then fills it in three ways:</p>
+<ul>
+  <li><strong>Walls</strong> (perimeters): two or more beads tracing the outline. They give the surface its finish and most of the strength.</li>
+  <li><strong>Infill:</strong> a sparse pattern inside, typically 10 to 20 per cent solid, that supports the layers above.</li>
+  <li><strong>Top and bottom skins:</strong> several fully solid layers where the object's surface is horizontal.</li>
+</ul>
+<p>The example slices a simple shape defined by a distance function (Lesson 9). Drag the slider to move the cutting plane up through it. Walls are the band just inside the outline, and the infill lines switch direction on alternate layers so that they cross.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="P1.1 One layer of a print">
+<script type="text/plain">
+const layer = ui.slider('layer', 1, 200, 60, 1);
+const walls = ui.slider('walls', 1, 5, 2, 1);
+const infill = ui.slider('infill %', 5, 60, 15, 1);
+
+const LAYER_H = 0.2, LINE_W = 0.42;      // millimetres
+const MM = 60 / W;                       // the picture is 60 mm across
+
+// the object: a rounded form 40 mm tall with a hole through it. negative = inside
+function solid(x, y, z) {
+  const blob = Math.hypot(x, y, (z - 20) * 1.1) - 22;                // an egg
+  const hole = Math.hypot(x - 6, y) - 6;                             // a vertical hole
+  const lump = Math.hypot(x + 12, y - 10, z - 26) - 11;              // a second lobe
+  return Math.max(Math.min(blob, lump), -hole);
+}
+
+const img = ctx.createImageData(W, H);
+function draw() {
+  const z = layer() * LAYER_H;
+  const wallBand = walls() * LINE_W;
+  const spacing = LINE_W / (infill() / 100);          // distance between infill lines
+  const flip = layer() % 2 === 0;
+
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const x = (px - W / 2) * MM, y = (py - H / 2) * MM;
+      const d = solid(x, y, z);
+      let c = [22, 24, 30];                                         // empty
+      if (d < 0) {
+        if (d > -wallBand) c = [255, 170, 80];                      // wall
+        else {
+          const u = flip ? x + y : x - y;                           // diagonal lines, alternating direction
+          c = PA.fract(u / (spacing * 1.414)) < LINE_W / spacing ? [120, 190, 255] : [40, 46, 58];
+        }
+      }
+      const k = (py * W + px) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = '#fff';
+  ctx.font = '10px monospace';
+  ctx.fillText('z = ' + z.toFixed(1) + ' mm', 6, 12);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Layers and overhangs</h2>
+<p>Layer height is a trade. Thin layers (0.08 to 0.12 mm) hide the stair-steps on sloped surfaces and take much longer. Thick layers (0.24 to 0.28 mm) are fast and visibly stepped. The default is 0.2 mm.</p>
+<p>Layer height also decides how far a wall can lean. Each layer can overhang the one below by a fraction of its own bead width before the plastic has nothing to stick to. The working rule is that surfaces may lean up to about <strong>45° from vertical</strong> without support. The side view below shows a leaning wall as stacked beads. Beads with too little under them turn red.</p>
+
+<div class="example" data-title="P1.2 A leaning wall, seen from the side">
+<script type="text/plain">
+const lean = ui.slider('lean from vertical', 0, 75, 35, 1);
+const layerH = ui.slider('layer height mm', 0.08, 0.32, 0.2, 0.04);
+const LINE_W = 0.42;
+const S = 60;                       // preview: 60 px per mm, so we are looking at about 10 mm
+
+function draw() {
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  const h = layerH();
+  const step = Math.tan(lean() * Math.PI / 180) * h;     // sideways shift per layer
+  const overlap = 1 - step / LINE_W;                     // how much of each bead rests on the one below
+  const layers = Math.floor(8 / h);
+
+  for (let i = 0; i < layers; i++) {
+    const x = 60 + i * step * S, y = H - 40 - (i + 1) * h * S;
+    ctx.fillStyle = overlap > 0.5 ? '#f4a261' : overlap > 0.25 ? '#e9c46a' : '#e63946';
+    ctx.beginPath();
+    ctx.roundRect(x, y, LINE_W * S, h * S - 1, Math.min(h * S / 2, 8));     // a bead is a squashed circle
+    ctx.fill();
+  }
+  ctx.fillStyle = '#8d99ae';
+  ctx.fillRect(0, H - 40, W, 4);                          // the bed
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.fillText('each bead rests on ' + Math.max(0, overlap * 100).toFixed(0) + '% of the bead below', 14, 24);
+  ctx.fillText(overlap > 0.5 ? 'prints cleanly' : overlap > 0.25 ? 'marginal: rough underside' : 'needs support', 14, 44);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Try it: set the lean to 55° and then reduce the layer height. Thinner layers shift less per layer, so the same angle becomes printable. That is a real and useful trick.</p>
+
+<h2>Design rules for filament printing</h2>
+<table>
+  <thead><tr><th>Rule</th><th>Guideline</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Overhangs</td><td>Keep within 45° of vertical, or accept supports</td><td>Each layer needs the one below</td></tr>
+    <tr><td>Bridges</td><td>Flat spans between two supports print up to roughly 50 mm</td><td>The bead is stretched across like a rope</td></tr>
+    <tr><td>Wall thickness</td><td>A whole number of bead widths: 0.42, 0.84, 1.26 mm…</td><td>Other widths leave gaps or need thin filler lines</td></tr>
+    <tr><td>Smallest feature</td><td>About one bead wide sideways, one layer high vertically</td><td>Nothing smaller than the bead can be drawn</td></tr>
+    <tr><td>Clearance between parts</td><td>0.2 mm for a snug fit, 0.4 mm for a loose one</td><td>Beads bulge slightly beyond the modelled surface</td></tr>
+    <tr><td>Holes</td><td>Model them 0.2 to 0.4 mm larger than needed</td><td>Printed holes come out small</td></tr>
+    <tr><td>Flat base</td><td>Give the object a flat face to sit on</td><td>The first layer must grip the bed</td></tr>
+    <tr><td>Strength</td><td>Orient the part so that loads run along the layers</td><td>Layers peel apart more easily than beads snap</td></tr>
+    <tr><td>Sharp corners on the bed</td><td>Round them</td><td>Corners concentrate shrinkage and lift</td></tr>
+  </tbody>
+</table>
+<p>For a procedural designer these are constraints to build into the generator, exactly as in Special Topic 3. A good generator cannot produce an unprintable object.</p>
+
+<h2>How much plastic, how fast</h2>
+<p>One number ties geometry to the machine: the <strong>volumetric flow rate</strong>, the volume of plastic leaving the nozzle each second.</p>
+<p class="formula">flow (mm³/s) = bead width × layer height × speed</p>
+<p>A hotend can only melt plastic so fast. Each filament profile in Bambu Studio has a "max volumetric speed" for this reason, and the slicer slows down to stay under it. It is why a printer capable of 500 mm/s usually prints much slower, and it will be the main safety check on any G-code you generate yourself. The example shows the cross-section of a bead and the flow it demands.</p>
+
+<div class="example" data-title="P1.3 The bead and its flow rate">
+<script type="text/plain">
+const width = ui.slider('bead width mm', 0.3, 0.9, 0.42, 0.02);
+const height = ui.slider('layer height mm', 0.08, 0.4, 0.2, 0.02);
+const speed = ui.slider('speed mm/s', 10, 500, 200, 10);
+const limit = ui.slider('flow limit mm³/s', 5, 35, 20, 1);
+
+function draw() {
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  const w = width(), h = height(), S = 420;                     // 420 px per mm
+
+  // the bead: a rectangle with rounded ends, squashed between nozzle and the layer below
+  ctx.fillStyle = '#f4a261';
+  ctx.beginPath();
+  ctx.roundRect(W / 2 - w * S / 2, 250 - h * S, w * S, h * S, h * S / 2);
+  ctx.fill();
+  ctx.fillStyle = '#8d99ae';
+  ctx.fillRect(60, 250, W - 120, 6);
+
+  const area = (w - h) * h + Math.PI * (h / 2) ** 2;            // mm2: rectangle plus two half-circles
+  const flow = area * speed();                                  // mm3 per second
+  const filament = Math.PI * (1.75 / 2) ** 2;                   // cross-section of 1.75 mm filament
+  const ePerMm = area / filament;                               // mm of filament per mm of travel
+
+  ctx.font = '14px monospace';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('cross-section        ' + area.toFixed(4) + ' mm²', 60, 320);
+  ctx.fillText('filament per mm      ' + ePerMm.toFixed(5) + ' mm   (the E value in G-code)', 60, 345);
+  ctx.fillStyle = flow <= limit() ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText('flow at this speed   ' + flow.toFixed(1) + ' mm³/s   ' + (flow <= limit() ? 'within the limit' : 'TOO MUCH: under-extrusion'), 60, 370);
+  ctx.fillStyle = '#cfd6dd';
+  ctx.fillText('fastest allowed      ' + (limit() / area).toFixed(0) + ' mm/s at this bead size', 60, 395);
+
+  ctx.fillStyle = '#39414f';                                    // a bar for the flow
+  ctx.fillRect(60, 430, W - 120, 18);
+  ctx.fillStyle = flow <= limit() ? '#7ee0a1' : '#ff8a94';
+  ctx.fillRect(60, 430, Math.min(1, flow / (limit() * 1.5)) * (W - 120), 18);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(60 + (W - 120) / 1.5, 424, 2, 30);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Materials</h2>
+<table>
+  <thead><tr><th>Material</th><th>Nozzle</th><th>Bed</th><th>Character</th></tr></thead>
+  <tbody>
+    <tr><td>PLA</td><td>about 220 °C</td><td>55–65 °C</td><td>Easy, stiff, sharp detail. Softens in a hot car. The right choice while learning.</td></tr>
+    <tr><td>PETG</td><td>about 250 °C</td><td>about 70 °C</td><td>Tougher and more heat resistant. Strings more, bridges worse.</td></tr>
+    <tr><td>ABS and ASA</td><td>about 260 °C</td><td>90–100 °C</td><td>Strong and heat resistant. Shrinks, so it needs the enclosure closed. Fumes: ventilate.</td></tr>
+    <tr><td>TPU</td><td>about 230 °C</td><td>about 35 °C</td><td>Flexible. Print slowly.</td></tr>
+  </tbody>
+</table>
+<p>Always take temperatures from the filament maker and the Bambu Studio profile for that filament. The figures above are typical, not exact.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A print is stacked layers, each drawn with one bead of fixed width.</li>
+  <li>The P1S prints within 256 × 256 mm and up to 250 mm high, except a small front-left corner.</li>
+  <li>You can generate the model, per-layer G-code snippets, or the entire toolpath. Control and responsibility rise together.</li>
+  <li>Overhangs beyond about 45° need support. Thinner layers lean further.</li>
+  <li>Volumetric flow, width × height × speed, is the machine's real speed limit.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Before the next lesson</h2>
+  <ul>
+    <li><strong>Read a slice.</strong> Open any model in Bambu Studio, slice it, and drag the layer slider in the preview. Find the walls, infill, top skin, supports and seam. Colour the preview by speed, then by flow.</li>
+    <li><strong>Find the limit.</strong> In the filament settings, find the "max volumetric speed" for your filament. Use example P1.3 to work out the fastest a 0.42 × 0.2 mm bead can be printed.</li>
+    <li><strong>Break a rule on purpose.</strong> Print a small test piece with overhangs at 30°, 45°, 60° and 70°, and look at the undersides. Knowing where your own printer and filament give up is worth more than any guideline.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-models-from-code.html">3D Printing 2: Models from Code →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

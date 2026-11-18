@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Series title — Your Name</title>
+<!--
+  SPECIAL CHALLENGE 8 — PUT ONE SERIES INTO THE WORLD
+  Full brief: ../special/08-publishing.html
+
+  Checklist
+  [ ] A title, a statement of two or three sentences, six to ten outputs, each titled or numbered
+  [ ] Fast and plain: static images, readable on a phone, no scripts needed to see the work
+  [ ] A record for every piece (seed, parameters, code version, date, dimensions), kept with the work
+  [ ] A stated licence for the images and a separate one for the code, each with a sentence on why
+  [ ] A decision on editions: open, limited or unique outputs; size; numbering and signing
+  [ ] A generated label or certificate for each piece, drawn from the record
+  [ ] One piece of process material
+  [ ] A list of every outside ingredient and its licence
+  [ ] A stranger could understand the series in one minute
+
+  This file is the page itself. Replace everything marked with square brackets.
+-->
+<style>
+  body { margin: 0; background: #f6f3ec; color: #1c1b19; font: 18px/1.6 Georgia, serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 8vh 5vw; }
+  h1 { font-size: clamp(2.2rem, 6vw, 4rem); margin: 0 0 0.5rem; }
+  .statement { max-width: 60ch; font-size: 1.2rem; }
+  .works { display: grid; gap: 2rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin: 3rem 0; }
+  figure { margin: 0; }
+  figure img { display: block; width: 100%; height: auto; background: #ddd6c8; aspect-ratio: 1; }
+  figcaption { font: 0.85rem/1.5 system-ui, sans-serif; color: #6b665d; margin-top: 0.5rem; }
+  .details { font: 0.95rem/1.6 system-ui, sans-serif; max-width: 60ch; }
+</style>
+</head>
+<body>
+<main>
+  <h1>[Series title]</h1>
+  <p class="statement">[Two or three sentences: what the series is about, in plain language, in the first person.]</p>
+
+  <div class="works">
+    <!-- one figure per piece. export each at about 2000 px and compress it -->
+    <figure>
+      <img src="[images/01.jpg]" alt="[What the image shows, for people who cannot see it]" loading="lazy">
+      <figcaption>[Title or number] · [year] · [medium, size] · seed [seed]</figcaption>
+    </figure>
+  </div>
+
+  <div class="details">
+    <h2>About the work</h2>
+    <p>[How it is made, in a few sentences. One piece of process: a contact sheet, a short write-up, or a video.]</p>
+
+    <h2>Editions</h2>
+    <p>[Open, limited or unique outputs. How many. How prints are numbered and signed. Paper and inks.]</p>
+
+    <h2>Licence</h2>
+    <p>Images: [licence, and one sentence on why]. Code: [licence, and one sentence on why].</p>
+
+    <h2>Credits</h2>
+    <p>[Every outside ingredient: fonts, libraries, data, with its licence.]</p>
+
+    <p>[Your name] · [how to reach you]</p>
+  </div>
+</main>
+</body>
+</html>

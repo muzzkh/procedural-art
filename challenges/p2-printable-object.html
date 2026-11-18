@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>3D printing challenge 1 · An Object from a Function</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px/1.5 Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 90vmin; max-height: 80vmin; }
+  #report { white-space: pre-wrap; margin: 0; padding: 12px; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="900" height="900"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script>
+/* 3D PRINTING CHALLENGE 1 — AN OBJECT FROM A FUNCTION
+   Full brief: ../printing/02-models-from-code.html
+
+   Object:                     relief tile / coaster / lofted vessel
+   Slicer estimate (fill in):  time ........  filament ........ g
+
+   Checklist
+   [ ] All sizes in millimetres, as named constants; fits 256 x 256 x 250 mm
+   [ ] MESH.check reports watertight and not inside out
+   [ ] At least two print rules are enforced by the generator and reported
+   [ ] Seeded: at least five seeds give valid objects
+   [ ] A key press downloads the STL, named after the seed
+   [ ] Opened and sliced in Bambu Studio: size confirmed, no warnings
+
+   A mesh is an array of triangles: [[x, y, z], [x, y, z], [x, y, z]] in millimetres, Z up,
+   corners anticlockwise when seen from outside. */
+
+// ---- dimensions, in millimetres ----
+const WIDTH = 80, DEPTH = 80, HEIGHT = 20;
+const MIN_BASE = 1.2;          // never thinner than this
+const MAX_LEAN = 45;           // degrees from vertical
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let seed = 'object-1';
+
+function buildMesh(seed) {
+  const R = PA.rng(seed), N = PA.noise(seed);
+  const tris = [];
+
+  // ---- your mesh here ----
+
+  return tris;
+}
+
+// Returns a list of lines such as 'base thickness 2.0 mm  OK'.
+function checkRules(tris) {
+  const lines = [];
+  // ---- your print rules here ----
+  return lines;
+}
+
+let tris = buildMesh(seed);
+const c = MESH.check(tris);
+document.getElementById('report').textContent =
+  'seed ' + seed + '\n' + MESH.report(tris).text + '\n' + checkRules(tris).join('\n');
+
+function frame(ms) {
+  if (tris.length) MESH.view(ctx, W, H, tris, { spin: ms / 3000 });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// TODO: keys for a new seed and for MESH.download(seed + '.stl', MESH.stl(tris))
+</script>
+</body>
+</html>

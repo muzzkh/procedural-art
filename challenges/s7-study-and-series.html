@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 7 · A Study and a Series</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 92vmin; max-height: 86vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); touch-action: none; }
+  #report { margin: 0; padding: 10px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="1200" height="1200"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 7 — A STUDY AND A SERIES
+   Full brief: ../special/07-critique-and-art-direction.html
+
+   Checklist
+   [ ] PART ONE: description, guessed system, three decisions, a small study, three sentences on where it falls short
+   [ ] PART TWO: a one-sentence intention for one of your own systems (below)
+   [ ] At least two parameter sweeps of two parameters each, with the good region marked
+   [ ] The system narrowed to that region
+   [ ] A review mode with the squint, greyscale, thumbnail and flip tests
+   [ ] Ten outputs selected, each with its seed and a sentence on why
+   [ ] At least thirty rejected; for three, what was wrong and which rule allowed it
+   [ ] The ten still look good at thumbnail size
+
+   THE INTENTION, IN ONE SENTENCE:
+     ...
+
+   THE TEN (seed: why)
+     ...
+
+   THREE REJECTS (seed: what was wrong, which rule allowed it)
+     ...
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const report = document.getElementById('report');
+
+let seed = 1;
+let mode = 'single';                    // 'single', 'sweep' or 'review'
+
+// Your system. It draws in the square at (x, y) with side s, and takes ALL its settings from p.
+function piece(x, y, s, seed, p) {
+  const R = PA.rng(seed);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, s, s); ctx.clip();
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(x, y, s, s);
+
+  // ---- your system here, using p.something for every adjustable value ----
+
+  ctx.restore();
+}
+
+// the settings the series will use. narrow these after your sweeps
+const settings = { density: 0.5, chaos: 0.3 };
+
+function sweep(nameA, valuesA, nameB, valuesB) {
+  // ---- a grid: nameA varies across, nameB varies down, the seed stays fixed. label the rows and columns ----
+}
+
+function review(seed) {
+  // ---- the piece, with its squint, greyscale, thumbnail and flipped versions ----
+}
+
+function show() {
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, W, H);
+  if (mode === 'single') piece(40, 40, W - 80, seed, settings);
+  if (mode === 'sweep') sweep('density', [0.1, 0.3, 0.5, 0.7, 0.9], 'chaos', [0, 0.2, 0.4, 0.7, 1]);
+  if (mode === 'review') review(seed);
+  report.textContent = 'seed ' + seed + ' · ' + mode;
+}
+show();
+
+// TODO: keys for the next seed and for switching mode
+</script>
+</body>
+</html>

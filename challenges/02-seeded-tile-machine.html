@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 2 · The Seeded Tile Machine</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 2 — THE SEEDED TILE MACHINE
+   Full brief: ../lessons/02-controlled-randomness.html
+
+   A seed goes in, a tile poster comes out. Same seed, same poster. Always.
+
+   Checklist
+   [ ] One seed controls all randomness, through PA.rng(seed)
+   [ ] At least three tile designs of your own, each a function that draws inside one cell
+   [ ] Tiles are picked by weighted choice
+   [ ] One parameter follows an order-to-chaos gradient across the canvas
+   [ ] A palette of at most five colours, with weights
+   [ ] A key press makes a new seed, redraws, and logs the seed to the console
+   [ ] Typing a logged seed back in reproduces that poster exactly */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let seed = 1;
+
+function draw(seed) {
+  const R = PA.rng(seed);
+
+  // ---- your code here ----
+
+}
+
+draw(seed);
+
+// TODO: listen for a key press, choose a new seed, log it, and call draw again
+
+</script>
+</body>
+</html>

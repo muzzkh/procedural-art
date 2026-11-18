@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+<style>dl.vocab { grid-template-columns: minmax(11rem, max-content) 1fr; max-width: 95ch; } dl.vocab dd { color: var(--ink); } dl.vocab dd small { color: var(--muted); }</style>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Reference</span><a href="cheat-sheet.html">Cheat sheet →</a></nav>
+<main>
+<header>
+  <p class="kicker">Reference</p>
+  <h1>Glossary</h1>
+  <p class="lede">The terms used in this course, in plain words, with the place each is introduced. L is a lesson, M a maths page, S a special topic, P a 3D printing lesson, T three.js, B Blender, W web design.</p>
+</header>
+
+<h2>A to C</h2>
+<dl class="vocab">
+  <dt>Acceleration</dt><dd>How much velocity changes each step. Forces act here. <small>L5</small></dd>
+  <dt>Add-on</dt><dd>A Python package that adds tools to Blender's interface. <small>B4</small></dd>
+  <dt>Additive blending</dt><dd>Overlapping colours add their brightness, like light. <small>L4, T2</small></dd>
+  <dt>Algorithm</dt><dd>A precise, step-by-step procedure for doing something.</dd>
+  <dt>Amplitude</dt><dd>How far a wave swings from its centre. <small>L4</small></dd>
+  <dt>Analyser</dt><dd>A Web Audio node that reports how loud a sound is in each band of pitch. <small>S1</small></dd>
+  <dt>Arc length</dt><dd>Distance measured along a curve, used to space things evenly on a path. <small>M3</small></dd>
+  <dt>Attract mode</dt><dd>What an interactive piece does when nobody is touching it. <small>S1</small></dd>
+  <dt>Attractor</dt><dd>A point that pulls particles toward it. Also the shape a chaotic system settles onto. <small>L5, M4</small></dd>
+  <dt>Barycentric coordinates</dt><dd>Weights that add up to 1, giving a position inside a triangle as a blend of its corners. <small>M6</small></dd>
+  <dt>Basis</dt><dd>The set of arrows a coordinate system is built from. Any two that are not along the same line give a grid. <small>M6</small></dd>
+  <dt>Bézier curve</dt><dd>A smooth curve defined by control points, built from repeated interpolation. <small>M5</small></dd>
+  <dt>Bleed</dt><dd>Artwork extended past the trim line so that a print can run to the edge. <small>S3</small></dd>
+  <dt>Boids</dt><dd>Craig Reynolds's flocking model: separation, alignment and cohesion. <small>L8</small></dd>
+  <dt>Buffer geometry</dt><dd>In three.js, a shape stored as arrays of per-vertex numbers. <small>T2</small></dd>
+  <dt>Cellular automaton</dt><dd>A grid of cells, each updated from its neighbours by a fixed rule. <small>L8</small></dd>
+  <dt>Chroma</dt><dd>How colourful a colour is, in OKLCH. Zero is grey. <small>L11</small></dd>
+  <dt>Circle packing</dt><dd>Filling an area with circles that do not overlap. <small>L7</small></dd>
+  <dt>Clamp</dt><dd>Limit a value to a range. <small>L1</small></dd>
+  <dt>Clipping</dt><dd>Cutting geometry at a boundary and keeping the inside part. <small>L18</small></dd>
+  <dt>Collapse</dt><dd>In Wave Function Collapse, fixing a cell to one tile. <small>L14</small></dd>
+  <dt>Complex number</dt><dd>A point on the plane written as one number. Multiplying two rotates and scales. <small>M2</small></dd>
+  <dt>Compositing mode</dt><dd>The rule by which new drawing combines with what is already on the canvas. <small>L10, W1</small></dd>
+  <dt>Constraint</dt><dd>A rule that must hold: in a design, a margin or minimum size; in physics, a condition enforced by moving points. <small>L10, L17</small></dd>
+  <dt>Contact sheet</dt><dd>Many outputs shown small, side by side, to judge a system as a whole. <small>L10</small></dd>
+  <dt>Contradiction</dt><dd>In Wave Function Collapse, a cell left with no possible tile. <small>L14</small></dd>
+  <dt>Contrast ratio</dt><dd>A measure from 1 to 21 of how different two colours are in lightness. <small>L11</small></dd>
+  <dt>Corner pin</dt><dd>Warping an image by dragging its four corners, used in projection mapping. <small>S5</small></dd>
+  <dt>Cosine palette</dt><dd>A smooth colour ramp made from three out-of-phase cosine waves. <small>L9</small></dd>
+  <dt>Curl noise</dt><dd>A flow field that follows the contours of noise, so nothing converges or spreads. <small>L5</small></dd>
+  <dt>Curvature</dt><dd>How sharply a curve is turning at a point. <small>M3</small></dd>
+</dl>
+
+<h2>D to F</h2>
+<dl class="vocab">
+  <dt>Delaunay triangulation</dt><dd>A way of joining points into triangles that avoids thin slivers. The partner of the Voronoi diagram. <small>L18</small></dd>
+  <dt>Derivative</dt><dd>The rate at which something changes: its slope. <small>M3</small></dd>
+  <dt>Determinant</dt><dd>One number for a matrix: the factor by which it changes area. Negative means mirrored, zero means collapsed. <small>M6</small></dd>
+  <dt>Deterministic</dt><dd>Giving the same result every time for the same inputs. <small>L1, L2</small></dd>
+  <dt>Differential equation</dt><dd>A rule for how something changes, solved by stepping forward in time. <small>M4</small></dd>
+  <dt>Differential growth</dt><dd>A line that keeps lengthening but cannot cross itself, and so folds. <small>L16</small></dd>
+  <dt>Diffusion-limited aggregation</dt><dd>Growth by random walkers that stick where they touch a cluster. <small>L16</small></dd>
+  <dt>Distribution</dt><dd>The pattern of how often random values fall where: uniform, bell-shaped, biased. <small>L2</small></dd>
+  <dt>Dithering</dt><dd>Representing shades of grey with only black and white pixels. <small>L13</small></dd>
+  <dt>Domain warping</dt><dd>Distorting the input of a function, often noise with more noise. <small>L3</small></dd>
+  <dt>Donor file</dt><dd>A sliced file from which the printer's start and end G-code are taken. <small>P5</small></dd>
+  <dt>Dot product</dt><dd>One number measuring how much two directions agree. <small>M2</small></dd>
+  <dt>Double buffering</dt><dd>Reading from one grid while writing to another, then swapping. <small>L8</small></dd>
+  <dt>Draw call</dt><dd>One request to the graphics system to draw something. Fewer is faster. <small>L19, T3</small></dd>
+  <dt>Easing</dt><dd>A function that shapes progress so motion speeds up and slows down. <small>L15</small></dd>
+  <dt>Edition</dt><dd>The set of prints of one work. Limited editions have a fixed, declared size. <small>S8</small></dd>
+  <dt>Eigenvector</dt><dd>A direction that a matrix stretches without turning. The stretch factor is its eigenvalue. <small>M6</small></dd>
+  <dt>Emergence</dt><dd>Large-scale structure arising from simple local rules. <small>L8</small></dd>
+  <dt>Entropy</dt><dd>In Wave Function Collapse, how many options a cell still has. <small>L14</small></dd>
+  <dt>Envelope</dt><dd>The shape of a note's loudness over time. <small>S4</small></dd>
+  <dt>Euclidean rhythm</dt><dd>A number of hits spread as evenly as possible over a number of steps. <small>S4</small></dd>
+  <dt>Euler integration</dt><dd>Stepping a simulation: velocity plus acceleration, position plus velocity. <small>L5, M4</small></dd>
+  <dt>Extension</dt><dd>Blender's packaging format for add-ons since version 4.2. <small>B4</small></dd>
+  <dt>Extrusion</dt><dd>In printing, pushing plastic through the nozzle; the E value in G-code. In modelling, giving a flat shape a height. <small>P4, P2</small></dd>
+  <dt>fBm</dt><dd>Fractal Brownian motion: several layers of noise at rising frequency and falling strength. <small>L3</small></dd>
+  <dt>Field</dt><dd>A rule that gives a value for every point in space. <small>L1</small></dd>
+  <dt>Fingerprint</dt><dd>A short number computed from data, which changes if the data changes at all. <small>S9</small></dd>
+  <dt>Finite difference</dt><dd>Estimating a slope from two nearby values. <small>M3</small></dd>
+  <dt>Flow field</dt><dd>A field of directions that particles follow. <small>L5</small></dd>
+  <dt>Forward kinematics</dt><dd>Posing a chain of joints by multiplying each joint's matrix onto the one before. <small>M6</small></dd>
+  <dt>Fourier series</dt><dd>Building any repeating shape by adding sine waves. <small>M5</small></dd>
+  <dt>Fractal</dt><dd>A shape whose parts resemble the whole. <small>L6</small></dd>
+  <dt>Fragment shader</dt><dd>A small program that computes the colour of one pixel. <small>L9</small></dd>
+  <dt>Frequency</dt><dd>How fast a wave repeats, or how fine the features of noise are. In sound, pitch. <small>L3, L4, S4</small></dd>
+</dl>
+
+<h2>G to L</h2>
+<dl class="vocab">
+  <dt>G-code</dt><dd>The plain-text list of moves and settings that a printer or CNC machine runs. <small>S3, P4</small></dd>
+  <dt>Gaussian</dt><dd>The bell curve: values clustered round a mean. Also a soft falloff with distance. <small>L2, M1</small></dd>
+  <dt>Generative art</dt><dd>Art made by a system with some autonomy, usually including chance. <small>L1</small></dd>
+  <dt>Geometry Nodes</dt><dd>Blender's node-based system for procedural modelling. <small>B3</small></dd>
+  <dt>Golden angle</dt><dd>About 137.5 degrees: the turn that spreads points most evenly round a centre. <small>L4</small></dd>
+  <dt>Gradient</dt><dd>The direction and steepness of a field's rise. Also a smooth blend between colours. <small>M3, L11</small></dd>
+  <dt>Grain</dt><dd>Fine random texture added to break up flat digital surfaces. <small>L10</small></dd>
+  <dt>Gyroid</dt><dd>A lattice surface defined by one trigonometric formula. <small>S3, P3</small></dd>
+  <dt>Halftone</dt><dd>Tone represented by dots of varying size. <small>L13</small></dd>
+  <dt>Hash</dt><dd>A function that scrambles an input into an apparently random but repeatable number. <small>L2, L3</small></dd>
+  <dt>Hatching</dt><dd>Shading with parallel lines. <small>L10, L18</small></dd>
+  <dt>Height map</dt><dd>A grid of heights, one per point: a field treated as a surface. <small>L3, P2</small></dd>
+  <dt>Hidden-line removal</dt><dd>Deleting the parts of lines that are behind nearer shapes. <small>L18</small></dd>
+  <dt>Homogeneous coordinates</dt><dd>Adding a coordinate fixed at 1 so that a matrix can shift as well as rotate and scale. <small>M6</small></dd>
+  <dt>HSL</dt><dd>Colour as hue, saturation and lightness. Convenient, but its lightness is not perceptual. <small>L1, L11</small></dd>
+  <dt>Instancing</dt><dd>Drawing many copies of one shape efficiently, each with its own placement. <small>T2, B3</small></dd>
+  <dt>Integral</dt><dd>A running total: accumulation over time or distance. <small>M3</small></dd>
+  <dt>Interpolation</dt><dd>Finding values between known ones. See lerp. <small>L1</small></dd>
+  <dt>Inverse matrix</dt><dd>The matrix that undoes another. It turns screen positions back into grid coordinates. <small>M6</small></dd>
+  <dt>Iterated function system</dt><dd>A fractal made by applying randomly chosen shrinking transformations repeatedly. <small>L6</small></dd>
+  <dt>Kerf</dt><dd>The width of material removed by a laser or cutter. <small>S3</small></dd>
+  <dt>L-system</dt><dd>A grammar that rewrites a string, which a turtle then draws. <small>L6</small></dd>
+  <dt>Lacunarity and gain</dt><dd>How much frequency grows and strength shrinks with each octave of fBm. <small>L3</small></dd>
+  <dt>Laplacian</dt><dd>How different a cell is from the average of its neighbours. <small>L8, M4</small></dd>
+  <dt>Lattice</dt><dd>A repeating grid of points: whole-number steps along two basis arrows. <small>M6</small></dd>
+  <dt>Lerp</dt><dd>Linear interpolation: the value a fraction of the way from one number to another. <small>L1</small></dd>
+  <dt>Linear combination</dt><dd>A sum of scaled things: arrows, colours or whole shapes. <small>M6</small></dd>
+  <dt>Lissajous figure</dt><dd>The curve traced by two oscillations at right angles. <small>L4</small></dd>
+  <dt>Lloyd relaxation</dt><dd>Repeatedly moving each seed to the centre of its Voronoi cell, evening out the spacing. <small>L7</small></dd>
+  <dt>Lofting</dt><dd>Building a surface by joining outlines at successive heights. <small>P2</small></dd>
+  <dt>Long-form generative art</dt><dd>Releasing an algorithm whose every output must stand as a finished work. <small>L10</small></dd>
+  <dt>Loop (perfect)</dt><dd>An animation that returns exactly to its start in both position and motion. <small>L15</small></dd>
+  <dt>Low-discrepancy sequence</dt><dd>Points that spread evenly without being random. <small>M5</small></dd>
+</dl>
+
+<h2>M to P</h2>
+<dl class="vocab">
+  <dt>Map (range)</dt><dd>Rescale a value from one range to another. <small>L1</small></dd>
+  <dt>Marching tetrahedra</dt><dd>An algorithm that turns a 3D distance function into triangles. <small>P3</small></dd>
+  <dt>Mask</dt><dd>A shape or image that decides where something may appear. <small>L7, W1</small></dd>
+  <dt>Matrix</dt><dd>A small grid of numbers describing a transformation of space. <small>M2, M6</small></dd>
+  <dt>Mesh</dt><dd>A 3D shape made of triangles or other flat faces. <small>P2</small></dd>
+  <dt>Modifier</dt><dd>In Blender, an editable operation applied to an object's geometry. <small>B2</small></dd>
+  <dt>Modulo</dt><dd>The remainder after division. Makes things wrap and repeat. <small>L1</small></dd>
+  <dt>Noise</dt><dd>Smooth, repeatable randomness that depends on position. <small>L3</small></dd>
+  <dt>Normal</dt><dd>The direction at right angles to a curve or surface. <small>M3</small></dd>
+  <dt>Normalise</dt><dd>Turn a value into a 0 to 1 fraction; or scale a vector to length 1. <small>M1, M2</small></dd>
+  <dt>Octave</dt><dd>One layer of fBm noise. In music, a doubling of frequency. <small>L3, S4</small></dd>
+  <dt>Offsetting</dt><dd>Moving an outline inward or outward by a fixed distance. <small>L18</small></dd>
+  <dt>OKLCH</dt><dd>A colour space with perceptual lightness, chroma and hue. <small>L11</small></dd>
+  <dt>Operator</dt><dd>In Blender, an action available in menus and from Python. <small>B1, B4</small></dd>
+  <dt>Orthographic projection</dt><dd>Drawing 3D on a flat screen by ignoring depth. Parallel lines stay parallel. <small>M6</small></dd>
+  <dt>Oscillator</dt><dd>Something that swings back and forth regularly: a sine wave, or a sound source. <small>L4, S4</small></dd>
+  <dt>Overhang</dt><dd>Part of a print with nothing beneath it. Beyond about 45 degrees it needs support. <small>P1</small></dd>
+  <dt>Palette</dt><dd>The limited set of colours a piece uses. <small>L10, L11</small></dd>
+  <dt>Parameter</dt><dd>A value that controls a system: a dial. <small>L1</small></dd>
+  <dt>Parameter sweep</dt><dd>A grid of outputs in which two parameters vary and everything else is fixed. <small>S7</small></dd>
+  <dt>Parametric curve</dt><dd>A curve whose x and y are both functions of one parameter. <small>L4</small></dd>
+  <dt>Particle system</dt><dd>Many simple moving points with birth, life and death. <small>L5</small></dd>
+  <dt>Perlin noise</dt><dd>Ken Perlin's gradient noise, the most widely used kind. <small>L3</small></dd>
+  <dt>Perspective projection</dt><dd>Drawing 3D on a flat screen by dividing by depth, so that far things are smaller. <small>M6</small></dd>
+  <dt>Phase</dt><dd>Where in its cycle a wave or a loop is. <small>L4, L15</small></dd>
+  <dt>Phase space</dt><dd>A plot of a system's state, such as position against speed. <small>M4</small></dd>
+  <dt>Phyllotaxis</dt><dd>The spiral arrangement of seeds and leaves, from the golden angle. <small>L4</small></dd>
+  <dt>Pixel sorting</dt><dd>Rearranging runs of pixels in order of brightness. <small>L13</small></dd>
+  <dt>Poisson-disc sampling</dt><dd>Random points with a guaranteed minimum spacing. <small>L7</small></dd>
+  <dt>Polar coordinates</dt><dd>A position given as an angle and a distance. <small>L4</small></dd>
+  <dt>Preflight</dt><dd>Checking a file for problems before sending it to a machine. <small>P4</small></dd>
+  <dt>PRNG</dt><dd>Pseudo-random number generator: produces repeatable "random" numbers from a seed. <small>L2</small></dd>
+  <dt>Procedural</dt><dd>Made by a procedure, a set of rules, instead of by hand. <small>L1</small></dd>
+  <dt>Propagation</dt><dd>In Wave Function Collapse, following the consequences of a choice outward. <small>L14</small></dd>
+</dl>
+
+<h2>Q to S</h2>
+<dl class="vocab">
+  <dt>Quadtree</dt><dd>A square repeatedly divided into four where more detail is wanted. <small>L7</small></dd>
+  <dt>Random walk</dt><dd>A path made of accumulated small random steps. <small>L2</small></dd>
+  <dt>Raycasting</dt><dd>Finding what a line from the camera through a screen point hits. <small>T3</small></dd>
+  <dt>Raymarching</dt><dd>Rendering a 3D distance function by stepping along rays. <small>L9</small></dd>
+  <dt>Reaction–diffusion</dt><dd>Two interacting, spreading substances that form spots and stripes. <small>L8</small></dd>
+  <dt>Recipe</dt><dd>The code version, seed and parameters that reproduce an output. <small>S9</small></dd>
+  <dt>Recursion</dt><dd>A function that calls itself on a smaller problem. <small>L6</small></dd>
+  <dt>Rejection sampling</dt><dd>Proposing at random and keeping only what passes a test. <small>L7, M5</small></dd>
+  <dt>Resolution independence</dt><dd>Drawing in unit coordinates so the same piece renders at any size. <small>L10</small></dd>
+  <dt>Scale (music)</dt><dd>The subset of pitches a piece uses. <small>S4</small></dd>
+  <dt>Scene graph</dt><dd>The tree of nested objects in a 3D scene. <small>T1</small></dd>
+  <dt>Seed</dt><dd>The number or text that starts a random sequence, and so identifies an output. <small>L2</small></dd>
+  <dt>Self-similarity</dt><dd>Looking alike at different scales. <small>L6</small></dd>
+  <dt>Shaping function</dt><dd>A function that bends a 0 to 1 value by another route. <small>M1</small></dd>
+  <dt>Signed distance function</dt><dd>A function giving the distance to a shape's edge, negative inside. <small>L9, P3</small></dd>
+  <dt>Slicer</dt><dd>Software that turns a 3D model into layers and toolpaths. <small>P1</small></dd>
+  <dt>Smoothing (input)</dt><dd>Moving a value part of the way toward its target each frame. <small>S1</small></dd>
+  <dt>Smoothstep</dt><dd>A ramp from 0 to 1 that eases in and out. <small>L3, L9</small></dd>
+  <dt>Socket</dt><dd>In Wave Function Collapse, an edge label; two tiles fit where sockets match. In Blender, a node's input or output. <small>L14, B3</small></dd>
+  <dt>Space colonisation</dt><dd>Branches that grow toward unclaimed attraction points. <small>L16</small></dd>
+  <dt>Spatial hash</dt><dd>A coarse grid of buckets that makes "what is near here?" fast. <small>L7, L19</small></dd>
+  <dt>Stagger</dt><dd>Giving each element its own delay, so motion travels as a wave. <small>L15</small></dd>
+  <dt>STL</dt><dd>The simplest 3D file format: a list of triangles. <small>P2</small></dd>
+  <dt>Stick</dt><dd>A constraint keeping two points a fixed distance apart. <small>L17</small></dd>
+  <dt>Stippling</dt><dd>Shading with dots, denser where darker. <small>L13, M5</small></dd>
+  <dt>Strange attractor</dt><dd>The structure a chaotic system stays on without ever repeating. <small>M4</small></dd>
+  <dt>Streamline</dt><dd>The path of a particle through a flow field. <small>L5</small></dd>
+  <dt>Subdivision</dt><dd>Repeatedly cutting a shape into smaller pieces. <small>L7</small></dd>
+  <dt>SVG</dt><dd>A vector image format: shapes described as text. <small>L10, L18</small></dd>
+  <dt>Symmetry group</dt><dd>The set of transformations that leave a design looking the same. <small>M2</small></dd>
+</dl>
+
+<h2>T to Z</h2>
+<dl class="vocab">
+  <dt>Tangent</dt><dd>The direction of travel along a curve. <small>M3</small></dd>
+  <dt>Tau</dt><dd>A full turn in radians: twice pi, about 6.283. <small>L1</small></dd>
+  <dt>Tile</dt><dd>A small unit repeated or combined to cover an area. <small>L2, L14</small></dd>
+  <dt>Toolpath</dt><dd>The route a pen, cutter or nozzle follows. <small>S3, P5</small></dd>
+  <dt>Trace</dt><dd>The sum of the two diagonal numbers of a matrix. <small>M6</small></dd>
+  <dt>Trait</dt><dd>A named, seed-chosen feature of an output in a generative collection. <small>L10</small></dd>
+  <dt>Transform</dt><dd>Moving, rotating or scaling the coordinate system. <small>L1</small></dd>
+  <dt>Truchet tile</dt><dd>A tile whose pattern connects with its neighbours however it is turned. <small>L2</small></dd>
+  <dt>Turtle</dt><dd>A pen with a position and a heading that follows drawing instructions. <small>L6</small></dd>
+  <dt>Typed array</dt><dd>A compact block of raw numbers, faster than objects for large counts. <small>L19</small></dd>
+  <dt>Uniform</dt><dd>In a shader, a value passed in from outside. In randomness, equally likely everywhere. <small>L9, L2</small></dd>
+  <dt>Unit coordinates</dt><dd>Positions as fractions from 0 to 1 instead of pixels. <small>L10</small></dd>
+  <dt>Value noise</dt><dd>Noise made by smoothly blending random values at grid points. <small>L3</small></dd>
+  <dt>Vector</dt><dd>A pair or triple of numbers read as a direction with a length. Also: an image made of shapes, not pixels. <small>L5, M2</small></dd>
+  <dt>Velocity</dt><dd>How much position changes each step. <small>L5</small></dd>
+  <dt>Verlet integration</dt><dd>Simulating motion from the current and previous positions only. <small>L17</small></dd>
+  <dt>Vertex shader</dt><dd>A program that decides where each vertex of a 3D shape appears. <small>T3</small></dd>
+  <dt>Volumetric flow</dt><dd>The volume of plastic a printer extrudes per second. Its real speed limit. <small>P1</small></dd>
+  <dt>Voronoi diagram</dt><dd>The division of space into regions nearest to each of a set of seeds. <small>L7</small></dd>
+  <dt>Watertight</dt><dd>A mesh with no holes: every edge shared by exactly two faces. <small>P2</small></dd>
+  <dt>Wave Function Collapse</dt><dd>An algorithm that fills a grid with tiles so that every neighbour fits. <small>L14</small></dd>
+  <dt>Web worker</dt><dd>A second thread for heavy work, so the page stays responsive. <small>L19</small></dd>
+  <dt>Weighted choice</dt><dd>Picking from a list where some options are more likely than others. <small>L2</small></dd>
+  <dt>Winding order</dt><dd>The direction in which a face's corners are listed, which tells the outside from the inside. <small>P2</small></dd>
+</dl>
+
+<footer class="next"><a href="../index.html">← Course</a><a href="cheat-sheet.html">Cheat sheet →</a></footer>
+</main>
+</body>
+</html>

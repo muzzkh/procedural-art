@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 8 · Publishing</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="07-critique-and-art-direction.html">← Special 7</a><span>Special topic 8 of 9</span><a href="09-project-workflow.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 8</p>
+  <h1>Publishing</h1>
+  <p class="lede">Work that stays in a folder teaches only its maker. This page covers getting it seen and, if you wish, sold: a portfolio, documentation, licences, prints and editions. It is practical guidance, not legal or financial advice.</p>
+</header>
+
+<h2>A portfolio</h2>
+<p>A portfolio is an edit, not an archive. Its job is to let a stranger understand in a minute what you make and whether they want more of it.</p>
+<ul>
+  <li><strong>Show less.</strong> Eight to fifteen strong pieces. One weak piece lowers the whole, because viewers assume you cannot tell the difference.</li>
+  <li><strong>Show series.</strong> Three to six outputs from one system say more than one, and demonstrate that the system is good, not lucky.</li>
+  <li><strong>Lead with the best.</strong> Most visitors see only the first screen.</li>
+  <li><strong>Give each piece a title, a year and a line.</strong> One sentence on what it is and how it was made. Not a tutorial.</li>
+  <li><strong>Show it in the world.</strong> A photograph of the framed print, the plot on the machine, the installation in its room. Generative work is often dismissed as "just an image". Evidence of the object answers that.</li>
+  <li><strong>Make it fast.</strong> Large images, properly compressed. A live sketch or two is an asset, but the page must not depend on them.</li>
+  <li><strong>Say who you are and how to reach you.</strong></li>
+</ul>
+<p>Your own website, however plain, is worth having. Platforms change their rules and disappear. Use them to be found, and point them home.</p>
+
+<h2>Documentation</h2>
+<p>For generative work the record of <em>how</em> is part of the work, and you will not remember it. For every finished piece keep:</p>
+<table>
+  <thead><tr><th>Record</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>The seed and every parameter</td><td>To regenerate it exactly (Special Topic 9)</td></tr>
+    <tr><td>The version of the code that made it</td><td>The same seed gives a different picture after you change the code</td></tr>
+    <tr><td>A full-resolution master file</td><td>In case regeneration ever fails</td></tr>
+    <tr><td>Title, date, dimensions, medium</td><td>Galleries, buyers and your future self will all ask</td></tr>
+    <tr><td>A short statement</td><td>Two or three sentences on what it is about. Write it while you still know.</td></tr>
+    <tr><td>For physical work: paper, inks, machine, settings</td><td>To reprint, and to answer questions about permanence</td></tr>
+    <tr><td>The edition: size, and which numbers have gone where</td><td>Your word on the edition size is what gives it meaning</td></tr>
+  </tbody>
+</table>
+<p>The label below is the kind of record that travels with a print. It is generated from the piece's own data, so it cannot disagree with it.</p>
+
+<div class="example" data-title="S8.1 A piece and its label">
+<script type="text/plain">
+const title = ui.text('title', 'Tidewater');
+const number = ui.slider('edition number', 1, 25, 7, 1);
+const EDITION = 25, SERIES_SEED = 'tidewater';
+
+function draw() {
+  const seed = SERIES_SEED + '-' + number();           // every print in the edition is its own output
+  const R = PA.rng(seed), N = PA.noise(seed);
+
+  ctx.fillStyle = '#e8e2d6';                           // the mount
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fbf8f1';                           // the print
+  ctx.fillRect(110, 30, 380, 380);
+
+  const hue = R.range(180, 260);
+  ctx.lineWidth = 1.4;
+  for (let j = 0; j < 34; j++) {
+    ctx.beginPath();
+    for (let x = 135; x <= 465; x += 5) {
+      const y = 70 + j * 9.4 + (N.fbm(x * 0.008, j * 0.11, { octaves: 3 }) - 0.5) * 130 * (j / 34);
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = PA.oklch(0.35 + (j / 34) * 0.3, 0.1, hue + j * 1.5);
+    ctx.stroke();
+  }
+
+  // the label: everything on it is read from the data that made the picture
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(110, 440, 380, 130);
+  ctx.strokeStyle = '#c9c2b4';
+  ctx.strokeRect(110, 440, 380, 130);
+  ctx.fillStyle = '#1c1b19';
+  ctx.font = 'italic 22px Georgia';
+  ctx.fillText(title() || 'Untitled', 128, 474);
+  ctx.font = '13px Georgia';
+  ctx.fillText('Your Name, ' + new Date().getFullYear(), 128, 498);
+  ctx.fillText('Archival pigment print on cotton paper, 300 × 300 mm', 128, 518);
+  ctx.fillText('Edition ' + number() + ' of ' + EDITION, 128, 538);
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#6b665d';
+  ctx.fillText('seed ' + seed + ' · code v1.2 · check ' + PA.hashString(seed + title()).toString(16), 128, 558);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Licences</h2>
+<p>By default, in most countries, you hold the copyright in what you make, and nobody else may copy or reuse it without permission. A <strong>licence</strong> is permission granted in advance, on stated terms. You do not have to grant any. If you want people to be able to share or build on your work, standard licences save everyone from guessing.</p>
+<h3>For images and artworks: Creative Commons</h3>
+<table>
+  <thead><tr><th>Licence</th><th>Others may…</th><th>On condition that…</th></tr></thead>
+  <tbody>
+    <tr><td>CC0</td><td>Do anything at all</td><td>Nothing. You give up your rights.</td></tr>
+    <tr><td>CC BY</td><td>Share, adapt, and use commercially</td><td>They credit you</td></tr>
+    <tr><td>CC BY-SA</td><td>The same</td><td>They credit you, and release what they make under the same licence</td></tr>
+    <tr><td>CC BY-NC</td><td>Share and adapt, but not for commercial purposes</td><td>They credit you</td></tr>
+    <tr><td>CC BY-ND</td><td>Share unchanged, including commercially</td><td>They credit you, and make no altered versions</td></tr>
+    <tr><td>CC BY-NC-ND</td><td>Share unchanged, non-commercially</td><td>They credit you</td></tr>
+  </tbody>
+</table>
+<h3>For code</h3>
+<table>
+  <thead><tr><th>Licence</th><th>In short</th></tr></thead>
+  <tbody>
+    <tr><td>MIT</td><td>Do anything, keep the copyright notice. The simplest and most common choice.</td></tr>
+    <tr><td>Apache 2.0</td><td>Like MIT, with explicit terms about patents</td></tr>
+    <tr><td>GPL</td><td>Use and modify freely, but anything distributed that includes it must also be released under the GPL</td></tr>
+    <tr><td>No licence stated</td><td>All rights reserved: others may read it but not legally reuse it</td></tr>
+  </tbody>
+</table>
+<p>Generative work raises a question that ordinary images do not: <strong>the code and the outputs are separate things</strong>, and can be licensed separately. A common arrangement is to publish the code openly, so that others can learn from it, while keeping the outputs of your own seeds as your artwork. State both clearly.</p>
+<p>The other side of this is what you use. Fonts, photographs, palettes sampled from someone's work, code from tutorials and libraries all come with terms. Check them before you sell anything that includes them. Fonts in particular often permit use in images but not redistribution.</p>
+
+<h2>Prints and editions</h2>
+<p>Special Topic 3 covered making a print. Selling one adds a few conventions.</p>
+<dl class="vocab">
+  <dt>Open edition</dt><dd>Printed as long as people want it. Lower price, no scarcity.</dd>
+  <dt>Limited edition</dt><dd>A fixed number, declared in advance and never exceeded. Each print is numbered, as in 7/25, and usually signed.</dd>
+  <dt>Unique outputs</dt><dd>The generative option: each print in a series comes from its own seed, so every buyer has a different piece from the same system. The series size is fixed. The example above works this way.</dd>
+  <dt>Artist's proofs</dt><dd>A few extra prints outside the numbered edition, kept by the artist. Marked A/P. Keep these few, and say how many exist.</dd>
+  <dt>Certificate of authenticity</dt><dd>A signed document stating the title, edition and details. Useful for anything sold at a meaningful price.</dd>
+</dl>
+<ul>
+  <li><strong>Honour the edition.</strong> Do not reprint a sold-out edition in another size or colour. An edition is a promise.</li>
+  <li><strong>Print quality.</strong> For work meant to last, use pigment inks on acid-free paper, and say so. Order a proof before selling.</li>
+  <li><strong>Pricing.</strong> Start from your costs: printing, packaging, postage, any platform's commission, and your time. Look at what comparable work by people at your stage sells for. It is easier to raise prices later than to lower them.</li>
+  <li><strong>Packaging.</strong> Prints are damaged in the post more often than anywhere else. Flat, between rigid boards, or rolled in a strong tube.</li>
+  <li><strong>The practical side.</strong> Selling work is income, and may have tax and consumer-law consequences that depend on where you live. Find out the rules that apply to you.</li>
+</ul>
+
+<h2>Where work is shown and sold</h2>
+<table>
+  <thead><tr><th>Route</th><th>Suits</th><th>Consider</th></tr></thead>
+  <tbody>
+    <tr><td>Your own site and shop</td><td>Everything</td><td>You must bring the audience yourself</td></tr>
+    <tr><td>Print-on-demand services</td><td>Open editions without holding stock</td><td>You do not see the print before the buyer does. Order samples.</td></tr>
+    <tr><td>Pen-plotter originals</td><td>One-off drawings, each physically unique</td><td>Time per piece. Photograph well.</td></tr>
+    <tr><td>Art fairs, markets and local galleries</td><td>Physical work, meeting buyers</td><td>Framing and stand costs</td></tr>
+    <tr><td>Long-form generative platforms</td><td>An algorithm released as a collection, each output generated at the moment of purchase</td><td>The discipline of Lesson 10: every output must be good. Understand the platform's technology, fees and community before committing.</td></tr>
+    <tr><td>Commissions and client work</td><td>Applying your systems to a brief (Special Topic 2)</td><td>Agree in writing who owns the code and the outputs</td></tr>
+    <tr><td>Open-source and teaching</td><td>Tools, libraries, tutorials</td><td>Builds reputation and community more than income</td></tr>
+    <tr><td>Competitions, festivals, open calls</td><td>Exposure, deadlines that make you finish</td><td>Read the terms: some claim rights over submitted work</td></tr>
+  </tbody>
+</table>
+
+<h2>Sharing the process</h2>
+<p>People who follow generative art are unusually interested in how it is made. Process is material you already have:</p>
+<ul>
+  <li>The contact sheet of a hundred outputs beside the one you chose.</li>
+  <li>The bug that turned out better than the plan.</li>
+  <li>A short video of the plotter at work, or the simulation growing.</li>
+  <li>The same seed at three stages of the system's development.</li>
+</ul>
+<p>Write about your work in plain language, in the first person, about what you were trying to do. Avoid describing the algorithm as though it were the point.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A portfolio is a strict edit: few pieces, shown as series, with evidence of the physical work.</li>
+  <li>Record the seed, parameters and code version of everything you finish.</li>
+  <li>Code and outputs can be licensed separately. Say which terms apply to each.</li>
+  <li>Check the terms of everything you build on: fonts, images, libraries.</li>
+  <li>An edition is a promise. Unique-output series are the natural form for generative prints.</li>
+  <li>Your process is worth showing.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 8</p>
+  <h2>Put One Series into the World</h2>
+  <p>Take a series you have made, such as the ten pieces from Special Topic 7, and publish it properly: documented, licensed, and presented on a page of its own.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>portfolio page</strong> for the series: a title, a statement of two or three sentences, between six and ten outputs, each with its own title or number.</li>
+    <li>The page is <strong>fast and plain</strong>: static images, readable on a phone, no dependence on scripts to show the work.</li>
+    <li>A <strong>record</strong> for every piece: seed, parameters, code version, date and dimensions, in a file kept with the work.</li>
+    <li>A stated <strong>licence</strong> for the images, and a separate one for the code, with a sentence on why you chose each.</li>
+    <li>A decision on <strong>editions</strong>: open, limited or unique outputs, the size, and how prints would be numbered and signed.</li>
+    <li>A generated <strong>label</strong> or certificate for each piece, drawing its details from the record.</li>
+    <li>One piece of <strong>process</strong> material: a contact sheet, a short write-up, or a video.</li>
+    <li>A list of every outside ingredient (fonts, libraries, data) and its licence.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write the statement before choosing the images. It tells you which belong.</li>
+    <li>Export images at about 2000 pixels on the long side and compress them. Test the page on a phone over a slow connection.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>A stranger could understand the series in one minute.</li>
+    <li>You could regenerate any piece from your records alone.</li>
+  </ul>
+  <a class="start" href="../challenges/s8-series-page.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="07-critique-and-art-direction.html">← Special Topic 7</a><a href="09-project-workflow.html">Special Topic 9: Project Workflow →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Notes — generated cover art for every article</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 5vw; background: #14161a; color: #ece7dc; font-family: system-ui, sans-serif; }
+  h1 { font: 600 clamp(1.8rem, 4vw, 3rem) Georgia, serif; margin: 0 0 0.3rem; }
+  .intro { color: #a09a8e; max-width: 60ch; margin: 0 0 2.5rem; }
+  .grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .card { display: block; color: inherit; text-decoration: none; background: #1d2026; border-radius: 12px; overflow: hidden; transition: transform 0.25s; }
+  .card:hover, .card:focus-visible { transform: translateY(-4px); }
+  .card canvas { display: block; width: 100%; aspect-ratio: 4 / 3; }
+  .card div { padding: 0.9rem 1rem 1.1rem; }
+  .card strong { display: block; font: 600 1.15rem Georgia, serif; }
+  .card span { font-size: 0.8rem; color: #a09a8e; letter-spacing: 0.06em; text-transform: uppercase; }
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+</style>
+</head>
+<body>
+<h1>Field Notes</h1>
+<p class="intro">None of these articles has an illustration. Each cover is generated from the article's title, so a new article gets matching artwork the moment it is published. Hover over a card to wake it up.</p>
+<div class="grid" id="grid"></div>
+
+<script src="../../assets/pa.js"></script>
+<script>
+const articles = [
+  ['On Noise', 'Essay'], ['Rules and Chance', 'Essay'], ['A Field Guide to Fields', 'Tutorial'],
+  ['Growing Things', 'Notebook'], ['The Honest Grid', 'Essay'], ['Finishing Work', 'Tutorial'],
+  ['Seeds', 'Notebook'], ['Slow Interfaces', 'Essay'], ['What the Plotter Taught Me', 'Notebook'],
+];
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// One cover. "life" is 0 at rest and grows while the card is hovered.
+function drawCover(canvas, title, life) {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const R = PA.rng(title), N = PA.noise(title);        // the title is the seed
+  const hue = R.range(360);
+  const kind = R.weighted(['flow', 'rings', 'blocks'], [3, 2, 2]);
+
+  // house style, the same for every cover: dark ground, one bright ink, a margin
+  ctx.fillStyle = PA.hsl(hue, 35, 13);
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = ctx.fillStyle = PA.hsl((hue + 40) % 360, 85, 66);
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  const m = 18;
+
+  if (kind === 'flow') {
+    for (let k = 0; k < 46; k++) {
+      let x = R.range(m, w - m), y = R.range(m, h - m);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let s = 0; s < 26; s++) {
+        const a = N.get(x * 0.008, y * 0.008, life * 0.4) * PA.TAU * 2;
+        x += Math.cos(a) * 4; y += Math.sin(a) * 4;
+        if (x < m || x > w - m || y < m || y > h - m) break;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  } else if (kind === 'rings') {
+    const cx = R.range(w * 0.3, w * 0.7), cy = R.range(h * 0.35, h * 0.65), n = R.int(5, 9);
+    for (let i = 0; i < n; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10 + i * (h * 0.42 / n) + Math.sin(life * 2 + i) * 5 * Math.min(life, 1), 0, PA.TAU);
+      ctx.stroke();
+    }
+  } else {
+    const n = R.int(6, 12), bw = (w - m * 2) / n;
+    for (let i = 0; i < n; i++) {
+      const bh = (h - m * 2) * (0.2 + 0.8 * N.get(i * 0.35, life * 0.5));
+      ctx.fillRect(m + i * bw + 2, h - m - bh, bw - 4, bh);
+    }
+  }
+}
+
+const grid = document.getElementById('grid');
+const cards = articles.map(([title, kind]) => {
+  const card = document.createElement('a');
+  card.className = 'card';
+  card.href = '#';
+  card.innerHTML = '<canvas aria-hidden="true"></canvas><div><span></span><strong></strong></div>';
+  card.querySelector('span').textContent = kind;
+  card.querySelector('strong').textContent = title;
+  grid.appendChild(card);
+  const state = { title, canvas: card.querySelector('canvas'), life: 0, hover: false, drawn: false };
+  card.addEventListener('pointerenter', () => { state.hover = true; });
+  card.addEventListener('pointerleave', () => { state.hover = false; });
+  return state;
+});
+
+// draw a cover only when its card first scrolls into view
+const seen = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    const state = cards.find((c) => c.canvas === entry.target);
+    if (entry.isIntersecting && !state.drawn) { drawCover(state.canvas, state.title, 0); state.drawn = true; }
+  }
+});
+cards.forEach((c) => seen.observe(c.canvas));
+
+// animate only the cards that need it
+function frame() {
+  for (const c of cards) {
+    if (!c.drawn) continue;
+    if (c.hover) c.life += 0.02;
+    else if (c.life > 0.01) c.life *= 0.92;
+    else continue;                                   // at rest: no drawing at all
+    drawCover(c.canvas, c.title, c.life);
+  }
+  requestAnimationFrame(frame);
+}
+if (!calm) requestAnimationFrame(frame);
+addEventListener('resize', () => cards.forEach((c) => { if (c.drawn) drawCover(c.canvas, c.title, c.life); }));
+</script>
+</body>
+</html>

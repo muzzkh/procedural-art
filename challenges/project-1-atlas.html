@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Project 1 · The Atlas</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* PROJECT 1 — AN ATLAS OF SOMEWHERE THAT DOES NOT EXIST
+   Full brief: ../projects/01-atlas.html
+
+   Lessons I am combining (at least five):
+   -
+   -
+   -
+   -
+   -
+
+   Milestones
+   [ ] 1 Land: a believable landmass, checked across twenty seeds
+   [ ] 2 Lines: coastline and three contour levels as polylines
+   [ ] 3 Water and relief: rivers that run downhill; one committed relief style
+   [ ] 4 Regions and places: three to seven regions; settlements placed for a reason; a capital
+   [ ] 5 Names: my own generator; one language per map
+   [ ] 6 Labels: three sizes, no overlaps, one along a curve
+   [ ] 7 The sheet: margin, title block, scale bar, legend, seed in the corner
+
+   Requirements
+   [ ] Everything is derived from shared fields
+   [ ] At least twelve labels, none overlapping
+   [ ] Palette with roles, built in OKLCH; label contrast at least 4.5
+   [ ] At least three reported features that vary by seed
+   [ ] PNG export at A3, 300 dpi or larger, with seed and parameters as JSON
+   [ ] The same seed always gives the same map */
+
+// The sheet is designed in millimetres. Pixels are decided once, here.
+const SHEET_W = 297, SHEET_H = 420;      // A3 portrait
+const PREVIEW_DPI = 72;                  // raise to 300 for the final export
+const PX = PREVIEW_DPI / 25.4;           // pixels per millimetre
+
+const canvas = document.getElementById('canvas');
+canvas.width = Math.round(SHEET_W * PX);
+canvas.height = Math.round(SHEET_H * PX);
+const ctx = canvas.getContext('2d');
+
+let seed = 1;
+
+// Each stage reads what the stages before it wrote into `map`.
+function generate(seed) {
+  const R = PA.rng(seed), N = PA.noise(seed);
+  const map = { seed, features: {} };
+
+  // ---- 1. fields: height (and climate) sampled into arrays on a grid ----
+  // ---- 2. lines: coastline and contours as arrays of [x, y] in mm ----
+  // ---- 3. rivers ----
+  // ---- 4. regions and settlements ----
+  // ---- 5. names ----
+  // ---- 6. label positions ----
+
+  return map;
+}
+
+function render(map) {
+  ctx.save();
+  ctx.scale(PX, PX);                     // from here on, draw in millimetres
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, SHEET_W, SHEET_H);
+
+  // ---- draw the layers in order: sea, land, relief, rivers, borders, places, labels, sheet furniture ----
+
+  ctx.restore();
+}
+
+render(generate(seed));
+
+// TODO: keys for a new seed, for saving the PNG at print resolution, and for saving the JSON
+</script>
+</body>
+</html>

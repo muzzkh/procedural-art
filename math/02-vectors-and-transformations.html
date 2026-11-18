@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths 2 · Vectors, Matrices and Complex Numbers</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-functions-and-shaping.html">← Maths 1</a><span>Maths 2 of 6</span><a href="03-calculus.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Maths 2</p>
+  <h1>Vectors, Matrices and Complex Numbers</h1>
+  <p class="lede">Maths 1 was about single numbers. Pictures live in two dimensions, so this page is about numbers that travel in pairs: how to measure them, compare them, and transform a whole plane of them at once.</p>
+</header>
+
+<h2>Vectors</h2>
+<p>A vector is a pair <code>(x, y)</code> read as an arrow: a direction and a length. Four operations cover almost everything.</p>
+<table>
+  <thead><tr><th>Operation</th><th>Formula</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Add</td><td><code>(ax + bx, ay + by)</code></td><td>Follow one arrow, then the other. Position plus velocity.</td></tr>
+    <tr><td>Scale</td><td><code>(ax * s, ay * s)</code></td><td>Same direction, different length.</td></tr>
+    <tr><td>Length</td><td><code>Math.hypot(ax, ay)</code></td><td>Pythagoras: √(x² + y²).</td></tr>
+    <tr><td>Normalise</td><td><code>(ax / length, ay / length)</code></td><td>Keep the direction, set the length to 1. A pure direction.</td></tr>
+  </tbody>
+</table>
+<p>Subtracting two positions gives the arrow from one to the other, which is how you find "the direction toward the mouse". One more trick is worth memorising: swapping the components and negating one, <code>(-y, x)</code>, turns any vector by exactly a quarter turn. That perpendicular is how you offset a line sideways or make a flow circulate instead of converge.</p>
+
+<h2>The dot product</h2>
+<p class="formula">a · b = ax·bx + ay·by</p>
+<p>The dot product of two vectors is one number. For two directions of length 1 it measures <strong>how much they agree</strong>:</p>
+<ul>
+  <li><strong>1</strong> when they point the same way,</li>
+  <li><strong>0</strong> when they are at right angles,</li>
+  <li><strong>−1</strong> when they point in opposite ways.</li>
+</ul>
+<p>(It equals the cosine of the angle between them, without your having to compute an angle.) This single line is the heart of all computer lighting: a surface is bright in proportion to how directly it faces the light. It is also how Perlin noise works internally, and how you ask "is this thing in front of me or behind me?"</p>
+
+<div class="example" data-title="M2.1 Agreement with a direction (move the mouse)">
+<script type="text/plain">
+const N = PA.noise('dot');
+
+loop(() => {
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+
+  for (let y = 15; y < H; y += 24) {
+    for (let x = 15; x < W; x += 24) {
+      // a field of unit vectors
+      const a = N.get(x * 0.004, y * 0.004) * PA.TAU * 2;
+      const vx = Math.cos(a), vy = Math.sin(a);
+
+      // the unit vector pointing from here to the mouse
+      let mx = mouse.x - x, my = mouse.y - y;
+      const len = Math.hypot(mx, my) || 1;
+      mx /= len; my /= len;
+
+      const dot = vx * mx + vy * my;        // 1: pointing at the mouse.  -1: pointing away
+
+      ctx.strokeStyle = dot > 0
+        ? PA.hsl(42, 95, 25 + dot * 45)     // agreeing: warm, brighter with agreement
+        : PA.hsl(215, 60, 22 - dot * 20);   // disagreeing: cool
+      ctx.beginPath();
+      ctx.moveTo(x - vx * 9, y - vy * 9);
+      ctx.lineTo(x + vx * 9, y + vy * 9);
+      ctx.stroke();
+    }
+  }
+});
+</script>
+</div>
+
+<h2>Matrices: transforming the whole plane</h2>
+<p>A 2 × 2 matrix is four numbers that describe a transformation of every point at once. Applying it is two lines:</p>
+<p class="formula">x′ = a·x + b·y   y′ = c·x + d·y</p>
+<p>Different choices of the four numbers give every transformation that keeps straight lines straight and the origin fixed:</p>
+<table>
+  <thead><tr><th>Transformation</th><th>a, b, c, d</th></tr></thead>
+  <tbody>
+    <tr><td>Scale</td><td><code>sx, 0, 0, sy</code></td></tr>
+    <tr><td>Rotate by angle θ</td><td><code>cos θ, −sin θ, sin θ, cos θ</code></td></tr>
+    <tr><td>Shear (slant)</td><td><code>1, k, 0, 1</code></td></tr>
+    <tr><td>Mirror left to right</td><td><code>−1, 0, 0, 1</code></td></tr>
+  </tbody>
+</table>
+<p>Two transformations can be combined into one by <strong>multiplying</strong> their matrices. The order matters: rotating then shearing is not the same as shearing then rotating. When you call <code>ctx.rotate</code> and <code>ctx.scale</code>, the canvas is multiplying matrices on your behalf, and the fern in Lesson 6 is nothing but four of these matrices, each with a shift added, applied at random.</p>
+
+<div class="example" data-title="M2.2 Four numbers move every point">
+<script type="text/plain">
+function apply(m, x, y) {
+  return [m[0] * x + m[1] * y, m[2] * x + m[3] * y];
+}
+function multiply(p, q) {               // the matrix that does q first, then p
+  return [
+    p[0] * q[0] + p[1] * q[2], p[0] * q[1] + p[1] * q[3],
+    p[2] * q[0] + p[3] * q[2], p[2] * q[1] + p[3] * q[3],
+  ];
+}
+
+function drawGrid(m, cx, cy, label) {
+  const s = 22;                         // pixels per unit
+  ctx.beginPath();
+  for (let k = -3; k <= 3; k++) {
+    let [x1, y1] = apply(m, k, -3), [x2, y2] = apply(m, k, 3);
+    ctx.moveTo(cx + x1 * s, cy + y1 * s); ctx.lineTo(cx + x2 * s, cy + y2 * s);
+    [x1, y1] = apply(m, -3, k); [x2, y2] = apply(m, 3, k);
+    ctx.moveTo(cx + x1 * s, cy + y1 * s); ctx.lineTo(cx + x2 * s, cy + y2 * s);
+  }
+  ctx.strokeStyle = '#5bc0be';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const [ax, ay] = apply(m, 1, 0), [bx, by] = apply(m, 0, 1);    // where the two unit arrows end up
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#ef476f';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + ax * s * 2, cy + ay * s * 2); ctx.stroke();
+  ctx.strokeStyle = '#ffd166';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + bx * s * 2, cy + by * s * 2); ctx.stroke();
+
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '13px monospace';
+  ctx.fillText(label, cx - 135, cy - 125);
+}
+
+loop((t) => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+
+  const angle = t * 0.5, k = Math.sin(t) * 0.8, s = 0.4 * Math.sin(t * 1.3);
+  const rotation = [Math.cos(angle), -Math.sin(angle), Math.sin(angle), Math.cos(angle)];
+  const shear = [1, k, 0, 1];
+  const scale = [1 + s, 0, 0, 1 - s];
+
+  drawGrid(rotation, 150, 150, 'rotate');
+  drawGrid(shear, 450, 150, 'shear');
+  drawGrid(scale, 150, 450, 'scale');
+  drawGrid(multiply(rotation, shear), 450, 450, 'shear, then rotate');
+});
+</script>
+</div>
+
+<p>The red and yellow arrows show where the two unit directions land. That is a useful way to read any matrix: its first column is where "one step right" goes, and its second column is where "one step down" goes. <a href="06-linear-algebra.html">Maths 6</a> takes matrices further: determinants, inverses, chains, 3D and eigenvectors.</p>
+
+<h2>Symmetry</h2>
+<p>A design is symmetric when a transformation leaves it looking the same. Mathematicians catalogue these as <strong>symmetry groups</strong>, and a designer can use the same catalogue directly: draw one small motif, then apply every transformation in the group to it.</p>
+<ul>
+  <li><strong>Rotational symmetry of order n:</strong> rotate by 1/n of a turn, n times. Pinwheels, flowers.</li>
+  <li><strong>Dihedral symmetry:</strong> the rotations plus a mirror. Snowflakes, mandalas, kaleidoscopes.</li>
+  <li><strong>Wallpaper symmetry:</strong> add repetition by translation in two directions. There are exactly 17 distinct ways to do it. Islamic tilings and Escher's prints are the famous examples.</li>
+</ul>
+<p>The motif below is a random scribble confined to one thin wedge. Rotating and mirroring it turns noise into order: the symmetry does the design work.</p>
+
+<div class="example" data-title="M2.3 One scribble, sixteen copies">
+<script type="text/plain">
+const R = PA.rng();          // run again for a new mandala
+const n = 8;                 // order of symmetry. try 3, 5, 12
+const wedge = Math.PI / n;   // half of one slice
+
+// a random path that stays inside the wedge between angle 0 and angle "wedge"
+const motif = [];
+let x = 12, y = 0;
+while (x < 270) {
+  x += R.range(1, 9);
+  y += R.range(-14, 14);
+  y = PA.clamp(y, 0, x * Math.tan(wedge));
+  motif.push([x, y]);
+}
+
+ctx.fillStyle = '#0b132b';
+ctx.fillRect(0, 0, W, H);
+ctx.translate(W / 2, H / 2);
+ctx.strokeStyle = '#ffd166';
+ctx.lineWidth = 1.5;
+ctx.lineJoin = 'round';
+
+function drawMotif() {
+  ctx.beginPath();
+  for (const [px, py] of motif) ctx.lineTo(px, py);
+  ctx.stroke();
+}
+
+for (let k = 0; k < n; k++) {
+  ctx.save();
+  ctx.rotate((k / n) * PA.TAU);     // the rotations
+  drawMotif();
+  ctx.scale(1, -1);                 // the mirror
+  drawMotif();
+  ctx.restore();
+}
+</script>
+</div>
+
+<h2>Complex numbers</h2>
+<p>A complex number is a point on the plane written as one number, <code>z = x + y·i</code>, with one special rule: <code>i² = −1</code>. That rule sounds arbitrary, but its effect is geometric and simple:</p>
+<ul>
+  <li><strong>Adding</strong> complex numbers adds them as vectors: a shift.</li>
+  <li><strong>Multiplying</strong> complex numbers <em>adds their angles and multiplies their lengths</em>: a rotation and a scaling in one step.</li>
+</ul>
+<p>So complex arithmetic is a compact way to rotate and scale. Squaring a number doubles its angle and squares its length:</p>
+<p class="formula">z² = (x² − y²) + (2xy)·i</p>
+<p>Those are the two lines inside the Mandelbrot loop in Lesson 6. Repeating <code>z → z² + c</code> stretches, wraps and shifts the plane over and over, and the boundary between points that escape and points that stay is a fractal. In the Mandelbrot set <code>c</code> is the pixel. If instead you fix <code>c</code> and let the starting <code>z</code> be the pixel, you get a <strong>Julia set</strong>, a different one for every <code>c</code>. Here <code>c</code> travels slowly round a circle.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="M2.4 A Julia set for every c">
+<script type="text/plain">
+const img = ctx.createImageData(W, H);
+const maxIter = 60;
+
+loop((t) => {
+  const cr = 0.7885 * Math.cos(t * 0.3);      // c moves round a circle of radius 0.7885
+  const ci = 0.7885 * Math.sin(t * 0.3);
+
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      let x = (px / W - 0.5) * 3.2;           // the pixel is the starting z
+      let y = (py / H - 0.5) * 3.2;
+      let i = 0;
+      while (x * x + y * y < 4 && i < maxIter) {
+        const xt = x * x - y * y + cr;        // real part of z squared, plus c
+        y = 2 * x * y + ci;                   // imaginary part of z squared, plus c
+        x = xt;
+        i++;
+      }
+
+      const k = (py * W + px) * 4;
+      const v = i / maxIter;
+      img.data[k]     = i === maxIter ? 8 : 20 + 235 * v ** 0.4;
+      img.data[k + 1] = i === maxIter ? 8 : 20 + 235 * v ** 0.9;
+      img.data[k + 2] = i === maxIter ? 16 : 45 + 150 * v ** 2;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<p>Try it: replace the two update lines with the formula for <code>z³</code>: real part <code>x*x*x - 3*x*y*y</code>, imaginary part <code>3*x*x*y - y*y*y</code>. Cubing triples the angle, and the figure gains three-fold symmetry.</p>
+
+<h2>From formula to design</h2>
+<table>
+  <thead><tr><th>If you want…</th><th>Reach for…</th></tr></thead>
+  <tbody>
+    <tr><td>Something to face, follow or flee a point</td><td>Subtract positions, normalise</td></tr>
+    <tr><td>Shading, highlights, "facing toward" tests</td><td>The dot product of two unit vectors</td></tr>
+    <tr><td>A line with thickness, hatching across a stroke</td><td>The perpendicular <code>(-y, x)</code></td></tr>
+    <tr><td>Slanted, stretched or spun copies of a shape</td><td>A matrix, or <code>ctx.transform</code></td></tr>
+    <tr><td>Fern-like and leaf-like fractals</td><td>A few shrinking matrices applied at random (Lesson 6)</td></tr>
+    <tr><td>Mandalas, snowflakes, kaleidoscopes</td><td>One motif under a group of rotations and mirrors</td></tr>
+    <tr><td>Swirling fractal boundaries</td><td>Iterating a complex function</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A vector is a direction with a length. Normalising keeps only the direction.</li>
+  <li>The dot product measures agreement between directions, from −1 to 1.</li>
+  <li><code>(-y, x)</code> is a quarter turn.</li>
+  <li>A matrix transforms the whole plane. Multiplying matrices chains transformations, and order matters.</li>
+  <li>Symmetry is a set of transformations applied to one motif.</li>
+  <li>Multiplying complex numbers rotates and scales. Iterating that makes fractals.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <p>Do these in the <a href="../challenges/math-sandbox.html">maths sandbox file</a>, or by editing the examples above.</p>
+  <ul>
+    <li><strong>Lit tiles.</strong> Make a grid of squares, give each a random "facing" direction, and shade it by the dot product with a light direction. Then let the light direction rotate over time.</li>
+    <li><strong>Wallpaper.</strong> Take the mandala motif from M2.3 and, instead of rotating about one centre, repeat a small symmetric unit across the whole canvas in a grid, mirroring every other copy.</li>
+    <li><strong>Your own fern.</strong> Write three or four matrices with shifts, apply them at random 50,000 times as in Lesson 6, and adjust the numbers until the result looks like a plant that does not exist.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="01-functions-and-shaping.html">← Maths 1</a><a href="03-calculus.html">Maths 3: Calculus →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

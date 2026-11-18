@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 3 · Make Something You Can Hold</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px/1.5 Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 90vmin; max-height: 80vmin; background: #f6f1e4; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+  #report { white-space: pre-wrap; margin: 0; padding: 12px; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 3 — MAKE SOMETHING YOU CAN HOLD
+   Full brief: ../special/03-into-the-real-world.html
+
+   Route:              wall print / plotter drawing / laser-cut piece / 3D print
+   Material, process:  ...
+   Estimated time or cost: ...
+   What I would test first: ...
+
+   Checklist
+   [ ] All dimensions are in millimetres, as named constants
+   [ ] At least three manufacturing constraints are enforced, and reported on screen
+   [ ] Seeded: at least five seeds give valid, manufacturable results
+   [ ] The preview is honest: real line widths, true proportions, overall size shown
+   [ ] The exported file opens correctly, at the right size, in another program
+   [ ] The notes above are filled in */
+
+// ---- everything in millimetres ----
+const WIDTH_MM = 210;            // the finished size of the piece
+const HEIGHT_MM = 297;
+const MARGIN_MM = 15;
+// add the limits of your process here, for example:
+// const PEN_WIDTH_MM = 0.4;     // plotter
+// const KERF_MM = 0.15;         // laser
+// const MIN_WEB_MM = 3;         // laser, CNC
+// const MIN_WALL_MM = 0.8;      // 3D printing
+
+const PX_PER_MM = 4;             // preview scale only: nothing else may use pixels
+
+const canvas = document.getElementById('canvas');
+canvas.width = WIDTH_MM * PX_PER_MM;
+canvas.height = HEIGHT_MM * PX_PER_MM;
+const ctx = canvas.getContext('2d');
+ctx.scale(PX_PER_MM, PX_PER_MM);          // from here on, draw in millimetres
+
+const seed = 'object-1';
+const R = PA.rng(seed), N = PA.noise(seed);
+
+// 1. Build the geometry as data (lists of points, circles, triangles) in millimetres.
+//    Keep it as data: the preview and the export must both come from the same lists.
+const geometry = [];
+
+// ---- your design here ----
+
+// 2. Check the manufacturing constraints. Return a list of lines for the report.
+function checkConstraints() {
+  const lines = [];
+  // lines.push('min spacing 0.62 mm  OK');
+  return lines;
+}
+
+// 3. Preview, at true proportions, with real line widths.
+function preview() {
+  // ---- draw geometry here ----
+}
+
+// 4. Export: build the file as a string (SVG, STL or G-code) and download it.
+function exportFile() {
+  // ---- your exporter here ----
+}
+
+preview();
+document.getElementById('report').textContent =
+  WIDTH_MM + ' x ' + HEIGHT_MM + ' mm · seed ' + seed + '\n' + checkConstraints().join('\n');
+
+// TODO: a key that calls exportFile()
+
+</script>
+</body>
+</html>

@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 5 · Live Hardware</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="04-sound-and-music.html">← Special 4</a><span>Special topic 5 of 9</span><a href="06-ai-and-procedural.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 5</p>
+  <h1>Live Hardware</h1>
+  <p class="lede">Generative work does not have to stay on a monitor. It can run on a strip of lights, respond to a body in front of a camera, or be projected onto a building. This page covers addressable LEDs, cameras and pose tracking, and projection mapping.</p>
+</header>
+
+<div class="note">
+<p><strong>What was and was not tested.</strong> The three live examples on this page run in the browser and were checked like every other example in the course, with one exception: the camera example could only be checked up to the point where it asks for a camera, since none was available.</p>
+<p>The code listings for microcontrollers, the Web Serial connection and pose tracking <strong>were not run</strong>. They are written from the documented interfaces of those libraries, and they are complete, but treat them as a starting point and expect to adjust names and version numbers.</p>
+</div>
+
+<h2>Designing for hardware</h2>
+<p>Moving to physical output changes the constraints, much as fabrication did in Special Topic 3.</p>
+<table>
+  <thead><tr><th>On a monitor</th><th>On hardware</th></tr></thead>
+  <tbody>
+    <tr><td>Millions of pixels</td><td>A few hundred lights, or a projector fighting daylight</td></tr>
+    <tr><td>A fast processor and plenty of memory</td><td>A microcontroller with a few kilobytes</td></tr>
+    <tr><td>Decimal numbers everywhere</td><td>Often whole numbers from 0 to 255</td></tr>
+    <tr><td>It runs while you watch</td><td>It runs for weeks, unattended, and must recover from power cuts</td></tr>
+    <tr><td>Nobody is harmed by a bug</td><td>Power, heat and bright flashing light are real concerns</td></tr>
+  </tbody>
+</table>
+<p>The good news is that the techniques survive almost unchanged. Noise, palettes, cellular automata and particle systems all work at sixteen pixels wide. In fact low resolution flatters them: a noise field that looks bland on a screen is mesmerising on a wall of lights.</p>
+
+<h2>Addressable LEDs</h2>
+<p>An addressable LED strip is a chain of lights in which each one can be set to its own colour. The common types are known by their chip names, WS2812B (sold as NeoPixel) and APA102 (DotStar). A strip is wired to a small microcontroller, such as an Arduino, an ESP32 or a Raspberry Pi Pico, which sends the colours down the chain many times a second.</p>
+<p>A strip is a one-dimensional image. A strip folded back and forth across a panel is a two-dimensional one, and all you need is a function from row and column to position along the strip.</p>
+
+<h3>Prototype in the browser first</h3>
+<p>Because the hardware is slow to reprogram, design the pattern on a simulated strip or matrix, at the real resolution, and only then move it across. The simulator below draws a 16 × 16 panel as glowing dots, and estimates the electrical current the pattern would draw, which is the number you need for choosing a power supply.</p>
+
+<div class="example" data-title="S5.1 A 16 × 16 LED panel, simulated">
+<script type="text/plain">
+const brightness = ui.slider('brightness', 0.05, 1, 0.3, 0.05);
+const speed = ui.slider('speed', 0, 2, 0.5, 0.05);
+const N = PA.noise('leds');
+const COLS = 16, ROWS = 16, CELL = (W - 40) / COLS;
+
+loop((t) => {
+  ctx.fillStyle = '#050506';
+  ctx.fillRect(0, 0, W, H);
+  let amps = 0;
+
+  for (let j = 0; j < ROWS; j++) {
+    for (let i = 0; i < COLS; i++) {
+      // the pattern: exactly what the microcontroller would compute for this LED
+      const n = N.get(i * 0.17, j * 0.17, t * speed());
+      let [r, g, b] = PA.oklchRGB(0.25 + n * 0.7, 0.16, 200 + n * 150);
+      r *= brightness(); g *= brightness(); b *= brightness();
+
+      amps += ((r + g + b) / 255) * 0.02;              // each of the three colours draws about 20 mA at full
+
+      const x = 20 + (i + 0.5) * CELL, y = 20 + (j + 0.5) * CELL;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, CELL * 0.7);
+      glow.addColorStop(0, 'rgb(' + Math.min(255, r * 2.2) + ',' + Math.min(255, g * 2.2) + ',' + Math.min(255, b * 2.2) + ')');
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - CELL * 0.7, y - CELL * 0.7, CELL * 1.4, CELL * 1.4);
+    }
+  }
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '13px monospace';
+  ctx.fillText(COLS * ROWS + ' LEDs · about ' + amps.toFixed(1) + ' A at 5 V · worst case ' + (COLS * ROWS * 0.06).toFixed(1) + ' A', 14, H - 6);
+});
+</script>
+</div>
+
+<h3>The same pattern on a microcontroller</h3>
+<p>This is the equivalent program for an Arduino-compatible board using the FastLED library, which includes fast whole-number noise and palette functions designed for exactly this.</p>
+<pre class="listing"><code>// Arduino C++ with the FastLED library.  NOT RUN as part of preparing this course.
+#include &lt;FastLED.h&gt;
+
+#define DATA_PIN    5
+#define COLS        16
+#define ROWS        16
+#define NUM_LEDS    (COLS * ROWS)
+#define BRIGHTNESS  60            // out of 255. keep it low while testing
+
+CRGB leds[NUM_LEDS];
+
+// Panels are usually wired in a zigzag: every other row runs backwards.
+uint16_t ledIndex(uint8_t x, uint8_t y) {
+  return (y % 2 == 0) ? (y * COLS + x) : (y * COLS + (COLS - 1 - x));
+}
+
+void setup() {
+  FastLED.addLeds&lt;WS2812B, DATA_PIN, GRB&gt;(leds, NUM_LEDS);
+  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 2000);    // never draw more than 2 A, whatever the pattern asks
+}
+
+void loop() {
+  uint16_t t = millis() / 8;
+  for (uint8_t y = 0; y &lt; ROWS; y++) {
+    for (uint8_t x = 0; x &lt; COLS; x++) {
+      uint8_t n = inoise8(x * 40, y * 40, t);                 // noise, 0 to 255
+      leds[ledIndex(x, y)] = ColorFromPalette(OceanColors_p, n);
+    }
+  }
+  FastLED.show();
+  FastLED.delay(16);                                          // about 60 frames a second
+}</code></pre>
+<p>And the same idea in MicroPython, for a Raspberry Pi Pico or ESP32, using its built-in NeoPixel driver:</p>
+<pre class="listing"><code># MicroPython.  NOT RUN as part of preparing this course.
+import math, time
+from machine import Pin
+from neopixel import NeoPixel
+
+COUNT = 60
+strip = NeoPixel(Pin(5), COUNT)
+
+def wheel(position, level):
+    """A colour from a position 0..1 round the hue circle, at a brightness 0..1."""
+    r = 0.5 + 0.5 * math.cos(2 * math.pi * position)
+    g = 0.5 + 0.5 * math.cos(2 * math.pi * (position + 0.33))
+    b = 0.5 + 0.5 * math.cos(2 * math.pi * (position + 0.67))
+    return (int(r * 255 * level), int(g * 255 * level), int(b * 255 * level))
+
+t = 0.0
+while True:
+    for i in range(COUNT):
+        wave = 0.5 + 0.5 * math.sin(i * 0.25 + t)          # a travelling wave of brightness
+        strip[i] = wheel(i / COUNT + t * 0.05, 0.2 * wave)
+    strip.write()
+    t += 0.08
+    time.sleep_ms(20)</code></pre>
+<p>That <code>wheel</code> function is the cosine palette of Lesson 9.</p>
+
+<h3>Power and safety</h3>
+<ul>
+  <li>Each LED can draw about 60 milliamps at full white. A 16 × 16 panel at full brightness needs over 15 amps. Size the power supply for the worst case, or cap the brightness in software as the listing does.</li>
+  <li>Never power more than a few LEDs from the microcontroller's own pins. Use a separate 5 volt supply and join its ground to the board's ground.</li>
+  <li>Thin wires carrying several amps get hot. Feed power into long strips at both ends.</li>
+  <li>Bright, fast flashing can trigger seizures in people with photosensitive epilepsy. Avoid full-field flashes faster than about three per second, and be especially careful with red.</li>
+</ul>
+
+<h3>Driving hardware from the browser</h3>
+<p>You can also keep the generative code on a computer and send colours to the board over USB. Chrome and Edge provide a Web Serial interface for this. It needs a click from the user before it will connect.</p>
+<pre class="listing"><code>// Browser JavaScript (Chrome or Edge).  NOT RUN as part of preparing this course.
+let writer = null;
+
+connectButton.addEventListener('click', async () =&gt; {
+  const port = await navigator.serial.requestPort();        // the browser shows a list of devices
+  await port.open({ baudRate: 115200 });
+  writer = port.writable.getWriter();
+});
+
+// Send one frame: a marker byte, then red, green, blue for every LED.
+async function sendFrame(colours) {                          // colours: [[r, g, b], ...] each 0 to 255
+  if (!writer) return;
+  const bytes = new Uint8Array(1 + colours.length * 3);
+  bytes[0] = 255;                                            // "start of frame". keep colour values below 255
+  colours.forEach(([r, g, b], i) =&gt; {
+    bytes[1 + i * 3] = Math.min(r, 254);
+    bytes[2 + i * 3] = Math.min(g, 254);
+    bytes[3 + i * 3] = Math.min(b, 254);
+  });
+  await writer.write(bytes);
+}</code></pre>
+<p>The board runs a short program that waits for the marker byte, reads three bytes per LED, and shows them. For larger installations the same idea runs over a network, using the Art-Net or sACN lighting protocols, and ready-made firmware such as WLED turns an ESP32 into a controller that accepts them.</p>
+
+<h2>Cameras</h2>
+<p>A camera turns the space in front of a piece into data. The browser gives access to it with one call, after asking the visitor's permission. Each video frame can be drawn onto a hidden canvas and read as pixels, exactly like a still image in Lesson 13.</p>
+<p>The most robust thing to measure is <strong>motion</strong>: the difference between this frame and the last. It needs no calibration and works in almost any light. Shrink the frame to a coarse grid first. A grid of 80 by 60 is ample, far cheaper, and less sensitive to camera noise.</p>
+
+<div class="example" data-title="S5.2 Motion from a camera (click the canvas: it will ask for camera permission)">
+<script type="text/plain">
+const GW = 64, GH = 48;                                    // the coarse grid the picture is reduced to
+const small = document.createElement('canvas');
+small.width = GW; small.height = GH;
+const s = small.getContext('2d', { willReadFrequently: true });
+let video = null, previous = null, message = 'click to start the camera';
+const energy = new Float32Array(GW * GH);                  // how much each cell has moved lately
+
+canvas.onclick = async () => {
+  if (video) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    cleanup(() => stream.getTracks().forEach((track) => track.stop()));      // release the camera on re-run
+    video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
+    await video.play();
+    message = '';
+  } catch (error) {
+    message = 'no camera available (' + error.name + ')';
+  }
+};
+
+loop(() => {
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  if (video && video.readyState >= 2) {
+    s.save();
+    s.scale(-1, 1);                                        // mirror it, so that it behaves like a mirror
+    s.drawImage(video, -GW, 0, GW, GH);
+    s.restore();
+    const pixels = s.getImageData(0, 0, GW, GH).data;
+    const grey = new Float32Array(GW * GH);
+    for (let i = 0; i < GW * GH; i++) grey[i] = (pixels[i * 4] + pixels[i * 4 + 1] + pixels[i * 4 + 2]) / 765;
+    if (previous) {
+      for (let i = 0; i < GW * GH; i++) {
+        const moved = Math.abs(grey[i] - previous[i]);     // the difference from the last frame
+        energy[i] = Math.max(energy[i] * 0.92, moved > 0.06 ? 1 : 0);        // light up, then fade
+      }
+    }
+    previous = grey;
+  }
+
+  const cell = W / GW;
+  for (let j = 0; j < GH; j++) {
+    for (let i = 0; i < GW; i++) {
+      const e = energy[j * GW + i];
+      ctx.fillStyle = PA.oklch(0.3 + e * 0.6, 0.05 + e * 0.15, 260 - e * 200);
+      ctx.beginPath();
+      ctx.arc((i + 0.5) * cell, 75 + (j + 0.5) * cell, 1 + e * cell * 0.6, 0, PA.TAU);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '14px monospace';
+  ctx.fillText(message, 16, 30);
+});
+</script>
+</div>
+
+<h3>Pose tracking</h3>
+<p>Machine-learning models can now find a person's joints, hands or face in a video frame, in real time, in a browser. Google's MediaPipe library is the usual way to do it. It returns a list of landmarks, 33 for a body, each with a position between 0 and 1. From then on they are ordinary points: attractors, emitters, the ends of a rope, the corners of a shape.</p>
+<pre class="listing"><code>// Browser JavaScript, in a &lt;script type="module"&gt;.  NOT RUN as part of preparing this course.
+// Check the current version number and model address in the MediaPipe documentation.
+import { PoseLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+
+const files = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+const tracker = await PoseLandmarker.createFromOptions(files, {
+  baseOptions: {
+    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+    delegate: 'GPU',
+  },
+  runningMode: 'VIDEO',
+  numPoses: 1,
+});
+
+const video = document.querySelector('video');
+video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+await video.play();
+
+function frame() {
+  const result = tracker.detectForVideo(video, performance.now());
+  if (result.landmarks.length &gt; 0) {
+    const body = result.landmarks[0];                  // 33 points, each { x, y, z } from 0 to 1
+    const leftWrist = body[15], rightWrist = body[16];
+    // from here it is ordinary procedural code: use the points as inputs
+    emitParticlesAt((1 - leftWrist.x) * canvas.width, leftWrist.y * canvas.height);
+    emitParticlesAt((1 - rightWrist.x) * canvas.width, rightWrist.y * canvas.height);
+  }
+  requestAnimationFrame(frame);
+}
+frame();</code></pre>
+<p>Tracking is never perfect. Smooth the landmark positions over a few frames, as in Special Topic 1, and design the piece so that a lost or jumping point degrades it gracefully instead of breaking it.</p>
+
+<h3>Cameras and people</h3>
+<ul>
+  <li>Say clearly that a camera is in use, and why.</li>
+  <li>Process the video where it is, and do not store or send it unless people have agreed.</li>
+  <li>An abstract response to motion is usually more inviting than showing people their own image.</li>
+  <li>Test with different bodies, clothing, skin tones and lighting. Tracking models do not work equally well for everyone.</li>
+</ul>
+
+<h2>Projection mapping</h2>
+<p>A projector pointed at a wall, a sculpture or a building turns that surface into a screen. The difficulty is that the projector is hardly ever square-on, so a rectangle of light lands as a skewed four-sided shape. <strong>Projection mapping</strong> is the business of warping the image in advance so that it lands where you want.</p>
+<p>The basic tool is the <strong>corner pin</strong>. You drag the four corners of your image until they sit on the four corners of the real surface, and the software stretches everything in between to match. Drag the handles below. The pattern is drawn by dividing the shape into a grid of small cells and placing each cell's corners by interpolating between the four handles, which is <code>lerp</code> applied twice.</p>
+
+<div class="example" data-title="S5.3 A corner pin (drag the four handles)">
+<script type="text/plain">
+const N = PA.noise('map');
+const corners = [[110, 90], [500, 140], [470, 480], [80, 420]];       // top-left, top-right, bottom-right, bottom-left
+let grabbed = -1;
+const GRID = 22;
+
+// where does the point (u, v) of the image land, given the four corners?
+function place(u, v) {
+  const tx = PA.lerp(corners[0][0], corners[1][0], u), ty = PA.lerp(corners[0][1], corners[1][1], u);     // along the top edge
+  const bx = PA.lerp(corners[3][0], corners[2][0], u), by = PA.lerp(corners[3][1], corners[2][1], u);     // along the bottom edge
+  return [PA.lerp(tx, bx, v), PA.lerp(ty, by, v)];                                                          // then between them
+}
+
+loop((t) => {
+  if (mouse.down) {
+    if (grabbed < 0) corners.forEach((c, k) => { if (Math.hypot(c[0] - mouse.x, c[1] - mouse.y) < 40) grabbed = k; });
+    if (grabbed >= 0) corners[grabbed] = [mouse.x, mouse.y];
+  } else grabbed = -1;
+
+  ctx.fillStyle = '#1a1c22';                               // the dark room
+  ctx.fillRect(0, 0, W, H);
+
+  for (let j = 0; j < GRID; j++) {
+    for (let i = 0; i < GRID; i++) {
+      const u = i / GRID, v = j / GRID, du = 1 / GRID;
+      const stripe = Math.sin((u + v) * 20 - t * 2) * 0.5 + 0.5;       // the image: any function of u, v and time
+      const n = N.get(u * 3, v * 3, t * 0.3);
+      ctx.fillStyle = PA.oklch(0.35 + stripe * 0.5, 0.17, 20 + n * 300);
+      const p = [place(u, v), place(u + du, v), place(u + du, v + du), place(u, v + du)];
+      ctx.beginPath();
+      ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]); ctx.lineTo(p[3][0], p[3][1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  corners.forEach((c, k) => {
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.fillStyle = k === grabbed ? '#ffd166' : 'rgba(255, 255, 255, 0.2)';
+    ctx.beginPath(); ctx.arc(c[0], c[1], 11, 0, PA.TAU); ctx.fill(); ctx.stroke();
+  });
+});
+</script>
+</div>
+
+<p>This two-way interpolation is simple, and close enough for small corrections. A true perspective correction uses a slightly different mapping, a <strong>homography</strong>, which keeps straight lines straight across the whole surface. In a web page the easy way to get one is a CSS <code>transform: matrix3d(…)</code> on the canvas element. For complex shapes, the surface is divided into several quads or a mesh, each pinned separately.</p>
+<h3>Practicalities</h3>
+<ul>
+  <li><strong>Darkness and brightness.</strong> Projection only works in dim light. A projector's brightness is given in lumens: a few thousand is enough for a dark room, and building-scale work needs tens of thousands.</li>
+  <li><strong>Black is the absence of light.</strong> A projector cannot project black. Design with light on a dark ground, and use black as "nothing here".</li>
+  <li><strong>The surface is part of the image.</strong> Texture and colour show through. Edges, windows and ledges are things to align with, and the most effective pieces use the architecture instead of ignoring it.</li>
+  <li><strong>Tools.</strong> MadMapper, Resolume and TouchDesigner are the usual software. A browser in full-screen mode on the projector's display works for simple pieces.</li>
+  <li><strong>Permission.</strong> Projecting on buildings you do not own usually needs it.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>The course's techniques work at very low resolution, and often look better there.</li>
+  <li>Design LED patterns in a simulator at the real resolution, then port them.</li>
+  <li>Budget for power: about 60 milliamps per LED at full white, and cap brightness in software.</li>
+  <li>From a camera, motion between frames is the most dependable signal.</li>
+  <li>Pose tracking returns points. After that it is ordinary procedural code.</li>
+  <li>A corner pin warps an image onto a surface by interpolating between four dragged corners.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 5</p>
+  <h2>A Piece for a Place</h2>
+  <p>Design a generative piece for a specific physical setting, real or imagined: a strip of lights on a staircase, a panel in a window, a projection on a particular wall. Build it as far as you can without the hardware, in a simulator that respects the hardware's limits.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A written <strong>description of the place</strong>: where it is, how far away people stand, how bright the surroundings are, and what the hardware would be.</li>
+    <li>A <strong>simulator</strong> at the true resolution: the actual number and layout of LEDs, or the actual shape of the projection surface with a corner pin.</li>
+    <li>Colours handled as <strong>whole numbers from 0 to 255</strong>, and for LEDs a <strong>current estimate</strong> with a software limit.</li>
+    <li>At least <strong>three patterns</strong> the piece moves between, with smooth transitions.</li>
+    <li>It reacts to <strong>one live input</strong>: motion from a camera, sound level, the time of day, or the pointer standing in for a sensor.</li>
+    <li>It could run <strong>unattended</strong>: no state that grows for ever, and a sensible start after a restart.</li>
+    <li>No full-field flashing faster than three times a second.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write the pattern as a function from LED number (or position) and time to a colour. That function is what you would port.</li>
+    <li>Squint at the simulator from across the room. That is closer to how the real thing will read.</li>
+    <li>Keep overall brightness low. Lights look far brighter in a real dark room than on a monitor.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>If you have the hardware: port it, and note what had to change.</li>
+    <li>Send frames from the browser over Web Serial.</li>
+    <li>Use pose tracking so that the piece follows one person's hands.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone reading your description and watching the simulator can picture the installation.</li>
+    <li>You could hand the pattern function to someone with the hardware and they could build it.</li>
+  </ul>
+  <a class="start" href="../challenges/s5-piece-for-a-place.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="04-sound-and-music.html">← Special Topic 4</a><a href="06-ai-and-procedural.html">Special Topic 6: AI Alongside Procedural Methods →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

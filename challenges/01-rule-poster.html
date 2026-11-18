@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 1 · The Rule Poster</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 1 — THE RULE POSTER
+   Full brief: ../lessons/01-drawing-with-code.html
+
+   Build a grid poster in which every cell's appearance follows from its position.
+   No randomness anywhere.
+
+   Checklist
+   [ ] Grid of at least 12 x 12 cells, with a margin
+   [ ] At least three properties per cell computed from position
+   [ ] At least two different fields are used (e.g. distance from a point, and i + j)
+   [ ] At least one property switches with %
+   [ ] No Math.random and no PA.rng: reloading gives the identical image
+   [ ] Changing the grid size still gives a good picture
+
+   How to work: edit this file, save, refresh the browser.
+   Press F12 in the browser to see error messages in the console. */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// background
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+// ---- your code below ----
+
+</script>
+</body>
+</html>

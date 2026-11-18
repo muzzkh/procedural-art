@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Maths sandbox</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* MATHS SANDBOX
+   A blank canvas for the practice exercises at the end of each maths page (../math/).
+   Save a copy of this file for each exercise so you keep your work.
+
+   Ready-made for you:
+     ctx, W, H     the drawing context and canvas size
+     mouse         { x, y, down } in canvas coordinates
+     animate(fn)   calls fn(seconds, frameNumber) on every frame
+     PA            the helper library (see ../index.html for the list) */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const mouse = { x: W / 2, y: H / 2, down: false };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * W;
+  mouse.y = (e.clientY - r.top) / r.height * H;
+});
+canvas.addEventListener('pointerdown', () => { mouse.down = true; });
+window.addEventListener('pointerup', () => { mouse.down = false; });
+
+function animate(fn) {
+  const start = performance.now();
+  let frame = 0;
+  function tick(now) {
+    fn((now - start) / 1000, frame++);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+// ---- your code below ----
+
+</script>
+</body>
+</html>

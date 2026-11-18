@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project 3 · From Code to Object</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-living-identity.html">← Project 2</a><span>Project 3 of 3</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Project 3</p>
+  <h1>From Code to Object</h1>
+  <p class="lede">Grow a form with an algorithm, turn it into clean geometry a machine can follow, make it, and document it. The result is a physical object and a page that tells someone else exactly how it was produced.</p>
+</header>
+
+<h2>The brief</h2>
+<p>Make one object you would keep: a pendant, a coaster, a lampshade, a plotted drawing, a cut panel, a small vessel. Its form must come from a growth algorithm, and it must be made by a machine from a file your code wrote.</p>
+<p>Choose one of two routes at the start.</p>
+<table>
+  <thead><tr><th></th><th>Route A · Flat</th><th>Route B · Solid</th></tr></thead>
+  <tbody>
+    <tr><td>Machine</td><td>Pen plotter, laser cutter, vinyl cutter, or a print shop</td><td>3D printer</td></tr>
+    <tr><td>File</td><td>SVG in millimetres</td><td>STL in millimetres</td></tr>
+    <tr><td>Main risk</td><td>Pieces that fall out, lines too close, too many pen lifts</td><td>Thin walls, overhangs, a mesh that is not watertight</td></tr>
+    <tr><td>Read first</td><td><a href="../special/03-into-the-real-world.html">Special 3</a></td><td><a href="../printing/02-models-from-code.html">Printing 2</a> and <a href="../printing/03-models-from-formulas.html">3</a></td></tr>
+  </tbody>
+</table>
+<p>If you have no access to a machine, complete the project up to a file that passes your own checks and opens correctly in the machine's own software: a slicer, or the plotter or laser program. Say in your documentation which stages you did and did not carry out. An online printing or cutting service is also a valid machine.</p>
+<p>Plan for ten to twenty hours, not counting machine time.</p>
+
+<h2>Lessons this project draws on</h2>
+<table>
+  <thead><tr><th>Lesson</th><th>What it contributes</th></tr></thead>
+  <tbody>
+    <tr><td><a href="../lessons/16-growth.html">16 · Growth</a></td><td>The form: aggregation, space colonisation or differential growth</td></tr>
+    <tr><td><a href="../lessons/18-geometry.html">18 · Geometry</a></td><td>Clipping, offsetting, simplifying, and ordering paths</td></tr>
+    <tr><td><a href="../lessons/17-physics.html">17 · Physics</a></td><td>Relaxing a form so that it is even, or letting it hang into shape</td></tr>
+    <tr><td><a href="../lessons/19-performance.html">19 · Performance</a></td><td>Enough elements for a fine result, in reasonable time</td></tr>
+    <tr><td><a href="../special/03-into-the-real-world.html">Special 3 · Into the Real World</a></td><td>Units, tolerances, and what each machine needs</td></tr>
+    <tr><td><a href="../printing/02-models-from-code.html">Printing 2</a> and <a href="../printing/03-models-from-formulas.html">3</a></td><td>Watertight meshes from code, for Route B</td></tr>
+    <tr><td><a href="../special/08-publishing.html">Special 8 · Publishing</a></td><td>Documenting the piece</td></tr>
+    <tr><td><a href="../special/09-project-workflow.html">Special 9 · Project Workflow</a></td><td>Saving the recipe so the object can be made again</td></tr>
+  </tbody>
+</table>
+<p>You must use at least four of these. Growth, geometry and one fabrication lesson are not optional.</p>
+
+<h2>The joining idea: millimetres, and a preflight you trust</h2>
+<p>On screen, anything you can draw exists. A machine is stricter. A wall thinner than the nozzle is not printed. A shape that is not joined to the rest falls out of a laser-cut sheet. A form two millimetres wider than the bed stops the job.</p>
+<p>Two habits deal with this. First, <strong>design in millimetres from the first line</strong>, and convert to pixels only to preview. Second, <strong>write the checks as code</strong>, and run them every time, so that you never have to remember to look.</p>
+<p>The example measures a shape and tests it against three rules. Raise the wobble until it fails, and see which rule catches it.</p>
+
+<div class="example" data-title="P3.1 · Design in millimetres, check before export" data-h="400">
+<script type="text/plain">
+const seed = ui.slider('seed', 1, 40, 5, 1);
+const wobble = ui.slider('wobble', 0, 1, 0.55, 0.01);
+const minFeature = ui.slider('minimum width, mm', 5, 60, 30, 1);
+
+const SHEET = 120;     // the design space is 120 x 120 mm
+const MARGIN = 5;      // keep this far inside the sheet
+
+function draw() {
+  const N = PA.noise(seed());
+
+  // 1. The design, in millimetres. No pixels here.
+  const COUNT = 240;
+  const pts = [];
+  for (let i = 0; i < COUNT; i++) {
+    const a = i / COUNT * PA.TAU;
+    const n = N.fbm(3 + Math.cos(a) * 1.4, 3 + Math.sin(a) * 1.4, { octaves: 3 });
+    const r = 46 * (1 - wobble() * 0.9 + n * wobble() * 1.6);
+    pts.push([60 + Math.cos(a) * r, 60 + Math.sin(a) * r]);
+  }
+
+  // 2. Measure it.
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, length = 0;
+  for (let i = 0; i < COUNT; i++) {
+    const p = pts[i], q = pts[(i + 1) % COUNT];
+    minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+    minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+    length += Math.hypot(q[0] - p[0], q[1] - p[1]);
+  }
+  // The narrowest place: the closest pair of points that are far apart along the outline.
+  let neck = { d: 1e9, a: pts[0], b: pts[0] };
+  for (let i = 0; i < COUNT; i++) {
+    for (let j = i + COUNT / 4; j < i + COUNT * 3 / 4; j++) {
+      const p = pts[i], q = pts[j % COUNT];
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < neck.d) neck = { d, a: p, b: q };
+    }
+  }
+
+  // 3. The rules.
+  const checks = [
+    ['fits the sheet', minX >= MARGIN && minY >= MARGIN && maxX <= SHEET - MARGIN && maxY <= SHEET - MARGIN],
+    ['narrowest width ' + neck.d.toFixed(1) + ' mm', neck.d >= minFeature()],
+    ['outline under 400 mm', length < 400],
+  ];
+  const ok = checks.every((c) => c[1]);
+
+  // 4. Preview. Pixels appear only here.
+  const scale = Math.min(W * 0.58, H - 30) / SHEET;
+  const ox = 15, oy = (H - SHEET * scale) / 2;
+  const X = (mm) => ox + mm * scale, Y = (mm) => oy + mm * scale;
+
+  ctx.fillStyle = '#1c1a18'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#f4efe6'; ctx.fillRect(X(0), Y(0), SHEET * scale, SHEET * scale);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let mm = 10; mm < SHEET; mm += 10) {
+    ctx.moveTo(X(mm), Y(0)); ctx.lineTo(X(mm), Y(SHEET));
+    ctx.moveTo(X(0), Y(mm)); ctx.lineTo(X(SHEET), Y(mm));
+  }
+  ctx.stroke();
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.strokeRect(X(MARGIN), Y(MARGIN), (SHEET - MARGIN * 2) * scale, (SHEET - MARGIN * 2) * scale);
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]))));
+  ctx.closePath();
+  ctx.fillStyle = ok ? '#2f6f62' : '#b6452c';
+  ctx.fill();
+
+  ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(X(neck.a[0]), Y(neck.a[1])); ctx.lineTo(X(neck.b[0]), Y(neck.b[1])); ctx.stroke();
+
+  const tx = X(SHEET) + 22;
+  ctx.font = '14px system-ui, sans-serif'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#cfc8bd';
+  ctx.fillText('size ' + (maxX - minX).toFixed(1) + ' x ' + (maxY - minY).toFixed(1) + ' mm', tx, oy);
+  ctx.fillText('outline ' + length.toFixed(0) + ' mm', tx, oy + 22);
+  checks.forEach((c, i) => {
+    ctx.fillStyle = c[1] ? '#7fc8a9' : '#f08a6c';
+    ctx.fillText((c[1] ? 'pass  ' : 'FAIL  ') + c[0], tx, oy + 62 + i * 22);
+  });
+  ctx.font = '700 18px system-ui, sans-serif';
+  ctx.fillStyle = ok ? '#7fc8a9' : '#f08a6c';
+  ctx.fillText(ok ? 'Ready to export' : 'Do not export', tx, oy + 150);
+}
+
+ui.onChange(draw);
+draw();
+</script>
+</div>
+
+<p>The shape in the example is a noisy circle, which is not grown and has only one outline. A grown form has branches, holes and thousands of points, and its checks are harder: is it all one piece, is every branch thick enough, does anything cross itself? Writing those checks is a large part of this project.</p>
+
+<h2>Milestones</h2>
+<h3>1 · Machine first</h3>
+<p>Choose the machine, the material and the size before writing any code. Write down the limits as constants: working area, smallest feature, and for a printer the layer height and steepest overhang. Find them from the machine's documentation or by asking the person who runs it. If you guess, say that you guessed.</p>
+<h3>2 · Grow</h3>
+<p>A growth algorithm working in millimetres, inside a boundary that is the outline of your object. Let the machine's limits set the algorithm's parameters: the spacing between branches should come from the smallest feature and not from what looks good on screen.</p>
+<h3>3 · Clean</h3>
+<p>Turn the growth into geometry. Join points into paths. Remove duplicates and stubs too short to make. Simplify without losing the character. Resample so that spacing is even.</p>
+<h3>4 · Make it buildable</h3>
+<p>Lines have no width. For cutting and printing, give the form thickness by offsetting, and join it to a frame, a base or a ring so that it is one piece. For Route B, build a mesh and confirm it is watertight. For a plotter, order the paths to shorten travel.</p>
+<h3>5 · Preflight</h3>
+<p>Checks in code, run before every export, with a clear pass or fail on screen: fits the working area, nothing thinner than the smallest feature, one connected piece, and for Route B a watertight mesh with a flat base. An export button that refuses to work when a check fails is worth having.</p>
+<h3>6 · Proof</h3>
+<p>Export, and open the file in the machine's own software. Look at its preview carefully. Then make a small or quick test: a corner, a reduced size, a draft setting. Expect to go back to milestone 2 at least once. That is normal.</p>
+<h3>7 · Make and document</h3>
+<p>Make the object. Photograph it. Write a page with the photograph, a screenshot of the generator, the seed and every parameter, the machine and its settings, the material, and what went wrong on the way.</p>
+
+<section class="challenge">
+  <p class="kicker">Project 3</p>
+  <h2>The Object</h2>
+  <p>A physical thing whose form was grown, and a record that would let someone make it again.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Techniques from <strong>at least four</strong> of the lessons in the table above, including growth, geometry and a fabrication lesson, listed in a comment at the top of your file.</li>
+    <li>The form comes from a <strong>growth algorithm written by you</strong>, confined to the outline of the object.</li>
+    <li>All geometry is in <strong>millimetres</strong>. The machine's limits are named constants, and at least one growth parameter is derived from them.</li>
+    <li>A <strong>cleaning stage</strong> that is separate from the growth stage, and can be switched off to see the difference.</li>
+    <li>The exported form is <strong>one connected piece</strong>, or a deliberate set of pieces, with real thickness.</li>
+    <li>At least <strong>four automated checks</strong>, shown on screen as pass or fail, and export is blocked while any fails.</li>
+    <li>An <strong>SVG or STL export</strong> at true size, which opens at the correct dimensions in the machine's own software.</li>
+    <li>A <strong>recipe file</strong> saved with each export: seed, parameters, machine limits and date.</li>
+    <li>A <strong>documentation page</strong> stating plainly which stages were carried out, including any that were not.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start small. A 60 mm object teaches the same things as a 200 mm one, in a tenth of the machine time.</li>
+    <li>To test for one connected piece, draw the thickened form to a small offscreen canvas and flood fill from one filled pixel. If any filled pixel was not reached, there is more than one piece.</li>
+    <li>To thicken a branching structure simply, stroke its paths with round caps and joins on a canvas, then trace the outline of the result.</li>
+    <li>For a relief or pendant on Route B, a height field over the thickened shape is enough: height from the canvas, sides and base added, as in Printing 2.</li>
+    <li>Measure a real feature on your first test with a ruler or calipers and compare it with the number in your code. If they differ, find out why before going on.</li>
+    <li>Keep every failed test piece. Photographed in a row, they are the best part of the documentation.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>A small edition: five objects from five seeds, which clearly belong together.</li>
+    <li>Both routes from the same growth: a plotted drawing and a printed relief of one form.</li>
+    <li>Growth that responds to the object's function: denser where a pendant hangs from its loop, open where a lampshade should pass light.</li>
+    <li>For a P1S, a custom toolpath as in Printing 5, in place of a sliced mesh.</li>
+    <li>A page where a visitor picks a seed and downloads a file for their own machine, with the checks running in their browser.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <p>The object is in your hand, or the file has passed your checks and the machine's own preview, and someone else could reproduce it from your page without asking you a question.</p>
+  <a class="start" href="../challenges/project-3-object.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="02-living-identity.html">← Project 2: A Living Identity</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

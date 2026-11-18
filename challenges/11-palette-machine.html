@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 11 · The Palette Machine</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1200" height="1200"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 11 — THE PALETTE MACHINE
+   Full brief: ../lessons/11-colour.html
+
+   Checklist
+   [ ] makePalette(seed) returns named roles: background, dominant, support, accent, ink
+   [ ] Colours are computed in OKLCH; the scheme is chosen from the seed by weighted chance
+   [ ] Both light and dark palettes can come out
+   [ ] Guaranteed contrast: ink/background at least 4.5, dominant/background at least 3
+   [ ] One seed shown in full: swatches, roles, contrast figures, and three test compositions
+   [ ] A contact sheet of at least 20 seeds
+   [ ] All 20 are usable, and no two look alike
+
+   Useful: PA.oklch(L, C, H) for drawing, PA.oklchRGB(L, C, H) for [r, g, b],
+           PA.contrast(rgbA, rgbB) for the contrast ratio. */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let seed = 1;
+
+// Returns { background, dominant, support, accent, ink }, each as [L, C, H].
+function makePalette(seed) {
+  const R = PA.rng(seed);
+
+  // ---- your palette rules here ----
+
+  return {
+    background: [0.96, 0.01, 90],
+    dominant: [0.5, 0.12, 250],
+    support: [0.7, 0.08, 250],
+    accent: [0.7, 0.18, 30],
+    ink: [0.2, 0.02, 250],
+  };
+}
+
+// Three different test pieces. Each draws inside (x, y, w, h) using only the palette's roles.
+function compositionA(palette, x, y, w, h) { /* ---- yours ---- */ }
+function compositionB(palette, x, y, w, h) { /* ---- yours ---- */ }
+function compositionC(palette, x, y, w, h) { /* ---- yours ---- */ }
+
+function show() {
+  const palette = makePalette(seed);
+  ctx.fillStyle = PA.oklch(...palette.background);
+  ctx.fillRect(0, 0, W, H);
+
+  // ---- swatches, contrast figures, the three compositions, or the contact sheet ----
+
+}
+
+show();
+
+// TODO: keys for a new seed and for switching to the contact sheet
+</script>
+</body>
+</html>

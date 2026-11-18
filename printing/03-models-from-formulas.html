@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Printing 3 · Models from Formulas</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-models-from-code.html">← 3D Printing 2</a><span>3D printing 3 of 5</span><a href="04-gcode-fundamentals.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">3D Printing 3</p>
+  <h1>Models from Formulas</h1>
+  <p class="lede">Building triangles by hand works for simple forms and becomes painful as soon as shapes must merge, hollow out or interlock. The alternative is to describe the object with one formula that says how far any point is from its surface, and let an algorithm find the triangles.</p>
+</header>
+
+<h2>The object as a function</h2>
+<p>Lesson 9 introduced signed distance functions in two dimensions: a function that returns the distance from a point to the edge of a shape, negative inside. Everything carries over to three dimensions by adding a coordinate.</p>
+<table>
+  <thead><tr><th>Shape</th><th>Distance function</th></tr></thead>
+  <tbody>
+    <tr><td>Sphere of radius r</td><td><code>Math.hypot(x, y, z) - r</code></td></tr>
+    <tr><td>Upright cylinder</td><td><code>Math.hypot(x, y) - r</code>, combined with limits on z</td></tr>
+    <tr><td>Slab between two heights</td><td><code>Math.abs(z - middle) - halfThickness</code></td></tr>
+    <tr><td>Box</td><td><code>Math.max(Math.abs(x) - a, Math.abs(y) - b, Math.abs(z) - c)</code></td></tr>
+    <tr><td>Torus</td><td><code>Math.hypot(Math.hypot(x, y) - R, z) - r</code></td></tr>
+  </tbody>
+</table>
+<p>The operations are the ones you know, and they are what make this method so good for printable objects:</p>
+<table>
+  <thead><tr><th>Operation</th><th>Formula</th><th>In a workshop this would be</th></tr></thead>
+  <tbody>
+    <tr><td>Union</td><td><code>Math.min(a, b)</code></td><td>Gluing two parts together</td></tr>
+    <tr><td>Smooth union</td><td><code>smin(a, b, k)</code></td><td>Gluing with a fillet of radius about k</td></tr>
+    <tr><td>Subtraction</td><td><code>Math.max(a, -b)</code></td><td>Drilling or milling b out of a</td></tr>
+    <tr><td>Intersection</td><td><code>Math.max(a, b)</code></td><td>Keeping only what is inside both</td></tr>
+    <tr><td>Shell</td><td><code>Math.abs(a) - t</code></td><td>Hollowing to a wall 2t thick</td></tr>
+    <tr><td>Offset</td><td><code>a - r</code></td><td>Growing the part by r, rounding its edges</td></tr>
+  </tbody>
+</table>
+<p>Because the function knows the distance to the surface, wall thicknesses and clearances are written directly in millimetres. That is a large practical advantage over triangles.</p>
+
+<h2>From formula to triangles</h2>
+<p>A slicer needs triangles, so the surface where the function equals zero has to be extracted. The standard way is to sample the function on a 3D grid and look at each small cube of eight samples. If some corners are inside and some outside, the surface passes through that cube, and its position along each edge can be estimated from the two values at the ends. The method used here cuts every cube into six tetrahedra, because a tetrahedron has only a handful of cases to handle. It is called <strong>marching tetrahedra</strong>, a simpler relative of the better-known marching cubes.</p>
+<p><code>MESH.fromSDF(f, min, max, cells)</code> does this. You give it the function, the corners of the box to search, and how many grid cells to use along the longest side. About sixty lines of <code>assets/mesh.js</code> hold the whole algorithm, and they are written to be read.</p>
+<p>Resolution is the trade-off. The number of samples grows with the cube of <code>cells</code>, so doubling it takes eight times as long. As in Lesson 2, cells much smaller than the 0.4 mm nozzle are wasted.</p>
+
+<div class="example" data-title="P3.1 Spheres that melt together (click to download the STL)">
+<script type="text/plain">
+const blend = ui.slider('blend mm', 0.5, 14, 6, 0.5);
+const count = ui.slider('spheres', 2, 9, 6, 1);
+
+function smin(a, b, k) {                       // smooth minimum, from Lesson 9
+  const h = PA.clamp(0.5 + 0.5 * (b - a) / k);
+  return PA.lerp(b, a, h) - k * h * (1 - h);
+}
+
+let tris = [], info = { ok: false, text: '' };
+
+function build() {
+  const R = PA.rng('blobs-4');
+  const spheres = [];
+  for (let i = 0; i < count(); i++) {
+    spheres.push({ x: R.range(-22, 22), y: R.range(-22, 22), z: R.range(12, 48), r: R.range(8, 15) });
+  }
+
+  // the whole object. negative inside. millimetres
+  const f = (x, y, z) => {
+    let d = Math.max(Math.hypot(x, y) - 26, Math.abs(z - 2) - 2);     // a round base plate, 4 mm thick
+    for (const s of spheres) d = smin(d, Math.hypot(x - s.x, y - s.y, z - s.z) - s.r, blend());
+    return d;
+  };
+
+  tris = MESH.fromSDF(f, [-42, -42, 0], [42, 42, 68], 56);
+  info = MESH.report(tris);
+}
+build();
+ui.onChange(build);
+
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.4, colour: [0.95, 0.5, 0.4] });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 14);
+});
+canvas.onclick = () => MESH.download('blobs.stl', MESH.stl(tris));
+</script>
+</div>
+
+<p>Try it: set the blend to its minimum to see plain unions with sharp creases. A sculpture like this has overhangs under each sphere, so it needs supports, or a larger blend so that the forms rise from the base like a candle flame.</p>
+
+<h2>Lattices</h2>
+<p>Special Topic 3 introduced the gyroid, a surface defined by one line of trigonometry that fills space with a strong, self-supporting lattice. With the operations above, turning it into a printable part takes three steps: take the gyroid function, give it thickness with the shell operation, and intersect it with the outer shape you want.</p>
+<p>Lattices are used for lightweight structural parts, cushioning (printed in flexible TPU), filters, heat exchangers, and for their appearance. The cell size and wall thickness are the two engineering dials: larger cells and thinner walls are lighter and weaker.</p>
+
+<div class="example" data-title="P3.2 A gyroid lattice in a rounded block (click to download the STL)">
+<script type="text/plain">
+const cell = ui.slider('cell size mm', 8, 24, 14, 1);
+const wall = ui.slider('wall mm', 1.2, 3.2, 1.8, 0.1);
+
+let tris = [], info = { ok: false, text: '' };
+
+function build() {
+  const k = PA.TAU / cell();                    // one full period of the pattern every "cell" millimetres
+  const f = (x, y, z) => {
+    // 1. the gyroid: roughly the distance to its surface, in millimetres
+    const g = (Math.sin(x * k) * Math.cos(y * k) + Math.sin(y * k) * Math.cos(z * k) + Math.sin(z * k) * Math.cos(x * k)) / (1.5 * k);
+    // 2. thicken the surface into a wall
+    const lattice = Math.abs(g) - wall() / 2;
+    // 3. keep only the part inside a rounded block, 40 x 40 x 40 mm
+    const block = Math.hypot(Math.max(Math.abs(x) - 16, 0), Math.max(Math.abs(y) - 16, 0), Math.max(Math.abs(z - 20) - 16, 0)) - 4;
+    return Math.max(lattice, block);
+  };
+  tris = MESH.fromSDF(f, [-22, -22, -1], [22, 22, 42], 40);      // 1.1 mm cells: enough for a 0.4 mm nozzle
+  info = MESH.report(tris);
+}
+build();
+ui.onChange(build);
+
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.35, colour: [0.4, 0.8, 0.75] });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 14);
+});
+canvas.onclick = () => MESH.download('gyroid-block.stl', MESH.stl(tris));
+</script>
+</div>
+
+<div class="note"><p><strong>Thickness is approximate here.</strong> The gyroid formula is not a true distance function. Dividing by <code>1.5 × k</code> makes it close to one near the surface, so the wall comes out near the value you asked for, but check the result in the slicer's preview. If a wall shows as a single bead with gaps, increase it to at least 0.84 mm, which is two bead widths.</p></div>
+
+<h2>A functional object</h2>
+<p>The same toolkit makes useful things. A pen pot is a cylinder with a smaller cylinder subtracted from it above a solid floor. Texture is added by changing the outer radius with angle and height: ribs, a twist, a noise wobble. Since everything is in millimetres, the wall and floor thicknesses are simply stated, and stay correct whatever the texture does.</p>
+
+<div class="example" data-title="P3.3 A textured pot with a guaranteed wall (click to download the STL)">
+<script type="text/plain">
+const ribs = ui.slider('ribs', 0, 24, 12, 1);
+const twist = ui.slider('twist', -2, 2, 0.8, 0.1);
+const bulge = ui.slider('bulge mm', 0, 8, 4, 0.5);
+
+const HEIGHT = 90, RADIUS = 32, WALL = 2.4, FLOOR = 3;       // millimetres
+let tris = [], info = { ok: false, text: '' };
+
+function build() {
+  const f = (x, y, z) => {
+    const r = Math.hypot(x, y), a = Math.atan2(y, x), v = z / HEIGHT;
+
+    // the inner cavity is a plain cylinder, so pens stand straight
+    const cavity = Math.max(r - (RADIUS - WALL), FLOOR - z);
+
+    // the outside is that cylinder pushed outward by a texture that is never negative,
+    // so the wall can only get thicker than WALL, never thinner
+    const texture = 1.5 * (0.5 + 0.5 * Math.sin(a * ribs() + v * twist() * PA.TAU)) + bulge() * Math.sin(v * Math.PI);
+    const outside = Math.max(r - (RADIUS + texture), Math.abs(z - HEIGHT / 2) - HEIGHT / 2);
+
+    return Math.max(outside, -cavity);        // subtract the cavity from the outside
+  };
+  tris = MESH.fromSDF(f, [-46, -46, -1], [46, 46, HEIGHT + 2], 64);
+  info = MESH.report(tris);
+}
+build();
+ui.onChange(build);
+
+loop((t) => {
+  MESH.view(ctx, W, H, tris, { spin: t * 0.4, tilt: 0.6, colour: [0.75, 0.6, 0.95] });
+  ctx.font = '13px monospace';
+  ctx.fillStyle = info.ok ? '#7ee0a1' : '#ff8a94';
+  ctx.fillText(info.text, 12, H - 14);
+});
+canvas.onclick = () => MESH.download('pot.stl', MESH.stl(tris));
+</script>
+</div>
+
+<p>Notice how the constraint is handled. The wall thickness is not checked afterwards. The texture is constructed so that it cannot violate it. Designing rules into the formula, instead of testing for failures, is the most reliable way to make generators whose every output prints.</p>
+
+<h2>Bending space in 3D</h2>
+<p>Lesson 9's domain operations work here too. Change the coordinates before evaluating the shape:</p>
+<table>
+  <thead><tr><th>Change</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td>Rotate <code>(x, y)</code> by an angle proportional to <code>z</code></td><td>Twists the object along its height</td></tr>
+    <tr><td>Replace <code>x</code> by <code>Math.abs(x)</code></td><td>Mirrors it: model half, get both</td></tr>
+    <tr><td>Wrap <code>x</code> with <code>x - s * Math.round(x / s)</code></td><td>Repeats the shape every <code>s</code> millimetres</td></tr>
+    <tr><td>Use polar angle wrapped into a wedge</td><td>Repeats it round an axis: gear teeth, petals, flutes</td></tr>
+    <tr><td>Add noise to the distance</td><td>Roughens the surface: stone, bark, hammered metal</td></tr>
+    <tr><td>Scale <code>(x, y)</code> by a function of <code>z</code></td><td>Tapers or flares it</td></tr>
+  </tbody>
+</table>
+<p>One caution: operations that stretch space unevenly make the "distance" inaccurate, which shows up as walls thinner than intended. Keep distortions gentle, and verify thickness in the slicer.</p>
+
+<h2>Choosing a method</h2>
+<table>
+  <thead><tr><th>Use…</th><th>when…</th></tr></thead>
+  <tbody>
+    <tr><td>Height maps</td><td>The object is a relief on a flat base</td></tr>
+    <tr><td>Lofting</td><td>It has an axis and a changing outline: vessels, columns</td></tr>
+    <tr><td>Implicit surfaces</td><td>Shapes blend, are hollowed, or repeat as a lattice; wall thickness matters</td></tr>
+    <tr><td>Code-driven CAD (OpenSCAD, CadQuery)</td><td>Engineering parts with exact holes, threads and flat faces</td></tr>
+    <tr><td>Blender geometry nodes or scripts</td><td>Complex scenes, instancing on surfaces, artistic control: see the Blender section</td></tr>
+    <tr><td>Direct G-code</td><td>The effect lives in how the bead is laid, not in the shape: Lessons 4 and 5</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A 3D distance function describes a solid: negative inside, zero on the surface.</li>
+  <li>Union, subtraction, intersection, shell and smooth blend are one line each.</li>
+  <li>Distances are in millimetres, so walls and clearances are stated directly.</li>
+  <li>Marching tetrahedra samples the function on a grid and builds triangles where it changes sign.</li>
+  <li>Resolution costs time by the cube. Match it to the nozzle, not to the screen.</li>
+  <li>Build constraints into the formula so that no output can violate them.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">3D printing challenge 2</p>
+  <h2>A Formula You Can Hold</h2>
+  <p>Design a printable object as a single distance function, using the operations above to do something that would be hard with hand-built triangles.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>The object is one function <code>f(x, y, z)</code> in millimetres, built from at least <strong>three primitives</strong>.</li>
+    <li>It uses at least <strong>three different operations</strong>, including a subtraction or a shell, and a smooth blend.</li>
+    <li>At least one <strong>domain operation</strong>: twist, mirror, repetition or taper.</li>
+    <li>A stated <strong>minimum wall thickness</strong> of at least 0.84 mm that holds by construction, with a comment explaining why it cannot be violated.</li>
+    <li>A <strong>flat base</strong> at z = 0, and the object fits the P1S.</li>
+    <li>Seeded or slider-driven, with the mesh reported watertight for every setting.</li>
+    <li>Sliced in Bambu Studio without errors. Note whether it needs supports and why.</li>
+  </ul>
+  <h3>Ideas</h3>
+  <ul>
+    <li>A lattice-filled shape: a sphere, a heart, a letter, with a solid skin and a gyroid inside.</li>
+    <li>A desk organiser: several pots of different heights blended into one piece.</li>
+    <li>A phone stand, soap dish or planter with drainage holes repeated round the axis.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The slicer's preview shows every wall as at least two beads.</li>
+    <li>Changing a slider or seed never produces an unprintable result.</li>
+  </ul>
+  <a class="start" href="../challenges/p3-formula-object.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="02-models-from-code.html">← 3D Printing 2</a><a href="04-gcode-fundamentals.html">3D Printing 4: G-code Fundamentals →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/mesh.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

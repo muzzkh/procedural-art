@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 4 · The Specimen Sheet</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1200" height="1200"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 4 — THE SPECIMEN SHEET
+   Full brief: ../lessons/04-curves-and-trigonometry.html
+
+   Invent a family of curves. Show nine members of it, each labelled.
+
+   Checklist
+   [ ] drawSpecimen(cx, cy, size, seed) draws any member of the family
+   [ ] At least four parameters chosen from the seed
+   [ ] At least two ideas from the lesson combined
+   [ ] Every curve closes exactly or fades out gracefully
+   [ ] Colour or line weight changes along the curve
+   [ ] Each specimen is labelled with its seed and parameter values
+   [ ] All nine clearly belong to one family, and no two are alike */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+
+function drawSpecimen(cx, cy, size, seed) {
+  const R = PA.rng(seed);
+
+  // ---- your code here ----
+
+}
+
+// TODO: call drawSpecimen nine times in a 3 x 3 arrangement, with nine different seeds
+
+</script>
+</body>
+</html>

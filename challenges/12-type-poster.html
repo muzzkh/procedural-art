@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 12 · The Type Poster</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1400"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 12 — THE TYPE POSTER
+   Full brief: ../lessons/12-typography.html
+
+   Checklist
+   [ ] The phrase is an input; the poster re-composes for one word to six
+   [ ] A layout rule fits the type to the page by measurement, with a margin
+   [ ] The letters are filled or built by a generative treatment that uses an inside test
+   [ ] At least one line of text runs along a path
+   [ ] A palette with a contrast check (Lesson 11)
+   [ ] The phrase is readable from across a room
+   [ ] Seeded; keys for a new seed and for saving a PNG
+   [ ] Five different phrases each give a poster you would print */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const PHRASE = 'slow down';         // try: 'go', 'make something every day'
+let seed = 1;
+
+// Draws the phrase on a hidden canvas using your layout rule,
+// and returns inside(x, y): true where a letter is.
+function layout(phrase) {
+  const hidden = document.createElement('canvas');
+  hidden.width = W; hidden.height = H;
+  const g = hidden.getContext('2d');
+
+  // ---- your layout rule here: measure, scale, place ----
+
+  const pixels = g.getImageData(0, 0, W, H).data;
+  return (x, y) => x >= 0 && x < W && y >= 0 && y < H && pixels[(Math.floor(y) * W + Math.floor(x)) * 4 + 3] > 128;
+}
+
+function draw() {
+  const R = PA.rng(seed), N = PA.noise(seed);
+  const inside = layout(PHRASE);
+
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+
+  // ---- your treatment here ----
+
+  // ---- your text on a path here ----
+}
+
+draw();
+
+// TODO: keys for a new seed and for saving a PNG
+</script>
+</body>
+</html>

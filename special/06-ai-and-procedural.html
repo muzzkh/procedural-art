@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 6 · AI Alongside Procedural Methods</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="05-live-hardware.html">← Special 5</a><span>Special topic 6 of 9</span><a href="07-critique-and-art-direction.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 6</p>
+  <h1>AI Alongside Procedural Methods</h1>
+  <p class="lede">Image-generating models and procedural systems both make pictures with a computer, and they are often confused. They work in opposite ways, are good at opposite things, and combine well. This page sets out where each is the better tool and how to use them together.</p>
+</header>
+
+<h2>Two different kinds of generation</h2>
+<p>A <strong>procedural</strong> system, the subject of this whole course, is a set of rules that you wrote and can read. You know why every mark is where it is. A <strong>generative AI</strong> model is a very large statistical summary of millions of existing images, or texts, or sounds. Given a description, it produces something that resembles what it has seen. Nobody wrote its rules, and nobody can read them.</p>
+<table>
+  <thead><tr><th></th><th>Procedural system</th><th>Generative model</th></tr></thead>
+  <tbody>
+    <tr><td>You specify</td><td>Rules and parameters</td><td>A description, or an example</td></tr>
+    <tr><td>Control</td><td>Exact. Every value is a dial.</td><td>Loose. You steer, it decides.</td></tr>
+    <tr><td>Repeatability</td><td>The same seed gives the same result, on any machine, for ever</td><td>Depends on the model, its version and the service. Often not reproducible later.</td></tr>
+    <tr><td>Resolution</td><td>Unlimited: render at any size, or as vectors</td><td>Fixed by the model, enlarged afterwards</td></tr>
+    <tr><td>Strength</td><td>Structure, pattern, precision, variation within a system, real-time response</td><td>Texture, naturalism, recognisable subjects, style, things you can describe but could not code</td></tr>
+    <tr><td>Weakness</td><td>Anything that needs knowledge of the world: a face, a cat, a street</td><td>Exactness: counting, geometry, consistent detail, text, meeting a specification</td></tr>
+    <tr><td>Cost to run</td><td>Almost nothing. Runs in a browser, on a phone, on a microcontroller.</td><td>Substantial computing, usually someone else's</td></tr>
+    <tr><td>Explaining the result</td><td>You can point to the rule</td><td>You cannot</td></tr>
+    <tr><td>Fabrication</td><td>Produces exact geometry for machines</td><td>Produces pictures, which must be converted</td></tr>
+  </tbody>
+</table>
+<p>Neither is a better version of the other. A seamless tiling, a font, a dungeon that must be solvable, a part that must be 2.4 mm thick: procedural. A painting of a harbour at dusk: a model, or a painter.</p>
+
+<h2>Ways to combine them</h2>
+<h3>1. Procedural structure, generated surface</h3>
+<p>Many image models accept a <strong>guide image</strong> along with the text description: an outline drawing, a depth map (light where things are near, dark where they are far), or a map of regions. The model then produces an image that follows the guide's structure. This plays to both strengths. Your procedural system decides the composition exactly, and the model supplies material, lighting and detail.</p>
+<p>Guide images are easy to produce, because a procedural system knows everything about its own scene. The example renders one generated arrangement three ways: as a finished flat picture, as a depth map, and as an outline map.</p>
+
+<div class="example" data-h="300" data-title="S6.1 One scene, three renderings">
+<script type="text/plain">
+const R = PA.rng();          // run again for a new arrangement
+
+// the scene: shapes with a depth. smaller depth = nearer
+const shapes = [];
+for (let i = 0; i < 14; i++) {
+  shapes.push({ x: R.range(20, 180), y: R.range(60, 250), w: R.range(24, 70), h: R.range(40, 150), depth: R(), hue: R.range(360), round: R.chance(0.4) });
+}
+shapes.sort((a, b) => b.depth - a.depth);         // draw far things first
+
+function render(ox, style) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(ox, 0, 200, H); ctx.clip();
+  ctx.fillStyle = style === 'colour' ? '#d9e6f2' : '#000';
+  ctx.fillRect(ox, 0, 200, H);
+  for (const s of shapes) {
+    ctx.beginPath();
+    if (s.round) ctx.ellipse(ox + s.x, s.y, s.w / 2, s.h / 2, 0, 0, PA.TAU);
+    else ctx.rect(ox + s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+    if (style === 'colour') { ctx.fillStyle = PA.oklch(0.45 + (1 - s.depth) * 0.35, 0.12, s.hue); ctx.fill(); }
+    if (style === 'depth') { const v = Math.round(40 + (1 - s.depth) * 215); ctx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; ctx.fill(); }    // near is light
+    if (style === 'edges') { ctx.fillStyle = '#000'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }                 // nearer shapes hide farther outlines
+  }
+  ctx.restore();
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px monospace';
+  ctx.fillText(style === 'colour' ? 'the picture' : style === 'depth' ? 'depth map' : 'outline map', ox + 8, H - 10);
+}
+
+render(0, 'colour');
+render(200, 'depth');
+render(400, 'edges');
+</script>
+</div>
+
+<h3>2. Generated material inside a procedural system</h3>
+<p>The reverse also works. Use a model to make ingredients, such as textures, a set of small images, a palette taken from a generated picture, or lines of text, and let a procedural system arrange them. Wave Function Collapse with generated tiles, a packing of generated motifs, and a layout system fed with generated copy are all examples. The procedural part guarantees the structure, so the result holds together.</p>
+
+<h3>3. A model as a writing partner for code</h3>
+<p>Language models can write and explain code, including the kind in this course. They are useful for getting a first version of an algorithm you know by name, for translating between languages (JavaScript to Blender's Python, say), and for explaining an error. They also produce code that looks right and is not, and they are confident either way. The rule is the one this course has followed throughout: <strong>run it, look at the output, and test the edges</strong>. Use a model's code the way you would use an example from a book: read it until you could have written it.</p>
+
+<h3>4. Procedural data for training models</h3>
+<p>Special Topic 2 showed a generator that produces images together with perfect labels. Synthetic data of this kind is a standard way to train or test models where real labelled data is scarce.</p>
+
+<h3>5. Automated selection</h3>
+<p>A generative system can produce outputs faster than you can look at them. Part of the curation in Lesson 10 can be automated by <strong>scoring</strong> each output and keeping the best. A score is any number computed from an output: how much of the canvas is covered, how balanced it is, how much contrast it has. That is a crude critic, but it is yours, and it removes the obvious failures so that your attention goes to the interesting cases.</p>
+<p>The example generates forty compositions, scores each on two measurable things, and shows the six best and the six worst. A trained model can serve as a more sophisticated scorer. Either way the criteria are a statement of your taste, and worth writing down.</p>
+
+<div class="example" data-title="S6.2 A scoring function as a first critic">
+<script type="text/plain">
+function compose(seed) {                      // a simple generator: some circles
+  const R = PA.rng(seed), circles = [];
+  const count = R.int(3, 40);
+  for (let i = 0; i < count; i++) circles.push({ x: R.gauss(0.5, R.range(0.08, 0.35)), y: R.gauss(0.5, R.range(0.08, 0.35)), r: R.range(0.02, 0.14) * R(), hue: R.range(360) });
+  return circles;
+}
+
+// two things we can measure, each turned into a mark out of 1
+function score(circles) {
+  let area = 0, cx = 0, cy = 0;
+  for (const c of circles) { const a = Math.PI * c.r * c.r; area += a; cx += c.x * a; cy += c.y * a; }
+  const coverage = 1 - Math.min(1, Math.abs(area - 0.22) / 0.22);                    // wants about 22% of the canvas covered
+  const balance = 1 - Math.min(1, Math.hypot(cx / area - 0.5, cy / area - 0.5) / 0.25);   // wants the weight near the centre
+  return coverage * 0.6 + balance * 0.4;
+}
+
+const all = [];
+for (let seed = 1; seed <= 40; seed++) { const c = compose(seed); all.push({ seed, circles: c, score: score(c) }); }
+all.sort((a, b) => b.score - a.score);
+
+function thumb(item, x, y, s) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, s, s); ctx.clip();
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(x, y, s, s);
+  for (const c of item.circles) {
+    ctx.fillStyle = PA.oklch(0.6, 0.14, c.hue, 0.85);
+    ctx.beginPath(); ctx.arc(x + c.x * s, y + c.y * s, c.r * s, 0, PA.TAU); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle = '#cfd6dd';
+  ctx.font = '11px monospace';
+  ctx.fillText('seed ' + item.seed + ' · ' + item.score.toFixed(2), x, y + s + 14);
+}
+
+ctx.fillStyle = '#16181d';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#7ee0a1'; ctx.font = '13px monospace'; ctx.fillText('highest scores', 14, 24);
+ctx.fillStyle = '#ff8a94'; ctx.fillText('lowest scores', 14, 318);
+for (let k = 0; k < 6; k++) {
+  thumb(all[k], 14 + (k % 6) * 97, 36, 88);
+  thumb(all[all.length - 1 - k], 14 + (k % 6) * 97, 330, 88);
+}
+ctx.fillStyle = '#8b96a5';
+ctx.fillText('scored on coverage (wants 22%) and balance (wants the weight centred)', 14, 470);
+ctx.fillText('change the score function and the ranking changes with it', 14, 490);
+</script>
+</div>
+
+<h2>Things to think about</h2>
+<ul>
+  <li><strong>Where the model's knowledge came from.</strong> Image models are trained on enormous collections of existing images, many made by artists who were not asked. The legal and ethical position is contested and differs between countries. Know the terms of the tool you use.</li>
+  <li><strong>Rights in the output.</strong> In several jurisdictions, material produced entirely by a model may not be protected by copyright. Work in which a person made substantial creative choices, as with a procedural system you designed, is on firmer ground. This is not legal advice: check for your own situation.</li>
+  <li><strong>Saying how it was made.</strong> Competitions, publishers, galleries and platforms increasingly have rules about AI-generated material. Be accurate about your process.</li>
+  <li><strong>Reproducibility.</strong> A seed and your own code will work in ten years. A prompt sent to a hosted model may not give the same result next month. If a piece depends on a model, keep the outputs.</li>
+  <li><strong>Sameness.</strong> Models gravitate toward the average of what they have seen. A procedural system has no average: its character is whatever rules you gave it. That is a real advantage for developing a recognisable voice.</li>
+  <li><strong>Understanding.</strong> You learn nothing about form by typing a description. Building a system teaches you why an image works.</li>
+</ul>
+
+<h2>A simple way to decide</h2>
+<table>
+  <thead><tr><th>If the task needs…</th><th>Reach for…</th></tr></thead>
+  <tbody>
+    <tr><td>Exact geometry, tiling, text, or a manufacturable result</td><td>Procedural</td></tr>
+    <tr><td>Thousands of consistent variations</td><td>Procedural</td></tr>
+    <tr><td>Real-time response to input</td><td>Procedural</td></tr>
+    <tr><td>A result you can reproduce and explain</td><td>Procedural</td></tr>
+    <tr><td>Recognisable real-world subjects or photographic texture</td><td>A model, ideally guided by a procedural structure</td></tr>
+    <tr><td>A quick sketch of an idea you will then build properly</td><td>Either</td></tr>
+    <tr><td>Both structure and richness</td><td>Both: structure from rules, surface from a model</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Procedural systems are rules you wrote. Generative models are statistics of existing work.</li>
+  <li>Rules give control, exactness, repeatability and scale. Models give naturalism and recognisable content.</li>
+  <li>The strongest combination is procedural structure with generated surface, through guide images.</li>
+  <li>A procedural scene can render its own depth and outline maps, because it knows everything about itself.</li>
+  <li>Scoring functions automate the first pass of curation. The criteria are yours.</li>
+  <li>Check any generated code by running it. Be accurate about how work was made.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 6</p>
+  <h2>The Structured Half</h2>
+  <p>Build the procedural half of a hybrid pipeline: a generator that produces compositions together with the guide images a model would need, and a scoring function that picks the best. No AI service is required to complete it.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A seeded generator of <strong>scenes with depth</strong>: at least fifteen elements, each with a position, a shape and a distance from the viewer.</li>
+    <li>Three renderings of the same scene from the same data: a <strong>flat picture</strong>, a <strong>depth map</strong> in greyscale, and an <strong>outline map</strong> in which nearer shapes correctly hide the outlines of farther ones.</li>
+    <li>All three export as PNG at 1024 × 1024, with matching file names that include the seed.</li>
+    <li>A <strong>scoring function</strong> with at least three measured criteria, and a comment for each saying why you want it.</li>
+    <li>A view showing the best and worst of at least fifty seeds.</li>
+    <li>A written note: which parts of the final image you would leave to a model, which you would never leave to one, and why.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Keep the scene as data and write three small render functions that read it. Never let two renderings generate separately.</li>
+    <li>Look at the worst-scoring outputs. If some are actually good, your criteria are missing something.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>A region map: every element in a flat, distinct colour by type.</li>
+    <li>If you have access to an image model that accepts guide images, run three of your scenes through it and compare the results with your flat pictures.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The three renderings line up exactly when laid over one another.</li>
+    <li>You agree with your own scoring function at least four times out of five.</li>
+  </ul>
+  <a class="start" href="../challenges/s6-structured-half.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="05-live-hardware.html">← Special Topic 5</a><a href="07-critique-and-art-direction.html">Special Topic 7: Critique and Art Direction →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

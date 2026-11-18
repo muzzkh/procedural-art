@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 17 · Something That Hangs, Swings or Wobbles</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 17 — SOMETHING THAT HANGS, SWINGS OR WOBBLES
+   Full brief: ../lessons/17-physics.html
+
+   Checklist
+   [ ] Your own Verlet integrator and stick constraint
+   [ ] At least 150 points connected into structures
+   [ ] At least two kinds of constraint (sticks plus pins, a floor, a boundary, collisions)
+   [ ] A varying force: wind from noise, the pointer, or changing gravity
+   [ ] The structure is generated from a seed
+   [ ] Stable however it is prodded
+   [ ] Responds to the pointer, or a key freezes it and exports a still of traced paths
+   [ ] The motion looks like a material you could name */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const mouse = { x: W / 2, y: H / 2, down: false, active: false };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * W;
+  mouse.y = (e.clientY - r.top) / r.height * H;
+  mouse.active = true;
+});
+canvas.addEventListener('pointerdown', () => { mouse.down = true; });
+addEventListener('pointerup', () => { mouse.down = false; });
+
+let seed = 1;
+let points = [];      // { x, y, px, py, pinned }
+let sticks = [];      // { a, b, length }
+
+function build(seed) {
+  const R = PA.rng(seed);
+  points = [];
+  sticks = [];
+  // ---- generate your structure here ----
+}
+
+function integrate(t) {
+  // ---- move every unpinned point: velocity from the last movement, plus gravity and your force ----
+}
+
+function constrain() {
+  // ---- several passes: sticks, pins, boundaries ----
+}
+
+function render() {
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+  // ---- draw it ----
+}
+
+function frame(ms) {
+  integrate(ms / 1000);
+  constrain();
+  render();
+  requestAnimationFrame(frame);
+}
+
+build(seed);
+requestAnimationFrame(frame);
+
+// TODO: keys for a new seed, and for freezing and exporting
+</script>
+</body>
+</html>

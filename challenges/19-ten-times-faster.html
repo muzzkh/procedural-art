@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Challenge 19 · Ten Times Faster</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #cfd6dd; font: 14px Consolas, monospace; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 90vmin; max-height: 84vmin; }
+  #report { margin: 0; padding: 10px; }
+</style>
+</head>
+<body>
+<div>
+  <canvas id="canvas" width="900" height="900"></canvas>
+  <pre id="report"></pre>
+</div>
+<script src="../assets/pa.js"></script>
+<script>
+/* CHALLENGE 19 — TEN TIMES FASTER
+   Full brief: ../lessons/19-performance.html
+
+   This sketch works, and is deliberately slow. Make it at least ten times faster
+   WITHOUT changing the picture it draws for a given seed.
+
+   BEFORE YOU CHANGE ANYTHING, MEASURE AND WRITE DOWN:
+     Starting time per frame:           ...... ms
+     Most expensive part (profiler):    ......
+     Second most expensive part:        ......
+
+   Checklist
+   [ ] Measurements above filled in first
+   [ ] The same picture for the same seed (keep slowFrame to compare against)
+   [ ] At least ten times faster per frame at the original count, measured the same way
+   [ ] At least three techniques from the lesson, each noted with the time it saved
+   [ ] Count raised until the frame time is back near 16 ms: ...... particles
+   [ ] A short write-up: what was slow, what you changed, what surprised you
+
+   WHAT I CHANGED, AND WHAT EACH CHANGE SAVED:
+     1. ......
+     2. ......
+     3. ......                                                                    */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const COUNT = 1200;
+const LINK = 60;                // particles closer than this are joined by a line
+
+const R = PA.rng(19);
+let particles = [];
+for (let i = 0; i < COUNT; i++) {
+  particles.push({ position: { x: R.range(W), y: R.range(H) }, velocity: { x: R.range(-1, 1), y: R.range(-1, 1) } });
+}
+
+// ---------------------------------------------------------------------------
+// The slow version. Do not edit it: copy it to fastFrame below and work there.
+// ---------------------------------------------------------------------------
+function slowFrame() {
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // move
+  particles = particles.map((p) => {
+    let next = { x: p.position.x + p.velocity.x, y: p.position.y + p.velocity.y };
+    let velocity = { x: p.velocity.x, y: p.velocity.y };
+    if (next.x < 0 || next.x > W) velocity = { x: -velocity.x, y: velocity.y };
+    if (next.y < 0 || next.y > H) velocity = { x: velocity.x, y: -velocity.y };
+    return { position: next, velocity: velocity };
+  });
+
+  // join neighbours
+  for (const p of particles) {
+    const neighbours = particles.filter((q) => {
+      return q !== p && Math.sqrt(Math.pow(q.position.x - p.position.x, 2) + Math.pow(q.position.y - p.position.y, 2)) < LINK;
+    });
+    for (const q of neighbours) {
+      const distance = Math.sqrt(Math.pow(q.position.x - p.position.x, 2) + Math.pow(q.position.y - p.position.y, 2));
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = 'rgba(120, 200, 255, 0.5)';
+      ctx.strokeStyle = 'rgba(120, 200, 255, ' + (1 - distance / LINK) * 0.35 + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.position.x, p.position.y);
+      ctx.lineTo(q.position.x, q.position.y);
+      ctx.stroke();
+    }
+  }
+
+  // dots
+  for (const p of particles) {
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(p.position.x, p.position.y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Your version goes here.
+// ---------------------------------------------------------------------------
+function fastFrame() {
+  slowFrame();        // replace this
+}
+
+const USE_FAST = false;         // switch to true once fastFrame is your own
+
+let smooth = 0;
+function frame() {
+  const start = performance.now();
+  if (USE_FAST) fastFrame(); else slowFrame();
+  smooth += (performance.now() - start - smooth) * 0.1;
+  document.getElementById('report').textContent =
+    COUNT + ' particles · ' + smooth.toFixed(1) + ' ms per frame · ' + (USE_FAST ? 'fast' : 'slow') + ' version';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

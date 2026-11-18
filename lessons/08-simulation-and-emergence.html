@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 8 · Simulation and Emergence</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="07-packing-and-partitioning.html">← Lesson 7</a><span>Lesson 8 of 19</span><a href="09-shaders-and-distance-fields.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 8</p>
+  <h1>Simulation and Emergence</h1>
+  <p class="lede">Give many small parts a simple rule about their neighbours, run it thousands of times, and structure appears that no rule mentions: stripes, spots, flocks, veins. That is emergence, and it is the closest procedural art comes to growing a picture.</p>
+</header>
+
+<h2>The shape of every simulation</h2>
+<p>All the systems in this lesson share one skeleton:</p>
+<ol>
+  <li><strong>State.</strong> A grid of values, or a list of agents.</li>
+  <li><strong>A local rule.</strong> Each cell or agent looks only at its immediate surroundings and decides its next state.</li>
+  <li><strong>Step.</strong> Apply the rule to everything, then repeat.</li>
+</ol>
+<p>One technical point matters throughout. When updating a grid, every cell must read the <em>old</em> state of its neighbours. So you keep two grids: read from one, write into the other, then swap. This is called <strong>double buffering</strong>. Forgetting it is the most common simulation bug.</p>
+
+<h2>Cellular automata</h2>
+<p>The simplest simulation is a row of cells, each on or off. A cell's next state depends on itself and its two neighbours. Those three cells have eight possible patterns, and a rule says, for each of the eight, whether the result is on or off. Eight yes-or-no answers fit in one number from 0 to 255, which is why these are called Rule 30, Rule 90, and so on. Draw each generation below the last and the history becomes a picture.</p>
+
+<div class="example" data-title="8.1 Elementary cellular automaton">
+<script type="text/plain">
+const rule = 30;           // try 90, 110, 73, 150, 184
+const cell = 4;
+const cols = W / cell, rows = H / cell;
+
+let row = new Uint8Array(cols);
+row[cols >> 1] = 1;        // a single live cell in the middle
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#1d3557';
+
+for (let j = 0; j < rows; j++) {
+  for (let i = 0; i < cols; i++) {
+    if (row[i]) ctx.fillRect(i * cell, j * cell, cell, cell);
+  }
+
+  const next = new Uint8Array(cols);
+  for (let i = 0; i < cols; i++) {
+    const left = row[(i - 1 + cols) % cols];
+    const self = row[i];
+    const right = row[(i + 1) % cols];
+    const pattern = (left << 2) | (self << 1) | right;     // a number from 0 to 7
+    next[i] = (rule >> pattern) & 1;                       // look up that bit of the rule
+  }
+  row = next;
+}
+</script>
+</div>
+
+<p>Rule 90 draws a perfect Sierpinski triangle. Rule 30 produces a stream so unpredictable it has been used as a random number generator. Rule 110 can, in principle, compute anything a computer can. All three are the same eight-entry lookup table.</p>
+
+<h3>Life</h3>
+<p>John Conway's Game of Life (1970) moves the idea to two dimensions. Each cell counts its eight neighbours:</p>
+<ul>
+  <li>A live cell with two or three live neighbours survives.</li>
+  <li>A dead cell with exactly three live neighbours becomes alive.</li>
+  <li>Every other cell is dead in the next generation.</li>
+</ul>
+<p>The example also shows a visual technique that applies to every simulation: do not just draw the current state. Here dead cells fade slowly instead of vanishing, so the picture shows history as well as the present.</p>
+
+<div class="example" data-pixel data-w="150" data-h="150" data-title="8.2 Game of Life with fading trails">
+<script type="text/plain">
+const R = PA.rng();
+let grid = new Uint8Array(W * H);
+let next = new Uint8Array(W * H);
+for (let i = 0; i < grid.length; i++) grid[i] = R.chance(0.3) ? 1 : 0;
+
+const img = ctx.createImageData(W, H);
+
+loop((t, frame) => {
+  if (frame % 3 !== 0) return;          // slow it down
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let n = 0;                          // count the eight neighbours (edges wrap round)
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx !== 0 || dy !== 0) n += grid[((y + dy + H) % H) * W + ((x + dx + W) % W)];
+        }
+      }
+      const alive = grid[y * W + x];
+      next[y * W + x] = (alive && (n === 2 || n === 3)) || (!alive && n === 3) ? 1 : 0;
+
+      const k = (y * W + x) * 4;
+      img.data[k]     = alive ? 255 : img.data[k] * 0.90;       // each channel fades at its own rate
+      img.data[k + 1] = alive ? 230 : img.data[k + 1] * 0.80;
+      img.data[k + 2] = alive ? 170 : img.data[k + 2] * 0.96;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const swap = grid; grid = next; next = swap;      // double buffering
+});
+</script>
+</div>
+
+<h2>Reaction–diffusion</h2>
+<p>In 1952 Alan Turing proposed that animal markings could arise from two chemicals spreading through skin at different speeds while reacting with each other. The <strong>Gray–Scott</strong> model is the version artists use. Each grid cell holds amounts of two chemicals, A and B:</p>
+<ul>
+  <li><strong>Diffusion:</strong> both spread to neighbouring cells, A faster than B.</li>
+  <li><strong>Reaction:</strong> one A plus two B becomes three B. B converts A into more of itself.</li>
+  <li><strong>Feed:</strong> A is added everywhere at a slow, steady rate.</li>
+  <li><strong>Kill:</strong> B is removed at a steady rate.</li>
+</ul>
+<p>Two numbers, the feed and kill rates, select the pattern: spots, stripes, mazes, dividing cells, spirals. Small changes give completely different behaviour, so exploring this pair of numbers is the whole game.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="8.3 Gray–Scott reaction–diffusion">
+<script type="text/plain">
+const n = W * H;
+let A = new Float32Array(n).fill(1), A2 = new Float32Array(n).fill(1);
+let B = new Float32Array(n),         B2 = new Float32Array(n);
+
+const R = PA.rng();
+for (let k = 0; k < 12; k++) {               // drop in a few patches of B to start things off
+  const cx = R.int(20, W - 20), cy = R.int(20, H - 20);
+  for (let y = -4; y <= 4; y++) {
+    for (let x = -4; x <= 4; x++) B[(cy + y) * W + cx + x] = 1;
+  }
+}
+
+const dA = 1.0, dB = 0.5;
+const feed = 0.055, kill = 0.062;            // try (0.037, 0.06)  (0.03, 0.062)  (0.025, 0.06)
+
+function step() {
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const a = A[i], b = B[i];
+      // "laplacian": how different is this cell from the average of its neighbours?
+      const lapA = (A[i - 1] + A[i + 1] + A[i - W] + A[i + W]) * 0.2
+                 + (A[i - W - 1] + A[i - W + 1] + A[i + W - 1] + A[i + W + 1]) * 0.05 - a;
+      const lapB = (B[i - 1] + B[i + 1] + B[i - W] + B[i + W]) * 0.2
+                 + (B[i - W - 1] + B[i - W + 1] + B[i + W - 1] + B[i + W + 1]) * 0.05 - b;
+      const reaction = a * b * b;
+      A2[i] = a + dA * lapA - reaction + feed * (1 - a);
+      B2[i] = b + dB * lapB + reaction - (kill + feed) * b;
+    }
+  }
+  let swap = A; A = A2; A2 = swap;
+  swap = B; B = B2; B2 = swap;
+}
+
+const img = ctx.createImageData(W, H);
+loop(() => {
+  for (let k = 0; k < 8; k++) step();          // several steps per frame
+
+  for (let i = 0; i < n; i++) {
+    const v = PA.clamp(A[i] - B[i]);
+    img.data[i * 4]     = 20 + v * 225;
+    img.data[i * 4 + 1] = 30 + v * 200;
+    img.data[i * 4 + 2] = 70 + v * 150;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h2>Flocking</h2>
+<p>Simulations can also be made of free-moving agents. Craig Reynolds's <strong>boids</strong> (1987) reproduce the motion of bird flocks and fish schools with three steering rules, each using only nearby flockmates:</p>
+<dl class="vocab">
+  <dt>Separation</dt><dd>Steer away from neighbours that are too close.</dd>
+  <dt>Alignment</dt><dd>Turn toward the average heading of neighbours.</dd>
+  <dt>Cohesion</dt><dd>Move toward the average position of neighbours.</dd>
+</dl>
+<p>There is no leader and no plan. The flock is a consequence of the three rules.</p>
+
+<div class="example" data-title="8.4 Boids">
+<script type="text/plain">
+const R = PA.rng();
+const boids = [];
+for (let i = 0; i < 160; i++) {
+  boids.push({ x: R.range(W), y: R.range(H), vx: R.range(-2, 2), vy: R.range(-2, 2) });
+}
+
+const SEPARATION = 0.08, ALIGNMENT = 0.05, COHESION = 0.003;     // set each to 0 in turn
+
+loop(() => {
+  ctx.fillStyle = 'rgba(11, 19, 43, 0.3)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#ffd166';
+
+  for (const b of boids) {
+    let cx = 0, cy = 0, avx = 0, avy = 0, sx = 0, sy = 0, count = 0;
+    for (const o of boids) {
+      if (o === b) continue;
+      const dx = o.x - b.x, dy = o.y - b.y, d = Math.hypot(dx, dy);
+      if (d < 50) {                               // only neighbours within view
+        cx += o.x; cy += o.y;                     // for cohesion
+        avx += o.vx; avy += o.vy;                 // for alignment
+        count++;
+        if (d < 18 && d > 0) { sx -= dx / d; sy -= dy / d; }    // for separation
+      }
+    }
+    if (count > 0) {
+      b.vx += (cx / count - b.x) * COHESION + (avx / count - b.vx) * ALIGNMENT + sx * SEPARATION;
+      b.vy += (cy / count - b.y) * COHESION + (avy / count - b.vy) * ALIGNMENT + sy * SEPARATION;
+    }
+
+    const speed = Math.hypot(b.vx, b.vy) || 1;         // keep speed within limits
+    const wanted = PA.clamp(speed, 1.5, 3);
+    b.vx *= wanted / speed; b.vy *= wanted / speed;
+
+    b.x = (b.x + b.vx + W) % W;
+    b.y = (b.y + b.vy + H) % H;
+
+    const a = Math.atan2(b.vy, b.vx);                  // draw a small arrowhead
+    ctx.beginPath();
+    ctx.moveTo(b.x + Math.cos(a) * 7, b.y + Math.sin(a) * 7);
+    ctx.lineTo(b.x + Math.cos(a + 2.5) * 5, b.y + Math.sin(a + 2.5) * 5);
+    ctx.lineTo(b.x + Math.cos(a - 2.5) * 5, b.y + Math.sin(a - 2.5) * 5);
+    ctx.fill();
+  }
+});
+</script>
+</div>
+
+<h2>Agents that write on a grid</h2>
+<p>The richest systems combine both kinds of state. The slime mould <em>Physarum</em> builds efficient transport networks with no brain. Jeff Jones's 2010 model of it has agents that leave a chemical trail on a grid and are attracted to the trail left by others:</p>
+<ol>
+  <li><strong>Sense.</strong> Each agent samples the trail ahead, ahead-left and ahead-right.</li>
+  <li><strong>Turn</strong> toward whichever is strongest.</li>
+  <li><strong>Move</strong> forward and <strong>deposit</strong> trail.</li>
+  <li>The trail grid then <strong>diffuses</strong> (blurs) and <strong>decays</strong> (fades).</li>
+</ol>
+<p>Agents reinforce paths that other agents use, and unused paths fade. The feedback loop produces branching vein-like networks. One limit keeps the network from collapsing: each cell can hold only so much trail, so a crowded vein is no more attractive than a modest one.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="8.5 Slime mould">
+<script type="text/plain">
+const R = PA.rng();
+const trail = new Float32Array(W * H), blurred = new Float32Array(W * H);
+
+const agents = [];
+for (let i = 0; i < 6000; i++) {
+  agents.push({ x: R.range(W), y: R.range(H), a: R.range(PA.TAU) });     // scattered, facing anywhere
+}
+
+const SENSOR_ANGLE = 0.8, SENSOR_DIST = 6, TURN = 0.6, DECAY = 0.9;     // all worth changing
+const MAX_TRAIL = 3;       // a cell can only hold so much. try 50: the veins merge into a few fat ropes
+
+function sense(agent, offset) {
+  const x = Math.round(agent.x + Math.cos(agent.a + offset) * SENSOR_DIST);
+  const y = Math.round(agent.y + Math.sin(agent.a + offset) * SENSOR_DIST);
+  return trail[((y + H) % H) * W + ((x + W) % W)];
+}
+
+const img = ctx.createImageData(W, H);
+loop(() => {
+  for (const ag of agents) {
+    const ahead = sense(ag, 0), left = sense(ag, -SENSOR_ANGLE), right = sense(ag, SENSOR_ANGLE);
+    if (ahead >= left && ahead >= right) { /* keep going straight */ }
+    else if (left > right) ag.a -= TURN;
+    else if (right > left) ag.a += TURN;
+    else ag.a += R.range(-TURN, TURN);
+
+    ag.x = (ag.x + Math.cos(ag.a) + W) % W;
+    ag.y = (ag.y + Math.sin(ag.a) + H) % H;
+    ag.a += R.range(-0.15, 0.15);                              // a little wobble
+
+    const k = Math.floor(ag.y) * W + Math.floor(ag.x);
+    trail[k] = Math.min(trail[k] + 1, MAX_TRAIL);              // deposit
+  }
+
+  // diffuse (average each cell with its neighbours) and decay
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let sum = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) sum += trail[((y + dy + H) % H) * W + ((x + dx + W) % W)];
+      }
+      blurred[y * W + x] = (sum / 9) * DECAY;
+    }
+  }
+  trail.set(blurred);
+
+  for (let i = 0; i < W * H; i++) {
+    const v = PA.clamp(trail[i] * 0.5);
+    img.data[i * 4]     = 10 + v * 150;
+    img.data[i * 4 + 1] = 14 + v * 241;
+    img.data[i * 4 + 2] = 30 + v * 190;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h2>More systems to look up</h2>
+<table>
+  <thead><tr><th>System</th><th>Rule in one line</th><th>Looks like</th></tr></thead>
+  <tbody>
+    <tr><td>Diffusion-limited aggregation</td><td>Random walkers stick when they touch the growing cluster</td><td>Coral, frost, lightning</td></tr>
+    <tr><td>Differential growth</td><td>Points on a line repel each other while the line keeps lengthening</td><td>Brain coral, lettuce edges</td></tr>
+    <tr><td>Space colonisation</td><td>Branches grow toward scattered attraction points and consume them</td><td>Tree crowns, leaf veins</td></tr>
+    <tr><td>Cyclic automata</td><td>A cell advances to the next state if enough neighbours are already there</td><td>Rotating spirals</td></tr>
+    <tr><td>Sandpiles</td><td>A cell with four or more grains topples one to each neighbour</td><td>Intricate symmetric mandalas</td></tr>
+    <tr><td>Verlet springs and cloth</td><td>Points joined by constraints that try to keep their length</td><td>Fabric, ropes, soft bodies</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>State, local rule, step. Complex global patterns come from simple local rules repeated.</li>
+  <li>Read from one buffer and write to another, then swap.</li>
+  <li>Simulations are sensitive. Small parameter changes can give entirely different behaviour, so explore methodically and write down the settings you like.</li>
+  <li>How you draw the state matters as much as the rules: trails, age and colour mapping turn a simulation into an image.</li>
+  <li>For a still image, the moment you stop is a design decision.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Updating a grid in place, so cells read neighbours that have already changed this step.</li>
+  <li>Indexing outside the grid at the edges. Either wrap with <code>%</code> or skip the border cells.</li>
+  <li>Comparing every agent with every other when there are thousands. Use a grid of buckets (Lesson 7).</li>
+  <li>Judging a simulation after ten steps. Many need hundreds before their character shows.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 8</p>
+  <h2>The Living Wallpaper</h2>
+  <p>Design a two-dimensional cellular automaton of your own and turn it into a continuously moving image that you could leave running on a wall.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A grid of at least 100 × 100 cells with <strong>three or more states</strong> per cell, double buffered, with edges that wrap round.</li>
+    <li>A rule <strong>you designed or adapted</strong>, not plain Game of Life.</li>
+    <li>It must stay interesting for <strong>at least 1,000 generations</strong>: it must not die out, freeze, or dissolve into static.</li>
+    <li>The colouring shows more than the current state. Use cell age, time since last change, or fading trails.</li>
+    <li>Some rule parameter <strong>varies across the canvas or over time</strong>, so different regions behave differently.</li>
+    <li>Keys to pause, to step once, and to restart from a new seed.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>A good starting point is the <strong>cyclic automaton</strong>: states are numbered 0 to N−1, and a cell in state <code>k</code> advances to <code>k + 1</code> (wrapping round) if at least a threshold number of its neighbours are already in state <code>k + 1</code>. Try N between 8 and 16 and thresholds between 1 and 3.</li>
+    <li>Other families worth trying: "Brian's Brain" (on, dying, off), forest fire (tree, burning, empty, with random lightning and regrowth), or Life-like rules with different birth and survival counts.</li>
+    <li>Use a small canvas, such as 200 × 200, and enlarge it with CSS and <code>image-rendering: pixelated</code>.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Let the mouse paint a state into the grid while it runs.</li>
+    <li>Use a larger neighbourhood (radius 2 or 3) and see how the scale of the patterns changes.</li>
+    <li>Build the same idea as a reaction–diffusion system in which feed and kill vary across the canvas.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You have watched it for two minutes and it was still doing something new.</li>
+    <li>You can describe your rule in two sentences to someone who has not seen the code.</li>
+  </ul>
+  <a class="start" href="../challenges/08-living-wallpaper.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="07-packing-and-partitioning.html">← Lesson 7</a><a href="09-shaders-and-distance-fields.html">Lesson 9: Shaders and Distance Fields →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

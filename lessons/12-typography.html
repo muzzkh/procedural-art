@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 · Typography and Text</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="11-colour.html">← Lesson 11</a><span>Lesson 12 of 19</span><a href="13-images-as-input.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Lesson 12</p>
+  <h1>Typography and Text</h1>
+  <p class="lede">Letters are the most recognisable shapes there are, which makes them excellent raw material. This lesson treats text three ways: as content to lay out by rule, as marks to place along paths, and as geometry to fill, sample and distort.</p>
+</header>
+
+<h2>Text on the canvas</h2>
+<p>Three calls do everything. <code>ctx.font</code> sets the typeface with a CSS font string such as <code>'700 48px Georgia'</code>. <code>ctx.fillText(text, x, y)</code> draws it. <code>ctx.measureText(text).width</code> tells you how wide it will be <em>before</em> you draw it, and that measurement is what makes layout by rule possible.</p>
+<p>Two settings control what the x and y refer to: <code>ctx.textAlign</code> (<code>left</code>, <code>center</code>, <code>right</code>) and <code>ctx.textBaseline</code> (<code>alphabetic</code>, the default, or <code>middle</code>, <code>top</code>).</p>
+<p>These examples use fonts every computer has: Georgia, Arial and a monospace face. A web font works the same way once it has loaded.</p>
+
+<h2>Fitting type to a block</h2>
+<p>The classic typographic poster sets each line at whatever size makes it exactly fill the width. Measure the line at a known size, divide the width you want by the width you got, and scale the font by that ratio. Short words come out enormous and long ones small, which gives an automatic hierarchy.</p>
+
+<div class="example" data-title="12.1 Every line fills the width (edit the words)">
+<script type="text/plain">
+const words = ui.text('words', 'make every line fill the width');
+
+function draw() {
+  ctx.fillStyle = '#e63946';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff8e8';
+  const lines = words().toUpperCase().split(/\s+/).filter(Boolean);
+  const margin = 40, width = W - margin * 2;
+
+  // 1. measure each line at 100 px, and work out the size that makes it fill the width
+  const sizes = lines.map((line) => {
+    ctx.font = '900 100px Arial';
+    return 100 * width / ctx.measureText(line).width;
+  });
+
+  // 2. if the stack is too tall for the page, shrink everything by the same factor
+  const total = sizes.reduce((sum, s) => sum + s * 0.82, 0);
+  const fit = Math.min(1, (H - margin * 2) / total);
+
+  // 3. draw
+  let y = margin + (H - margin * 2 - total * fit) / 2;
+  lines.forEach((line, i) => {
+    const size = sizes[i] * fit;
+    ctx.font = '900 ' + size + 'px Arial';
+    y += size * 0.76;                              // capital letters are about three-quarters of the font size
+    ctx.fillText(line, margin + (width - width * fit) / 2, y);
+    y += size * 0.06;
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h3>Layout grids</h3>
+<p>Beyond a single block, typographic layout is the subdivision of Lesson 7 with rules about what goes where. Special Topic 2's poster system showed the pattern: divide the page into blocks on a grid of halves and thirds, give the largest suitable block to the headline, fit the type to it, and fill the rest by weighted choice. The constraint that makes layouts look designed is <strong>alignment</strong>: everything starts on one of a small number of shared lines.</p>
+
+<h2>Text on a path</h2>
+<p>To run text along a curve, place one letter at a time. Each letter sits at a distance along the path equal to the widths of all the letters before it, and is turned to follow the curve's direction there. That needs the two tools from Maths 3: arc length, to find the point a given distance along, and the tangent, to find the angle.</p>
+
+<div class="example" data-title="12.2 A sentence on a spiral">
+<script type="text/plain">
+const text = 'procedural art is a set of instructions that draws itself, over and over, a little differently each time — ';
+
+const curve = (t) => {                               // a spiral, wound from the outside in
+  const a = t * PA.TAU * 4.2, r = 270 - t * 235;
+  return [W / 2 + Math.cos(a) * r, H / 2 + Math.sin(a) * r];
+};
+
+// running total of length along the curve (Maths 3)
+const SAMPLES = 4000, lengthAt = [0];
+for (let i = 1; i <= SAMPLES; i++) {
+  const [x1, y1] = curve((i - 1) / SAMPLES), [x2, y2] = curve(i / SAMPLES);
+  lengthAt.push(lengthAt[i - 1] + Math.hypot(x2 - x1, y2 - y1));
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#1c1b19';
+ctx.textAlign = 'center';
+
+let distance = 0, sample = 0, i = 0;
+while (true) {
+  const ch = text[i % text.length];
+  const size = PA.lerp(22, 9, distance / lengthAt[SAMPLES]);       // the type shrinks toward the centre
+  ctx.font = size + 'px Georgia';
+  const w = ctx.measureText(ch).width;
+
+  while (sample < SAMPLES && lengthAt[sample] < distance + w / 2) sample++;      // find the middle of this letter
+  if (sample >= SAMPLES) break;
+  const [x, y] = curve(sample / SAMPLES), [x2, y2] = curve((sample + 1) / SAMPLES);
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.atan2(y2 - y, x2 - x));            // turn to follow the curve
+  ctx.fillText(ch, 0, 0);
+  ctx.restore();
+
+  distance += w;
+  i++;
+}
+</script>
+</div>
+
+<h2>Letters as geometry</h2>
+<p>A letter is a shape, and any technique that works on shapes works on it. The simplest way to get at that shape is to draw the text onto a hidden canvas and read its pixels. Where the pixel is opaque you are inside a letter. That gives you an <code>inside(x, y)</code> test, which is exactly what Lesson 7's packing needed.</p>
+<p>From that one test come most generative type treatments: letters filled with packed circles, stippled, grown over by a flow field that only runs inside them, or used as a mask for any pattern.</p>
+
+<div class="example" data-title="12.3 A word made of packed circles (edit the word)">
+<script type="text/plain">
+const word = ui.text('word', 'FORM');
+
+function draw() {
+  // 1. draw the word on a hidden canvas, as large as fits
+  const hidden = document.createElement('canvas');
+  hidden.width = W; hidden.height = H;
+  const g = hidden.getContext('2d');
+  const text = word() || ' ';
+  g.font = '900 200px Arial';
+  const size = Math.min(380, 200 * (W - 50) / g.measureText(text).width);
+  g.font = '900 ' + size + 'px Arial';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, W / 2, H / 2);
+  const pixels = g.getImageData(0, 0, W, H).data;
+
+  // 2. the test every treatment is built on
+  const inside = (x, y) => x >= 0 && x < W && y >= 0 && y < H && pixels[(Math.floor(y) * W + Math.floor(x)) * 4 + 3] > 128;
+
+  // 3. pack circles, keeping only those that fit entirely within a letter (Lesson 7)
+  const R = PA.rng(text);
+  ctx.fillStyle = '#12151c';
+  ctx.fillRect(0, 0, W, H);
+  const circles = [];
+  for (let attempt = 0; attempt < 14000; attempt++) {
+    const x = R.range(W), y = R.range(H);
+    if (!inside(x, y)) continue;
+    let r = 16;
+    for (const c of circles) { r = Math.min(r, Math.hypot(x - c.x, y - c.y) - c.r - 1); if (r < 1.2) break; }
+    while (r >= 1.2 && !(inside(x + r, y) && inside(x - r, y) && inside(x, y + r) && inside(x, y - r))) r -= 1;   // stay inside the letter
+    if (r < 1.2) continue;
+    circles.push({ x, y, r });
+    ctx.fillStyle = PA.oklch(0.55 + r / 40, 0.16, 20 + (x / W) * 110);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, PA.TAU);
+    ctx.fill();
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>For vector work such as plotting, pixels are not enough: you need the outlines themselves. Font libraries (opentype.js is the usual one) read a font file and give each glyph as a path of lines and curves, which you can then offset, hatch or clip with the tools of Lesson 18.</p>
+
+<h2>Type in motion</h2>
+<p>Once text is an image, it can be cut up and moved like one. Kinetic typography often does nothing more than draw the same text in thin slices, each shifted by a wave. The canvas's nine-argument <code>drawImage</code> copies any rectangle of a source to any rectangle of the destination, which is all a slice is.</p>
+
+<div class="example" data-title="12.4 A headline in slices">
+<script type="text/plain">
+// the text, drawn once
+const source = document.createElement('canvas');
+source.width = W; source.height = H;
+const g = source.getContext('2d');
+g.fillStyle = '#ffd43b';
+g.font = '900 150px Arial';
+g.textAlign = 'center';
+['WAVE', 'FORM'].forEach((line, i) => g.fillText(line, W / 2, 270 + i * 150));
+
+const SLICE = 4;                                   // height of each strip in pixels. try 1 and 30
+
+loop((t) => {
+  ctx.fillStyle = '#1d1a3a';
+  ctx.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += SLICE) {
+    const shift = Math.sin(y * 0.02 + t * 2) * 40 * Math.sin(t * 0.5);      // a travelling wave that grows and fades
+    ctx.drawImage(source, 0, y, W, SLICE, shift, y, W, SLICE);              // copy one strip, moved sideways
+  }
+});
+</script>
+</div>
+
+<h2>More type treatments</h2>
+<table>
+  <thead><tr><th>Treatment</th><th>How</th></tr></thead>
+  <tbody>
+    <tr><td>Type as texture</td><td>Fill an area with a word repeated at varying size and weight, densest where the image is darkest</td></tr>
+    <tr><td>Concrete poetry</td><td>Arrange words so that their layout draws the thing they describe</td></tr>
+    <tr><td>Echo and extrusion</td><td>Draw the text many times, each copy offset along a path, fading or changing colour</td></tr>
+    <tr><td>Flow-field letters</td><td>Start streamlines only at points inside the letters, or stop them at the edges</td></tr>
+    <tr><td>Erosion and growth</td><td>Use the letter as the starting state of a cellular automaton or reaction–diffusion system (Lesson 8)</td></tr>
+    <tr><td>Variable fonts</td><td>Fonts with adjustable axes, such as weight and width, driven by data, sound or position</td></tr>
+    <tr><td>Monospace grids</td><td>A grid of characters chosen by brightness: ASCII art, the oldest generative text of all</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li><code>measureText</code> tells you a line's width in advance. Layout by rule depends on it.</li>
+  <li>To fill a width, scale the font by wanted width over measured width.</li>
+  <li>Text on a path is one letter at a time: arc length for position, tangent for angle.</li>
+  <li>Text drawn to a hidden canvas gives an inside test, and from it any fill or packing.</li>
+  <li>Text as an image can be sliced, shifted and recombined.</li>
+  <li>Legibility is a dial. Decide how much of it each piece needs.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Measuring with one font and drawing with another. Set <code>ctx.font</code> before every measurement.</li>
+  <li>Using a web font before it has loaded, which silently draws a fallback. Wait for <code>document.fonts.ready</code>.</li>
+  <li>Distorting text until nobody can read it, when the words mattered.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Challenge 12</p>
+  <h2>The Type Poster</h2>
+  <p>Make a typographic poster generator: give it a short phrase and a seed, and it produces a finished poster in which the letters themselves are the image.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>The <strong>phrase</strong> is an input. The poster re-composes itself for any phrase from one word to six.</li>
+    <li>A <strong>layout rule</strong> that fits the type to the page: every line is sized by measurement, with a margin, and nothing overflows.</li>
+    <li>The letters are <strong>filled or built by a generative treatment</strong> that uses an inside test: packing, stippling, hatching or flow lines.</li>
+    <li>At least one line of text runs <strong>along a path</strong>.</li>
+    <li>A palette with a contrast check from Lesson 11.</li>
+    <li>The phrase stays <strong>readable</strong> from across a room.</li>
+    <li>Seeded, with a key for a new seed and a key to save a PNG.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Do the layout first with plain filled text. Add the treatment only when the layout works for short and long phrases.</li>
+    <li>Sample the hidden canvas once per draw, not once per test.</li>
+    <li>Thin letter strokes cannot hold large circles. Choose a heavy typeface, or scale the marks to the stroke width.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Animate the treatment so the poster loops.</li>
+    <li>Use opentype.js to get true outlines and export an SVG for a plotter.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Five different phrases each give a poster you would print.</li>
+    <li>Someone can read the phrase in two seconds.</li>
+  </ul>
+  <a class="start" href="../challenges/12-type-poster.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="11-colour.html">← Lesson 11</a><a href="13-images-as-input.html">Lesson 13: Images as Input →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

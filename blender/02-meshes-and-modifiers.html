@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blender 2 · Meshes and Modifiers</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-scripting-blender.html">← Blender 1</a><span>Blender 2 of 4</span><a href="03-geometry-nodes.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Blender 2</p>
+  <h1>Meshes and Modifiers</h1>
+  <p class="lede">Placing ready-made cubes is a start. This lesson builds geometry from functions, edits it in code, layers Blender's modifiers on top, and exports the result for 3D printing.</p>
+</header>
+
+<h2>A mesh from lists</h2>
+<p>The most direct way to make geometry is to hand Blender two lists: the points, and the faces as groups of point numbers.</p>
+<pre><code>mesh = bpy.data.meshes.new("Terrain")
+mesh.from_pydata(vertices, [], faces)      # points, edges, faces
+mesh.update()
+obj = bpy.data.objects.new("Terrain", mesh)
+bpy.context.scene.collection.objects.link(obj)</code></pre>
+<p>The middle list is for loose edges and is normally empty: Blender works out the edges of the faces itself. Unlike STL or three.js, a Blender face may have <strong>four or more corners</strong>, so a grid needs one four-sided face per square instead of two triangles. The corner order still decides which side is the front: anticlockwise when seen from outside.</p>
+
+<figure class="shot">
+  <img src="img/02-meshes.png" alt="A noise terrain, a twisted ribbed vase and a lumpy sphere, rendered in Blender">
+  <figcaption>The three objects made by <a href="scripts/02_meshes_from_functions.py">blender/scripts/02_meshes_from_functions.py</a>: a terrain, a lofted vase, and a sphere edited with bmesh.</figcaption>
+</figure>
+
+<h3>A terrain</h3>
+<p>A grid of points with a height from fractal noise. It is the terrain of Lesson 3 and of the three.js section, in Blender's terms.</p>
+<pre><code>N = 80                      # cells along each side
+SIZE = 8.0                  # metres
+
+vertices = []
+for j in range(N + 1):
+    for i in range(N + 1):
+        x = (i / N - 0.5) * SIZE
+        y = (j / N - 0.5) * SIZE
+        z = 2.2 * max(0.0, fbm(x * 0.45, y * 0.45) - 0.42)
+        vertices.append((x, y, z))
+
+faces = []
+for j in range(N):
+    for i in range(N):
+        a = j * (N + 1) + i
+        faces.append((a, a + 1, a + N + 2, a + N + 1))     # one four-sided face per grid square</code></pre>
+
+<h3>A surface from a function</h3>
+<p>Replace the height with a full position function of two parameters and the same grid becomes any surface. For a shape that goes all the way round, the last column of faces joins back to the first, which the <code>% NU</code> below takes care of. This is the lofted vase from the 3D printing lessons.</p>
+<pre><code>def vase(u, v):
+    """u goes round the vase, v goes up it. Both run from 0 to 1. Units are millimetres."""
+    angle = u * math.tau + v * 1.4                              # the twist: angle shifts with height
+    profile = 0.8 + 0.3 * math.sin(v * 2.9 + 0.3) - 0.12 * v    # the silhouette
+    ribs = 0.05 * math.sin(u * math.tau * 8)                    # eight ribs
+    r = 30.0 * (profile + ribs)
+    return (r * math.cos(angle), r * math.sin(angle), v * 120.0)
+
+NU, NV = 96, 60
+vertices = [vase(i / NU, j / NV) for j in range(NV + 1) for i in range(NU)]
+faces = []
+for j in range(NV):
+    for i in range(NU):
+        a = j * NU + i
+        b = j * NU + (i + 1) % NU                               # wrap round: the last column joins the first
+        faces.append((a, b, b + NU, a + NU))
+faces.append(tuple(reversed(range(NU))))                        # a floor: one face through the whole bottom ring</code></pre>
+<p>Notice the floor: a single face with 96 corners. Blender is happy with that, and triangulates it on export.</p>
+
+<h2>Editing geometry with bmesh</h2>
+<p><code>from_pydata</code> is for building from scratch. To <em>change</em> existing geometry, or to use Blender's own modelling tools from code, use the <code>bmesh</code> module. A bmesh is an editable copy of a mesh in which every vertex knows its neighbours and its normal, and it comes with the operations found in Edit Mode: extrude, bevel, subdivide, inset, bridge.</p>
+<pre><code>import bmesh
+
+mesh = bpy.data.meshes.new("Blob")
+bm = bmesh.new()
+bmesh.ops.create_icosphere(bm, subdivisions=4, radius=1.0)
+for vert in bm.verts:                                           # push every vertex along its normal by noise
+    n = noise.noise(vert.co * 1.6 + offset)
+    vert.co += vert.normal * n * 0.45
+bm.to_mesh(mesh)                                                # write the result into the mesh
+bm.free()                                                       # always free a bmesh when finished</code></pre>
+<p>That is the vertex-displacement shader of the three.js section, done once on the processor. To edit a mesh that already exists, start with <code>bm.from_mesh(obj.data)</code> instead of creating a shape.</p>
+
+<h2>Modifiers: procedures that stay editable</h2>
+<p>A <strong>modifier</strong> is an operation applied to an object's geometry every time it is displayed, without changing the stored mesh. Modifiers stack, each working on the result of the one above. They are Blender's original procedural system, and they combine well with scripted meshes: your script makes a simple base, and modifiers do the heavy work.</p>
+<table>
+  <thead><tr><th>Modifier</th><th>Type name in Python</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td>Solidify</td><td><code>SOLIDIFY</code></td><td>Gives a surface thickness. Turns an open shell into a printable wall.</td></tr>
+    <tr><td>Subdivision Surface</td><td><code>SUBSURF</code></td><td>Smooths a coarse mesh by subdividing</td></tr>
+    <tr><td>Array</td><td><code>ARRAY</code></td><td>Repeats the object in a line, or along a curve</td></tr>
+    <tr><td>Displace</td><td><code>DISPLACE</code></td><td>Pushes vertices by a texture</td></tr>
+    <tr><td>Boolean</td><td><code>BOOLEAN</code></td><td>Unions, subtracts or intersects with another object</td></tr>
+    <tr><td>Bevel</td><td><code>BEVEL</code></td><td>Rounds edges</td></tr>
+    <tr><td>Wireframe</td><td><code>WIREFRAME</code></td><td>Turns every edge into a strut: instant lattices</td></tr>
+    <tr><td>Skin</td><td><code>SKIN</code></td><td>Wraps a surface round a skeleton of edges: branches and veins</td></tr>
+    <tr><td>Screw</td><td><code>SCREW</code></td><td>Spins a profile round an axis, optionally rising: lathe shapes and springs</td></tr>
+    <tr><td>Remesh</td><td><code>REMESH</code></td><td>Rebuilds the surface as an even mesh, and merges overlapping parts into one skin</td></tr>
+    <tr><td>Decimate</td><td><code>DECIMATE</code></td><td>Reduces the face count</td></tr>
+    <tr><td>Geometry Nodes</td><td><code>NODES</code></td><td>A whole node graph: the next lesson</td></tr>
+  </tbody>
+</table>
+<pre><code>solidify = vase_obj.modifiers.new("Wall", "SOLIDIFY")
+solidify.thickness = 2.4            # in the mesh's own units: here, millimetres
+solidify.offset = -1.0              # thicken inward, so the outside keeps its size
+
+subdivide = blob.modifiers.new("Smooth", "SUBSURF")
+subdivide.levels = 1                # in the viewport
+subdivide.render_levels = 2         # when rendering</code></pre>
+<p>The vase function produced a surface with no thickness. One Solidify modifier makes it a vessel with a 2.4 mm wall, and that thickness remains a number you can change later.</p>
+
+<h2>Curves</h2>
+<p>For line-based work such as flow fields, tendrils and wire sculptures, use a <strong>curve</strong> object instead of a mesh. A curve is a list of points, and Blender can give it a round cross-section with a single setting, <code>bevel_depth</code>. That makes it the quickest way to turn streamlines from Lesson 5 into tubes.</p>
+<pre><code>curve = bpy.data.curves.new("Streamline", "CURVE")
+curve.dimensions = "3D"
+curve.bevel_depth = 0.03                     # radius of the tube
+spline = curve.splines.new("POLY")
+spline.points.add(len(points) - 1)           # a new spline already has one point
+for point, (x, y, z) in zip(spline.points, points):
+    point.co = (x, y, z, 1.0)                # the fourth number is a weight: leave it at 1
+obj = bpy.data.objects.new("Streamline", curve)
+bpy.context.scene.collection.objects.link(obj)</code></pre>
+
+<h2>Exporting for 3D printing</h2>
+<p>Blender has no fixed real-world unit for printing. The reliable convention is to model with <strong>one Blender unit as one millimetre</strong>, as the vase function does, and export without scaling. Modifiers are applied in the exported file but stay live in Blender.</p>
+<pre><code>bpy.ops.object.select_all(action="DESELECT")
+vase_obj.select_set(True)
+bpy.context.view_layer.objects.active = vase_obj
+bpy.ops.wm.stl_export(filepath=path, export_selected_objects=True, apply_modifiers=True)</code></pre>
+<p>This is one of the places where an operator is the right tool. <code>bpy.ops.wm.stl_export</code> is the exporter in Blender 4.1 and later. Older versions used <code>bpy.ops.export_mesh.stl</code> with different option names.</p>
+<p>Before printing, check the model as in the 3D printing lessons. An add-on called <em>3D Print Toolbox</em>, available through Blender's extensions preferences, reports non-manifold edges, thin walls and overhangs.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li><code>mesh.from_pydata(points, [], faces)</code> builds a mesh from lists. Faces may have any number of corners.</li>
+  <li>A grid plus a height function is a terrain. A grid plus a position function is any surface.</li>
+  <li><code>bmesh</code> edits geometry and gives access to Blender's modelling operations.</li>
+  <li>Modifiers are stacked, editable procedures. Solidify makes a surface printable.</li>
+  <li>Curves with a bevel depth turn lists of points into tubes.</li>
+  <li>For printing, treat one unit as one millimetre and export with modifiers applied.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Blender challenge 2</p>
+  <h2>A Printable Form</h2>
+  <p>Write a script that generates a printable object of your own design, using a function for the base shape and modifiers for the rest, and exports it as an STL.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>The base shape comes from <strong>your own function</strong>, built with <code>from_pydata</code> or <code>bmesh</code>.</li>
+    <li>At least <strong>two modifiers</strong> are added by the script, with their settings chosen in code.</li>
+    <li>Modelled in <strong>millimetres</strong>, within 256 × 256 × 250 mm, with a flat base.</li>
+    <li><strong>Seeded</strong>: the seed changes the form, and is stored on the object as a custom property (<code>obj["seed"] = SEED</code>) so that the file records how it was made.</li>
+    <li>The script <strong>exports the STL</strong>, named after the seed.</li>
+    <li>You have opened the STL in a slicer and confirmed the size.</li>
+  </ul>
+  <h3>Ideas</h3>
+  <ul>
+    <li>A lampshade: a lofted surface with a Wireframe modifier, then Solidify.</li>
+    <li>A branching sculpture: a skeleton of edges from an L-system (Lesson 6) with a Skin modifier.</li>
+    <li>A bowl of tubes: flow-field streamlines as curves on a hemisphere.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Five seeds give five objects that all slice without errors.</li>
+    <li>Changing a wall thickness is a one-number edit.</li>
+  </ul>
+  <a class="start" href="scripts/starters/b2_printable_form.py">Open the starter script</a>
+</section>
+
+<footer class="next"><a href="01-scripting-blender.html">← Blender 1</a><a href="03-geometry-nodes.html">Blender 3: Geometry Nodes →</a></footer>
+</main>
+</body>
+</html>

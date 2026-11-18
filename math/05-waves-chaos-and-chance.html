@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths 5 · Waves, Curves, Chaos and Chance</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="04-differential-equations.html">← Maths 4</a><span>Maths 5 of 6</span><a href="06-linear-algebra.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Maths 5</p>
+  <h1>Waves, Curves, Chaos and Chance</h1>
+  <p class="lede">Five more ideas from across mathematics that each open up a family of designs: building any shape from circles, smooth curves from a handful of points, order turning into chaos, probability as a way of shading, and sequences that spread themselves evenly.</p>
+</header>
+
+<h2>Fourier series: everything is a sum of waves</h2>
+<p>In the early 1800s Joseph Fourier showed that any repeating signal, however angular, can be built by adding together plain sine waves of different frequencies and sizes. A square wave, for instance, is the sum of the odd harmonics, each one weaker in proportion to its frequency:</p>
+<p class="formula">square(t) = sin(t) + sin(3t)/3 + sin(5t)/5 + sin(7t)/7 + …</p>
+<p>There is a geometric way to see a sum of sines. Each sine is the height of a point going round a circle (Lesson 4). Adding sines means putting the centre of each circle on the rim of the one before. Such a chain of rotating circles is a set of <strong>epicycles</strong>, and the end of the chain traces the sum.</p>
+
+<div class="example" data-title="M5.1 Building a square wave from circles">
+<script type="text/plain">
+const terms = 7;            // try 1, 2, 3, 20
+const trace = [];
+
+loop((time) => {
+  ctx.fillStyle = '#101418';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineWidth = 1;
+
+  let x = 170, y = H / 2;
+  for (let i = 0; i < terms; i++) {
+    const k = 2 * i + 1;                      // odd harmonics: 1, 3, 5, 7...
+    const r = 60 * (4 / (k * Math.PI));       // each one smaller: radius is proportional to 1 / k
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, PA.TAU); ctx.stroke();
+
+    const nx = x + r * Math.cos(k * time * 1.5);     // and each one spins k times faster
+    const ny = y + r * Math.sin(k * time * 1.5);
+    ctx.strokeStyle = '#5bc0be';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(nx, ny); ctx.stroke();
+    x = nx; y = ny;
+  }
+
+  trace.unshift(y);                           // remember the height of the last point
+  if (trace.length > 250) trace.pop();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(340, y); ctx.stroke();
+
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < trace.length; i++) ctx.lineTo(340 + i, trace[i]);
+  ctx.stroke();
+});
+</script>
+</div>
+
+<p>Change <code>terms</code> to 1 and you get a pure sine. Each added circle squares the wave off a little more. The idea runs the other way too: a <strong>Fourier transform</strong> takes any signal apart into its component waves, which is how music visualisers find the bass and treble, and how a set of epicycles can be computed that redraws any outline you give it.</p>
+<p>For design, the lesson is that <strong>complex periodic motion is a sum of simple rotations</strong>. Lesson 4's spirograph is two terms. Lesson 3's fBm noise is the same principle with noise in place of sine: detail built by adding layers at rising frequency and falling strength.</p>
+
+<h2>Bézier curves: interpolation of interpolations</h2>
+<p>How do you get a smooth curve from a few points? A cubic Bézier curve, the kind in every vector drawing program and font, uses four control points and nothing but <code>lerp</code>, applied three levels deep. This is de Casteljau's algorithm:</p>
+<ol>
+  <li>Lerp between each neighbouring pair of the four control points: three new points.</li>
+  <li>Lerp between each neighbouring pair of those: two points.</li>
+  <li>Lerp between those two: one point, which is on the curve.</li>
+</ol>
+<p>Do that for every <code>t</code> from 0 to 1 and the final point sweeps out the curve. It starts at the first control point, ends at the last, and is pulled toward the middle two without touching them.</p>
+
+<div class="example" data-title="M5.2 A curve made only of lerps">
+<script type="text/plain">
+const P = [[80, 480], [150, 80], [450, 110], [520, 470]];      // four control points: move them
+
+const lerpPoint = (a, b, t) => [PA.lerp(a[0], b[0], t), PA.lerp(a[1], b[1], t)];
+
+function bezier(t) {
+  const a = lerpPoint(P[0], P[1], t), b = lerpPoint(P[1], P[2], t), c = lerpPoint(P[2], P[3], t);   // level 1
+  const d = lerpPoint(a, b, t), e = lerpPoint(b, c, t);                                             // level 2
+  const point = lerpPoint(d, e, t);                                                                 // level 3
+  return { a, b, c, d, e, point };
+}
+
+function polyline(points, colour, width) {
+  ctx.beginPath();
+  for (const [x, y] of points) ctx.lineTo(x, y);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+loop((time) => {
+  const t = (time * 0.2) % 1;
+  ctx.fillStyle = '#f4efe6';
+  ctx.fillRect(0, 0, W, H);
+
+  polyline(P, '#b8b0a0', 1);                           // the control polygon
+  const s = bezier(t);
+  polyline([s.a, s.b, s.c], '#2a9d8f', 1.5);           // level 1
+  polyline([s.d, s.e], '#f4a261', 1.5);                // level 2
+
+  const curve = [];
+  for (let i = 0; i <= 100; i++) {
+    if (i / 100 > t) break;
+    curve.push(bezier(i / 100).point);
+  }
+  polyline(curve, '#e63946', 4);                       // the curve so far
+
+  ctx.fillStyle = '#1d3557';
+  for (const [x, y] of P) { ctx.beginPath(); ctx.arc(x, y, 5, 0, PA.TAU); ctx.fill(); }
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.arc(s.point[0], s.point[1], 6, 0, PA.TAU); ctx.fill();
+});
+</script>
+</div>
+
+<p>In practice you call <code>ctx.bezierCurveTo</code> and the browser does this for you. The reason to know the construction is that it explains how to control the curve: the line from an end point to its neighbouring control point is the tangent there (Maths 3). To join curves smoothly, keep those tangent lines in line across the join. A <strong>spline</strong> is a chain of such pieces. The Catmull–Rom spline chooses the control points automatically so that the curve passes <em>through</em> a list of points, which is the easy way to turn a random walk or a list of noise samples into a flowing line.</p>
+
+<h2>Chaos: the logistic map</h2>
+<p>Maths 4 showed chaos in three linked differential equations. It needs far less. Take one number between 0 and 1 and repeatedly apply:</p>
+<p class="formula">x → r · x · (1 − x)</p>
+<p>This was proposed as a model of an animal population: growth (<code>r·x</code>) limited by crowding (<code>1 − x</code>). What happens in the long run depends entirely on <code>r</code>, and the dependence is astonishing. The diagram below has <code>r</code> along the bottom, and above each <code>r</code> it plots the values that <code>x</code> keeps visiting once it has settled down.</p>
+
+<div class="example" data-title="M5.3 The road from order to chaos">
+<script type="text/plain">
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = 'rgba(255, 209, 102, 0.22)';
+
+const rMin = 2.6, rMax = 4;         // zoom in: try 3.4 to 4, then 3.82 to 3.86
+
+for (let px = 0; px < W; px++) {
+  const r = PA.map(px, 0, W, rMin, rMax);
+  let x = 0.5;
+  for (let i = 0; i < 300; i++) x = r * x * (1 - x);       // let it settle first
+  for (let i = 0; i < 250; i++) {
+    x = r * x * (1 - x);
+    ctx.fillRect(px, H - 30 - x * (H - 60), 1, 1);          // then plot where it goes
+  }
+}
+
+ctx.fillStyle = '#cfd6dd';
+ctx.font = '13px monospace';
+ctx.fillText('r = ' + rMin, 8, H - 10);
+ctx.fillText('r = ' + rMax, W - 60, H - 10);
+ctx.fillText('one value → two → four → chaos', 12, 24);
+</script>
+</div>
+
+<p>For small <code>r</code> the population settles to a single value. Then it splits to alternate between two, then four, then eight, the splits coming faster and faster, until around <code>r = 3.57</code> it becomes chaotic. Inside the chaos there are windows of order, and inside those windows are small copies of the whole diagram: it is a fractal. The same period-doubling route to chaos appears in dripping taps, heart rhythms and electronic circuits.</p>
+<p>As a design tool, chaos gives you a deterministic source of variety with a <strong>single dial running from regular to wild</strong>. Use a chaotic map to drive a parameter and you can place a design precisely on the border between pattern and noise, which is where most interesting images live.</p>
+
+<h2>Probability as density</h2>
+<p>Lesson 2 used probability to choose things. It can also <em>draw</em>. The idea: scatter random candidate points, and keep each one with a probability equal to how dark the picture should be at that spot. Where the probability is high, many points survive and the area reads as dark. Tone is represented by <strong>density</strong>. This is rejection sampling, and it is how stippled drawings, halftones and grainy textures are made.</p>
+<p>The darkness function below is a sphere lit from the upper left, computed with the dot product from Maths 2. Any function of position would do: noise, a distance field, the brightness of a photograph.</p>
+
+<div class="example" data-title="M5.4 Shading with chance">
+<script type="text/plain">
+const R = PA.rng('stipple');
+const light = [-0.5, -0.6, 0.62];          // direction toward the light (length 1)
+
+// how dark should the picture be at (x, y)?  0 = paper, 1 = solid ink
+function darkness(x, y) {
+  const u = (x - W / 2) / 220, v = (y - H / 2) / 220;
+  const d2 = u * u + v * v;
+  if (d2 > 1) return 0.05;                              // background: a light dusting
+  const z = Math.sqrt(1 - d2);                          // height of the sphere's surface here
+  const lit = Math.max(0, u * light[0] + v * light[1] + z * light[2]);    // dot product
+  return 1 - lit;
+}
+
+ctx.fillStyle = '#f4efe6';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#1d2433';
+
+for (let i = 0; i < 90000; i++) {
+  const x = R.range(W), y = R.range(H);
+  if (R() < darkness(x, y) ** 1.6) {        // keep the point with that probability
+    ctx.fillRect(x, y, 1.3, 1.3);
+  }
+}
+</script>
+</div>
+
+<p>Try it: change the exponent <code>1.6</code>. It is a shaping function (Maths 1) acting as a contrast control. Replace <code>darkness</code> with a noise function for stippled clouds.</p>
+<p>Two more facts about probability earn their keep. The <strong>law of large numbers</strong> says averages of many random values are steady even though each value is not, which is why a stipple of 90,000 random dots looks smooth and why Monte Carlo rendering works. The <strong>central limit theorem</strong> says sums of many random values form a bell curve whatever the individual values were, which is why adding a few <code>R()</code> calls together gives a natural-looking spread.</p>
+
+<h2>Sequences that spread out</h2>
+<p>Random points clump. Lesson 7 fixed that with Poisson-disc sampling, which takes a fair amount of code. Number theory offers a one-line alternative. Take a suitable irrational number, step along by it repeatedly, and keep only the fractional part:</p>
+<p class="formula">x<sub>i</sub> = fract(i · α)</p>
+<p>If <code>α</code> is "very irrational" (hard to approximate by a fraction), each new point lands in the largest gap left by the previous ones. The best choice in one dimension is the reciprocal of the golden ratio, which is why the golden angle gave such even packing in Lesson 4's sunflower. In two dimensions the equivalent constant comes from the plastic number, the solution of <code>x³ = x + 1</code>. Such <strong>low-discrepancy sequences</strong> give evenly spread points with no neighbour checks and no stored state: point number <code>i</code> is computed directly.</p>
+
+<div class="example" data-title="M5.5 Random (left) versus a low-discrepancy sequence (right)">
+<script type="text/plain">
+const R = PA.rng(7);
+const g = 1.32471795724474602596;       // the plastic number: g * g * g = g + 1
+const a1 = 1 / g, a2 = 1 / (g * g);
+
+ctx.fillStyle = '#101418';
+ctx.fillRect(0, 0, W, H);
+const n = 600;                          // try 50, then 3000
+
+for (let i = 0; i < n; i++) {
+  // left panel: plain random
+  ctx.fillStyle = '#ef476f';
+  ctx.beginPath();
+  ctx.arc(20 + R() * 265, 20 + R() * 560, 2.5, 0, PA.TAU);
+  ctx.fill();
+
+  // right panel: point number i, computed directly
+  const x = PA.fract(0.5 + i * a1);
+  const y = PA.fract(0.5 + i * a2);
+  ctx.fillStyle = '#06d6a0';
+  ctx.beginPath();
+  ctx.arc(315 + x * 265, 20 + y * 560, 2.5, 0, PA.TAU);
+  ctx.fill();
+}
+</script>
+</div>
+
+<h2>More mathematics worth knowing about</h2>
+<table>
+  <thead><tr><th>Idea</th><th>In one sentence</th><th>What it gives a designer</th></tr></thead>
+  <tbody>
+    <tr><td>Fractal dimension</td><td>A number between whole dimensions measuring how rough a shape is.</td><td>A way to say "more jagged" precisely. The gain in fBm sets it.</td></tr>
+    <tr><td>Power laws</td><td>Frequency falls as a power of size: many small, few large.</td><td>Natural-looking size distributions for stars, craters, cities, cracks.</td></tr>
+    <tr><td>Graph theory</td><td>The study of points joined by links.</td><td>Networks, mazes (spanning trees), shortest paths, Delaunay meshes.</td></tr>
+    <tr><td>Topology</td><td>Properties that survive stretching.</td><td>Seamless tiles (a torus), Möbius strips, knots, why a noise loop must close.</td></tr>
+    <tr><td>Modular arithmetic</td><td>Arithmetic that wraps round.</td><td>Times-table circles (Lesson 4), cyclic colour, weave and knit patterns.</td></tr>
+    <tr><td>Conformal maps</td><td>Complex functions that bend the plane but keep angles.</td><td>Droste spirals, warped tilings, hyperbolic patterns like Escher's Circle Limit.</td></tr>
+    <tr><td>Hyperbolic geometry</td><td>A geometry with more room than the plane as you move outward.</td><td>Tilings that shrink toward a boundary without ever reaching it.</td></tr>
+    <tr><td>Optimisation</td><td>Finding the input that makes some score best.</td><td>Relaxation, packing, layouts that settle into balance.</td></tr>
+    <tr><td>Linear algebra in 3D</td><td>Maths 2 with one more coordinate.</td><td>Cameras, perspective and rotation for 3D work. Covered in <a href="06-linear-algebra.html">Maths 6</a>.</td></tr>
+  </tbody>
+</table>
+
+<h2>The whole maths section in one table</h2>
+<table>
+  <thead><tr><th>Mathematics</th><th>Core move</th><th>Designs it makes</th></tr></thead>
+  <tbody>
+    <tr><td>Functions</td><td>Normalise, shape, map</td><td>Gradients, easing, bands, stripes, ripples</td></tr>
+    <tr><td>Exponentials</td><td>Multiply by a ratio</td><td>Spirals, self-similar nests, fades</td></tr>
+    <tr><td>Trigonometry</td><td>Angle to position</td><td>Circles, waves, roses, spirographs</td></tr>
+    <tr><td>Vectors</td><td>Direction and agreement</td><td>Motion, steering, lighting</td></tr>
+    <tr><td>Matrices and symmetry</td><td>Transform the plane</td><td>Mandalas, tilings, ferns</td></tr>
+    <tr><td>Complex numbers</td><td>Rotate and scale by multiplying</td><td>Mandelbrot and Julia sets</td></tr>
+    <tr><td>Derivatives</td><td>Which way does it face?</td><td>Ribbons, hatching, relief, rivers, contours</td></tr>
+    <tr><td>Integrals</td><td>How much so far?</td><td>Motion, even spacing, custom distributions</td></tr>
+    <tr><td>Differential equations</td><td>Step a rule of change</td><td>Springs, orbits, attractors, waves, reaction–diffusion</td></tr>
+    <tr><td>Fourier series</td><td>Add up rotations</td><td>Epicycles, layered detail, audio-driven visuals</td></tr>
+    <tr><td>Interpolation of points</td><td>Lerp of lerps</td><td>Smooth organic curves</td></tr>
+    <tr><td>Chaos</td><td>Iterate a simple rule</td><td>Controlled variety between order and noise</td></tr>
+    <tr><td>Probability</td><td>Chance as density</td><td>Stippling, grain, natural variation</td></tr>
+    <tr><td>Number theory</td><td>Irrational steps</td><td>Even scatter, sunflower packing</td></tr>
+    <tr><td>Bases and inverses</td><td>Change coordinates, and change back</td><td>Lattices, isometric maps, picking on slanted grids</td></tr>
+    <tr><td>Chained matrices</td><td>Multiply transformations in order</td><td>Tentacles, skeletons, 3D views</td></tr>
+    <tr><td>Eigenvectors</td><td>Find the directions that do not turn</td><td>Designed flow fields: saddles, spirals, nodes</td></tr>
+    <tr><td>Linear combinations</td><td>Blend with weights</td><td>Morphing shapes, design spaces</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Any periodic shape is a sum of sine waves, which is a chain of rotating circles.</li>
+  <li>A Bézier curve is three levels of <code>lerp</code>. Its end tangents point at the neighbouring control points.</li>
+  <li>The logistic map shows a simple rule passing from order through period doubling into chaos.</li>
+  <li>Keeping random points with a probability equal to darkness turns chance into shading.</li>
+  <li>Stepping by a well-chosen irrational number spreads points evenly with one line of code.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Practice</p>
+  <h2>Three exercises</h2>
+  <p>Do these in the <a href="../challenges/math-sandbox.html">maths sandbox file</a>, or by editing the examples above.</p>
+  <ul>
+    <li><strong>Epicycle drawing.</strong> Give each circle in M5.1 a random radius and a random whole-number speed, positive or negative, and trace the end point in two dimensions instead of plotting its height. Whole-number speeds guarantee the figure closes.</li>
+    <li><strong>Flowing line.</strong> Generate eight random points and join them with Bézier segments whose tangents line up at every join, so that the whole path is smooth.</li>
+    <li><strong>Stippled terrain.</strong> Combine three pages: take the lit noise landscape from Maths 3 and render it as a stipple, using its shade as the keep-probability and a low-discrepancy sequence for the candidate points.</li>
+  </ul>
+</section>
+
+<footer class="next"><a href="04-differential-equations.html">← Maths 4</a><a href="06-linear-algebra.html">Maths 6: Linear Algebra →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

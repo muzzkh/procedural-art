@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project 1 · An Atlas of Somewhere That Does Not Exist</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Project 1 of 3</span><a href="02-living-identity.html">Project 2 →</a></nav>
+<main>
+<header>
+  <p class="kicker">Project 1</p>
+  <h1>An Atlas of Somewhere That Does Not Exist</h1>
+  <p class="lede">Build a generator that makes complete, labelled, printable maps of invented places. Every seed is a different country. The project joins terrain, partitioning, colour, type and print preparation into one system.</p>
+</header>
+
+<h2>What a project is</h2>
+<p>A lesson challenge practises one idea. A project asks for a finished thing that no single lesson can produce. The difficulty is in the joins: making a terrain is Lesson 3, placing a label is Lesson 12, but making the label avoid the mountains is neither. Expect to spend most of your time there.</p>
+<p>Plan for ten to twenty hours, across several sittings. Work through the milestones in order. Each one leaves you with something that runs and can be looked at.</p>
+
+<h2>Lessons this project draws on</h2>
+<table>
+  <thead><tr><th>Lesson</th><th>What it contributes</th></tr></thead>
+  <tbody>
+    <tr><td><a href="../lessons/03-noise.html">3 · Noise</a></td><td>The height field: land, sea, mountains, and a second field for climate</td></tr>
+    <tr><td><a href="../lessons/07-packing-and-partitioning.html">7 · Packing and Partitioning</a></td><td>Regions from nearest-point cells; settlements placed by spaced sampling</td></tr>
+    <tr><td><a href="../lessons/11-colour.html">11 · Colour</a></td><td>A palette built in OKLCH with roles: sea, land, ink, accent</td></tr>
+    <tr><td><a href="../lessons/12-typography.html">12 · Typography</a></td><td>Labels in a hierarchy, text along a curve, placement that avoids collisions</td></tr>
+    <tr><td><a href="../lessons/18-geometry.html">18 · Geometry</a></td><td>Coastlines and contours as clean polylines; hatching clipped to shapes</td></tr>
+    <tr><td><a href="../special/02-practical-uses.html">Special 2 · Practical Uses</a></td><td>A name generator for the places</td></tr>
+    <tr><td><a href="../special/03-into-the-real-world.html">Special 3 · Into the Real World</a></td><td>Print size, resolution and margins</td></tr>
+    <tr><td><a href="../lessons/10-systems-and-finishing.html">10 · Systems and Finishing</a></td><td>Seeding, features, and making every output good</td></tr>
+  </tbody>
+</table>
+<p>You must use at least five of these. A map that uses all eight is achievable.</p>
+
+<h2>The joining idea: one field, read many ways</h2>
+<p>A convincing map is coherent. Rivers run downhill, towns sit on coasts and rivers, forests stop at the snow line, labels sit where there is room. You get coherence by deriving everything from the same few fields, and never by drawing each layer separately.</p>
+<p>The example below reads one height function three ways: as a land or sea decision, as bands of elevation, and as an answer to "where is the highest point?". Your atlas will read its fields twenty ways.</p>
+
+<div class="example" data-title="P1.1 · One height field, three readings" data-h="420">
+<script type="text/plain">
+const seed = ui.slider('seed', 1, 60, 7, 1);
+const sea = ui.slider('sea level', 0.25, 0.55, 0.4, 0.01);
+
+function draw() {
+  const N = PA.noise(seed());
+  const cell = 5;
+
+  // The one field. Everything below asks it questions.
+  function height(x, y) {
+    const d = Math.hypot(x - W / 2, y - H / 2) / (W * 0.55);
+    return N.fbm(x * 0.006, y * 0.006, { octaves: 5 }) + 0.12 - d * d * 0.6;
+  }
+
+  let peak = { h: -1, x: 0, y: 0 };
+  for (let y = 0; y < H; y += cell) {
+    for (let x = 0; x < W; x += cell) {
+      const h = height(x + cell / 2, y + cell / 2);
+
+      // Reading 1: land or sea?
+      if (h < sea()) {
+        ctx.fillStyle = PA.oklch(0.74 - (sea() - h) * 0.7, 0.05, 235);
+      } else {
+        // Reading 2: which band of elevation?
+        const band = Math.floor((h - sea()) * 16);
+        ctx.fillStyle = PA.oklch(0.92 - band * 0.055, 0.05, 115 - band * 9);
+      }
+      ctx.fillRect(x, y, cell, cell);
+
+      // Reading 3: where is the highest point?
+      if (h > peak.h) peak = { h, x: x + cell / 2, y: y + cell / 2 };
+    }
+  }
+
+  ctx.fillStyle = '#2b2622';
+  ctx.beginPath();
+  ctx.moveTo(peak.x, peak.y - 7); ctx.lineTo(peak.x + 6, peak.y + 4); ctx.lineTo(peak.x - 6, peak.y + 4);
+  ctx.fill();
+  ctx.font = 'italic 14px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('highest point', peak.x, peak.y + 20);
+}
+
+ui.onChange(draw);
+draw();
+</script>
+</div>
+
+<p>Notice what the example does not do. It has no coastline as a line, no rivers, no regions, no names, and its one label takes no care over what it covers. Those are the project.</p>
+
+<h2>Milestones</h2>
+<h3>1 · Land</h3>
+<p>A height field that makes a believable landmass: an island, an archipelago or a coast, chosen by a parameter. Draw it as flat land and sea. Check twenty seeds before moving on. If the land is boring now, nothing later will rescue it.</p>
+<h3>2 · Lines</h3>
+<p>Turn the coastline and at least three contour levels into polylines, and draw them as strokes. Marching squares from Lesson 9 or tracing from Lesson 18 will both work. Once you have lines, you can simplify them, offset them, and export them.</p>
+<h3>3 · Water and relief</h3>
+<p>Rivers that start high and walk downhill to the sea. Relief shown by hatching, shading or bands, clipped to the land. Decide on one style of relief and commit to it.</p>
+<h3>4 · Regions and places</h3>
+<p>Divide the land into three to seven regions. Place settlements where a place would be: near water, on low ground, not too close to each other. Mark one as the capital by rule.</p>
+<h3>5 · Names</h3>
+<p>A name generator that gives the country, its regions, its settlements and at least one sea or range. The names within one map should sound as if they belong to the same language. The names in the next seed should sound different.</p>
+<h3>6 · Labels</h3>
+<p>Place every name. A hierarchy of at least three sizes. Region names spread across their region; the sea name set along a curve; town names beside their dots, moved or dropped when they would collide. This is the hardest milestone. Give it the most time.</p>
+<h3>7 · The sheet</h3>
+<p>A margin, a title block, a scale bar, a compass or a legend, and the seed printed small in a corner. A palette with clear roles. Export at print size.</p>
+
+<section class="challenge">
+  <p class="kicker">Project 1</p>
+  <h2>The Atlas</h2>
+  <p>One program that turns a seed into a complete map sheet.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Techniques from <strong>at least five</strong> of the lessons in the table above, listed in a comment at the top of your file.</li>
+    <li>Everything is <strong>derived from shared fields</strong>. Rivers follow the height field. Settlements respond to water and height. Nothing is placed by an unrelated random number where a reason was available.</li>
+    <li>Coastline and contours exist as <strong>polylines</strong>, not only as coloured pixels.</li>
+    <li>At least <strong>twelve labels</strong> in three sizes, none overlapping another label, and one set along a curve.</li>
+    <li>Names come from <strong>your own generator</strong>, and differ in character between seeds.</li>
+    <li>A <strong>palette with roles</strong>, built in OKLCH, with label contrast of at least 4.5 against what is beneath it.</li>
+    <li>At least <strong>three features</strong> that vary by seed and are reported: for example landform, climate, map style.</li>
+    <li>Export a PNG at <strong>A3 at 300 dpi</strong> or larger, and the seed and parameters as JSON alongside it.</li>
+    <li>Fully seeded. The same seed always gives the same map.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Compute the fields once into arrays on a grid, then let every later stage read the arrays. It is faster and it keeps the stages consistent.</li>
+    <li>A river is a walker that always steps to its lowest neighbour. When it has nowhere lower to go and is not at the sea, you have found a lake.</li>
+    <li>For label collisions, keep a list of rectangles already used. Try several positions round each dot before giving up on a label.</li>
+    <li>For names, build syllables from a small set of consonants and vowels chosen per seed. Changing the set changes the language.</li>
+    <li>Draw at a fixed design size in millimetres and scale to pixels at the end. Line weights then survive the change to print resolution.</li>
+    <li>Look at real printed maps for how little colour they use, and how much work the type does.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>An SVG export of all line work, suitable for a pen plotter.</li>
+    <li>Roads joining the settlements, which prefer flat ground and cross rivers at right angles.</li>
+    <li>A second sheet at a larger scale showing one region, generated from the same fields.</li>
+    <li>Three map styles from the same data: a survey sheet, an antique chart, a tourist map.</li>
+    <li>A page that shows twelve seeds as an atlas index, each linking to its full sheet.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <p>You can generate twenty maps in a row and would be willing to print any of them, and when someone you show one to starts reading the place names aloud.</p>
+  <a class="start" href="../challenges/project-1-atlas.html">Open the starter file</a>
+</section>
+
+<footer class="next"><a href="../index.html">← Back to the course</a><a href="02-living-identity.html">Project 2: A Living Identity →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>
