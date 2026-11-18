@@ -84,12 +84,12 @@
 
   // Each theme: the name shown, a one-line description, and five colours for its preview.
   const THEMES = [
-    { id: 'auto', name: 'Auto', note: 'Colourful, follows your system', swatch: ['#fff6e9', '#19142c', '#ff5b4f', '#2f6df0', '#ffd166'] },
+    { id: 'blueprint', name: 'Blueprint', note: 'Pale lines on blue (the default)', swatch: ['#123a7c', '#eef5ff', '#ffe066', '#9fe3ff', '#ffffff'] },
+    { id: 'auto', name: 'Auto', note: 'Riso by day, Dusk by night', swatch: ['#fff6e9', '#19142c', '#ff5b4f', '#2f6df0', '#ffd166'] },
     { id: 'riso', name: 'Riso', note: 'Colourful and light', swatch: ['#fff6e9', '#26213f', '#ff5b4f', '#2f6df0', '#f7a800'] },
     { id: 'dusk', name: 'Dusk', note: 'Colourful and dark', swatch: ['#19142c', '#f4eeff', '#ff6f61', '#3ddcb4', '#ffd166'] },
     { id: 'paper', name: 'Paper', note: 'Plain light', swatch: ['#f6f3ec', '#1c1b19', '#c8451b', '#2a6f97', '#c98a00'] },
     { id: 'ink', name: 'Ink', note: 'Plain dark', swatch: ['#111214', '#ece7dc', '#ff8552', '#5bc0be', '#ffd166'] },
-    { id: 'blueprint', name: 'Blueprint', note: 'Pale lines on blue', swatch: ['#123a7c', '#eef5ff', '#ffe066', '#9fe3ff', '#ffffff'] },
   ];
 
   // ---------------------------------------------------------------- small helpers
@@ -166,12 +166,12 @@
   // ---------------------------------------------------------------- theme (runs before the page paints)
   const darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   const calmQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-  let themeChoice = store.get('theme', 'auto');
+  let themeChoice = store.get('theme', 'blueprint');      // Blueprint unless you have chosen another
   let effects = store.get('fx', calmQuery && calmQuery.matches ? 'off' : 'on');
   const listeners = [];           // called whenever the theme or the effects setting changes
 
   function applyTheme(choice, save) {
-    if (!THEMES.some((t) => t.id === choice)) choice = 'auto';
+    if (!THEMES.some((t) => t.id === choice)) choice = 'blueprint';
     themeChoice = choice;
     const resolved = choice === 'auto' ? (darkQuery && darkQuery.matches ? 'dusk' : 'riso') : choice;
     root.setAttribute('data-theme', resolved);

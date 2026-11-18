@@ -1,10 +1,19 @@
 /* Procedural Art course: one stylesheet for every page.
    Colours are tokens. A theme is a different set of token values, chosen by the
-   data-theme attribute that assets/site.js puts on <html>. Without the script the
-   page uses Riso, or Dusk if the system is set to dark. */
+   data-theme attribute that assets/site.js puts on <html>. Blueprint is the default,
+   and is what the page uses if the script does not run. */
 
 /* ---------- themes ---------- */
-:root {                                   /* Riso: colourful and light (the default) */
+:root, :root[data-theme="blueprint"] {     /* Blueprint: pale lines on blue (the default) */
+  --bg: #123a7c; --surface: #184690; --ink: #eef5ff; --muted: #bcd1f1; --line: #3f6bb3;
+  --edge: #a9c8f5; --edge-w: 1px; --pop: 4px; --accent: #ffe066; --accent-ink: #0c2a5c;
+  --c1: #ffe066; --c2: #9fe3ff; --c3: #ffffff; --c4: #ffb86b; --c5: #cdbcff; --c6: #ff9ecb;
+  --sec-mix: 88%; --hl: rgba(255, 224, 102, 0.26); --dot: rgba(255, 255, 255, 0.09);
+  --note-bg: #1d4f9f; --note-line: #ffe066; --code-bg: #0a2755; --code-ink: #e6f0ff;
+  --challenge-bg: #0a2755; --challenge-ink: #eef5ff; --challenge-accent: #ffe066;
+  color-scheme: dark;
+}
+:root[data-theme="riso"] {                 /* Riso: colourful and light */
   --bg: #fff6e9;
   --surface: #fffdf8;
   --ink: #26213f;
@@ -33,20 +42,9 @@
   --challenge-accent: #ffc94d;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {               /* Dusk, when the script has not run */
-    --bg: #19142c; --surface: #241c40; --ink: #f4eeff; --muted: #b5abd2; --line: #3c3160;
-    --edge: #6a58a3; --accent: #ff9166; --accent-ink: #1a1228;
-    --c1: #ff6f61; --c2: #5cc4ff; --c3: #3ddcb4; --c4: #ffd166; --c5: #b693ff; --c6: #ff79c0;
-    --sec-mix: 82%; --hl: rgba(255, 209, 102, 0.28); --dot: rgba(255, 255, 255, 0.07);
-    --note-bg: #33284f; --note-line: #ffd166; --code-bg: #100c1f; --code-ink: #efe8ff;
-    --challenge-bg: #0f0b1e; --challenge-ink: #f4eeff; --challenge-accent: #ffd166;
-    color-scheme: dark;
-  }
-}
 :root[data-theme="dusk"] {                /* Dusk: colourful and dark */
   --bg: #19142c; --surface: #241c40; --ink: #f4eeff; --muted: #b5abd2; --line: #3c3160;
-  --edge: #6a58a3; --accent: #ff9166; --accent-ink: #1a1228;
+  --edge: #6a58a3; --edge-w: 1.5px; --pop: 5px; --accent: #ff9166; --accent-ink: #1a1228;
   --c1: #ff6f61; --c2: #5cc4ff; --c3: #3ddcb4; --c4: #ffd166; --c5: #b693ff; --c6: #ff79c0;
   --sec-mix: 82%; --hl: rgba(255, 209, 102, 0.28); --dot: rgba(255, 255, 255, 0.07);
   --note-bg: #33284f; --note-line: #ffd166; --code-bg: #100c1f; --code-ink: #efe8ff;
@@ -69,15 +67,6 @@
   --sec-mix: 85%; --hl: rgba(255, 209, 102, 0.22); --dot: rgba(255, 255, 255, 0.05);
   --note-bg: #29230f; --note-line: #8a6d1c; --code-bg: #0b0c0e; --code-ink: #e8e3d8;
   --challenge-bg: #0d1722; --challenge-ink: #eef2f6; --challenge-accent: #ffb454;
-  color-scheme: dark;
-}
-:root[data-theme="blueprint"] {           /* Blueprint: pale lines on blue */
-  --bg: #123a7c; --surface: #184690; --ink: #eef5ff; --muted: #bcd1f1; --line: #3f6bb3;
-  --edge: #a9c8f5; --edge-w: 1px; --pop: 4px; --accent: #ffe066; --accent-ink: #0c2a5c;
-  --c1: #ffe066; --c2: #9fe3ff; --c3: #ffffff; --c4: #ffb86b; --c5: #cdbcff; --c6: #ff9ecb;
-  --sec-mix: 88%; --hl: rgba(255, 224, 102, 0.26); --dot: rgba(255, 255, 255, 0.09);
-  --note-bg: #1d4f9f; --note-line: #ffe066; --code-bg: #0a2755; --code-ink: #e6f0ff;
-  --challenge-bg: #0a2755; --challenge-ink: #eef5ff; --challenge-accent: #ffe066;
   color-scheme: dark;
 }
 
@@ -114,7 +103,7 @@ body {
   font: 17px/1.65 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   transition: background-color 0.25s, color 0.25s;
 }
-:root[data-theme="blueprint"] body {
+:root:not([data-theme]) body, :root[data-theme="blueprint"] body {
   background-image: linear-gradient(var(--dot) 1px, transparent 1px), linear-gradient(90deg, var(--dot) 1px, transparent 1px);
   background-size: 28px 28px;
 }

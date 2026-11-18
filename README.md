@@ -35,5 +35,5 @@ Plain HTML, CSS and JavaScript drawing on a canvas.
 - `assets/pa.js`: a small helper library (seeded randomness, noise, colour).
 - `assets/lesson.js`: runs the live examples.
 - `assets/site.js`: navigation, colour themes and the generative page decorations.
-- `assets/lesson.css`: one stylesheet, with five colour themes.
+- `assets/lesson.css`: one stylesheet, with five colour themes. Blueprint is the default; the Theme button on any page switches between them.
 - `assets/mesh.js`: 3D mesh helpers for the printing section.
