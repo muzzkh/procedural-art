@@ -829,14 +829,165 @@
     wake();
   }
 
-  // ---------------------------------------------------------------- clicks bloom, the pointer leaves a trail
+  // ---------------------------------------------------------------- the background grid bends under the pointer
+  // The page's background pattern (grid lines in Blueprint, dots in the other themes) is
+  // drawn on a canvas fixed behind the content. Every point of it is pushed away from a
+  // centre, and that centre follows the pointer on a spring (Maths 4). So the lines bulge
+  // round the pointer, are dragged along by a fast move and wobble when it stops.
+  // Without a mouse, or with effects off, the plain CSS pattern is used.
+  function buildGrid() {
+    if (!window.matchMedia || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const cv = el('canvas', 'site-grid');
+    cv.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(cv, document.body.firstChild);
+    const g = cv.getContext('2d');
+    root.classList.add('live-grid');             // tells the stylesheet to leave the pattern to the canvas
+
+    const REACH = 125;                           // how wide the bend is, in pixels
+    const PUSH = 0.4;                            // how hard points are pushed away from the centre
+    const DRAG = 0.55;                           // how far they are carried along by a moving pointer
+    const STIFF = 0.2, DAMP = 0.7;               // the spring that pulls the centre to the pointer
+    const NEAR = REACH * 2.7;                    // further away than this, the bend is under a fifth of a pixel
+    const GLOW = 260;                            // how far the brightening reaches, in pixels
+    const PEAK = 0.7;                            // how strong it is at the centre, 0 to 1
+
+    let W = 0, H = 0, dpr = 1, frame = 0, last = 0, lines = true, colour = '#888', bright = '136,136,136';
+    let target = null;                           // where the pointer is, or null when it has left the page
+    let cx = 0, cy = 0, vx = 0, vy = 0;          // the centre of the bend and its velocity
+    let amount = 0;                              // 0 = flat, 1 = fully bent; it eases in and out
+    let dragX = 0, dragY = 0;
+    const p = [0, 0];
+
+    function bend(x, y) {
+      const dx = x - cx, dy = y - cy;
+      const w = amount * Math.exp(-(dx * dx + dy * dy) / (REACH * REACH));
+      p[0] = x + (dx * PUSH + dragX) * w;
+      p[1] = y + (dy * PUSH + dragY) * w;
+    }
+    function drawLines() {
+      const S = 28, flat = amount < 0.003;
+      const y0 = Math.max(0, cy - NEAR), y1 = Math.min(H, cy + NEAR);
+      const x0 = Math.max(0, cx - NEAR), x1 = Math.min(W, cx + NEAR);
+      g.lineWidth = 1;
+      g.strokeStyle = colour;
+      g.beginPath();
+      for (let x = 0.5; x < W; x += S) {
+        g.moveTo(x, 0);
+        if (!flat && Math.abs(x - cx) < NEAR) {
+          for (let y = y0; y <= y1; y += 6) { bend(x, y); g.lineTo(p[0], p[1]); }
+        }
+        g.lineTo(x, H);
+      }
+      for (let y = 0.5; y < H; y += S) {
+        g.moveTo(0, y);
+        if (!flat && Math.abs(y - cy) < NEAR) {
+          for (let x = x0; x <= x1; x += 6) { bend(x, y); g.lineTo(p[0], p[1]); }
+        }
+        g.lineTo(W, y);
+      }
+      g.stroke();
+      if (!flat) { g.strokeStyle = glow(); g.globalAlpha = Math.min(1, amount); g.stroke(); g.globalAlpha = 1; }
+    }
+    // The same pattern drawn a second time in the text colour, through a gradient that is
+    // strongest at the centre of the bend and gone by GLOW pixels away. So the lines are
+    // brightest under the pointer and fade into the rest.
+    function glow() {
+      const grad = g.createRadialGradient(cx, cy, 0, cx, cy, GLOW);
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        grad.addColorStop(t, 'rgba(' + bright + ',' + (PEAK * Math.exp(-t * t * 4.5) * (1 - t)).toFixed(3) + ')');
+      }
+      return grad;
+    }
+    function drawDots() {
+      const S = 24, r = 1.3, flat = amount < 0.003;
+      g.fillStyle = colour;
+      g.beginPath();
+      for (let y = S / 2; y < H + r; y += S) {
+        for (let x = S / 2; x < W + r; x += S) {
+          p[0] = x; p[1] = y;
+          if (!flat && Math.abs(x - cx) < NEAR && Math.abs(y - cy) < NEAR) bend(x, y);
+          g.moveTo(p[0] + r, p[1]);
+          g.arc(p[0], p[1], r, 0, TAU);
+        }
+      }
+      g.fill();
+      if (!flat) { g.fillStyle = glow(); g.globalAlpha = Math.min(1, amount); g.fill(); g.globalAlpha = 1; }
+    }
+    function draw() {
+      g.clearRect(0, 0, W, H);
+      if (lines) drawLines(); else drawDots();
+    }
+    function look() {                            // the pattern and its colour come from the theme
+      lines = root.getAttribute('data-theme') === 'blueprint';
+      const cs = getComputedStyle(root);
+      colour = (cs.getPropertyValue('--dot') || '').trim() || 'rgba(128, 128, 128, 0.15)';
+      g.fillStyle = '#888888';
+      g.fillStyle = (cs.getPropertyValue('--ink') || '').trim() || '#888888';      // the canvas hands back #rrggbb
+      const hex = /^#([0-9a-f]{6})$/i.exec(g.fillStyle);
+      const n = hex ? parseInt(hex[1], 16) : 0x888888;
+      bright = (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255);
+    }
+    function size() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    }
+    function tick(now) {
+      frame = 0;
+      const k = Math.max(0.5, Math.min(3, (now - last) / 16.67));      // frames' worth of time since the last one
+      last = now;
+      const want = target && effectsOn() ? 1 : 0;
+      const damp = Math.pow(DAMP, k);
+      if (target) {
+        vx = (vx + (target.x - cx) * STIFF * k) * damp;
+        vy = (vy + (target.y - cy) * STIFF * k) * damp;
+      } else { vx *= damp; vy *= damp; }
+      cx += vx * k; cy += vy * k;
+      amount += (want - amount) * Math.min(1, 0.14 * k);
+      const speed = Math.hypot(vx, vy);
+      const carry = DRAG * Math.min(1, 24 / (speed * DRAG + 0.001));    // never carried more than 24 pixels
+      dragX = vx * carry; dragY = vy * carry;
+
+      const far = target ? Math.hypot(target.x - cx, target.y - cy) : 0;
+      if (speed > 0.03 || far > 0.3 || Math.abs(want - amount) > 0.004) {
+        draw();
+        frame = requestAnimationFrame(tick);
+      } else {                                   // settled: draw the resting shape once and stop
+        amount = want; vx = vy = dragX = dragY = 0;
+        draw();
+      }
+    }
+    function wake() {
+      if (frame || !effectsOn()) return;
+      last = performance.now() - 16.67;
+      frame = requestAnimationFrame(tick);
+    }
+
+    look();
+    size();
+    window.addEventListener('resize', size);
+    listeners.push(() => { look(); draw(); wake(); });
+    document.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      if (!target && amount < 0.02) { cx = e.clientX; cy = e.clientY; vx = vy = 0; }      // grow in place
+      target = { x: e.clientX, y: e.clientY };
+      wake();
+    });
+    const leave = () => { if (target) { target = null; wake(); } };
+    document.documentElement.addEventListener('pointerleave', leave);
+    window.addEventListener('blur', leave);
+  }
+
+  // ---------------------------------------------------------------- a click blooms
   function buildEffects() {
     const cv = el('canvas', 'site-fx');
     cv.setAttribute('aria-hidden', 'true');
     document.body.appendChild(cv);
     const g = cv.getContext('2d');
-    const N = noise2(hash('trail'));
-    let parts = [], frame = 0, dpr = 1, pal = palette(), clicks = 0, lastPoint = null, travelled = 0;
+    let parts = [], frame = 0, dpr = 1, pal = palette(), clicks = 0;
     listeners.push(() => { pal = palette(); });
 
     function size() {
@@ -859,26 +1010,14 @@
           age: 0, life: 38 + R() * 34, size: 3 + R() * 6,
           shape: R() < 0.7 ? shape : Math.floor(R() * 4),
           c: pal.colours[Math.floor(R() * pal.colours.length)],
-          rot: R() * TAU, spin: (R() - 0.5) * 0.3, drag: 0.955, fall: 0.035, drift: 0,
+          rot: R() * TAU, spin: (R() - 0.5) * 0.3, drag: 0.955, fall: 0.035,
         });
       }
-    }
-    function trail(x, y) {
-      if (parts.length > 220) return;
-      parts.push({
-        x, y, vx: 0, vy: 0, age: 0, life: 26 + Math.random() * 22, size: 2 + Math.random() * 3.5,
-        shape: 0, c: pal.colours[Math.floor(Math.random() * pal.colours.length)],
-        rot: 0, spin: 0, drag: 0.9, fall: 0, drift: 0.5,
-      });
     }
     function tick() {
       g.clearRect(0, 0, window.innerWidth, window.innerHeight);
       parts = parts.filter((p) => p.age < p.life);
       for (const p of parts) {
-        if (p.drift) {                           // trail dots follow a slow noise field
-          const a = N(p.x * 0.006, p.y * 0.006) * TAU * 2;
-          p.vx += Math.cos(a) * p.drift * 0.2; p.vy += Math.sin(a) * p.drift * 0.2;
-        }
         p.vx *= p.drag; p.vy = p.vy * p.drag + p.fall;
         p.x += p.vx; p.y += p.vy; p.rot += p.spin; p.age++;
         const k = 1 - p.age / p.life, s = p.size * (0.4 + 0.6 * k);
@@ -903,14 +1042,6 @@
       if (!effectsOn() || quiet(e.target)) return;
       bloom(e.clientX, e.clientY);
       wake();
-    });
-    document.addEventListener('pointermove', (e) => {
-      if (!effectsOn() || e.pointerType !== 'mouse' || quiet(e.target)) { lastPoint = null; return; }
-      if (lastPoint) {
-        travelled += Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y);
-        if (travelled > 26) { travelled = 0; trail(e.clientX, e.clientY); wake(); }
-      }
-      lastPoint = { x: e.clientX, y: e.clientY };
     });
     listeners.push(() => { if (!effectsOn()) parts = []; });
   }
@@ -962,6 +1093,7 @@
     headings.forEach((h) => addSquiggle(h, 110 + (hash(h.textContent) % 70)));
 
     buildCover();
+    buildGrid();
     buildEffects();
 
     window.addEventListener('scroll', onScroll, { passive: true });

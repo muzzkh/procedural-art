@@ -527,10 +527,17 @@ main > header.has-cover { position: relative; isolation: isolate; padding: 1.2re
 .site-fx { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 60; pointer-events: none; }
 html[data-fx="off"] .site-fx { display: none; }
 
+/* With a mouse, site.js draws the background pattern on this canvas so that it can bend
+   under the pointer, and the CSS pattern on <body> is switched off. The pattern then stays
+   still while the page scrolls over it. */
+.site-grid { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+html[data-fx="off"] .site-grid { display: none; }
+:root.live-grid[data-fx="on"] body { background-image: none; }
+
 html[data-fx="off"] *, html[data-fx="off"] *::before, html[data-fx="off"] *::after { transition: none !important; }
 
 @media print {
-  .site-bar, .site-drawer, .site-backdrop, .site-pop, .site-rail, .site-top, .site-fx, .cover, .sf-mid, .jump, .continue { display: none !important; }
+  .site-bar, .site-drawer, .site-backdrop, .site-pop, .site-rail, .site-top, .site-fx, .site-grid, .cover, .sf-mid, .jump, .continue { display: none !important; }
   body { background: #fff; }
   .example, .lessons a, .keys, .sf-card { box-shadow: none; }
 }
