@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Textures challenge 2 · A Material Board</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1200" height="520"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* TEXTURES CHALLENGE 2 — A MATERIAL BOARD
+   Full brief: ../textures/02-materials-from-noise.html
+
+   Three materials that could sit next to each other in one room or one landscape.
+
+   Before writing each one, describe the real surface here:
+     Material 1:  ...
+     Material 2:  ...
+     Material 3:  ...
+
+   Checklist
+   [ ] Three materials, each from a written description of a surface you observed
+   [ ] One uses gradient noise with turbulence or ridges, one uses cell noise,
+       one has a regular structure with noise inside it
+   [ ] Every material uses a colour ramp with at least three stops
+   [ ] One material has an age or wear control: at least two layers and a mask
+   [ ] Each material has at least two named parameters and stays believable across their range
+   [ ] A fixed seed gives the same board; another seed gives another piece of the same material
+   [ ] Someone can name all three without being told */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// A repeatable random number from 0 to 1 for the cell (i, j).
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// Fills the square at (x0, y0), `size` pixels wide, by calling texture(u, v) for every pixel.
+// texture must return [red, green, blue], each from 0 to 255. u and v run from 0 to 1.
+function paint(x0, y0, size, texture) {
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const c = texture((x + 0.5) / size, (y + 0.5) / size), k = (y * size + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, x0, y0);
+}
+
+const SEED = 'board-1';
+const N = PA.noise(SEED);
+
+// A colour ramp: stops is a list of [position, [r, g, b]] in rising order of position.
+function ramp(stops, t) {
+  // ---- write this (Textures 2, example TX2.2) ----
+  return stops[0][1];
+}
+
+// ---- your three materials, each with its named parameters ----
+const materials = [
+  // { name: 'oak floor', params: { rings: 150, wear: 0.3 }, texture(u, v) { return [r, g, b]; } },
+];
+
+const GAP = 20, SIZE = (W - GAP * 4) / 3;
+ctx.fillStyle = '#16171a';
+ctx.fillRect(0, 0, W, H);
+materials.forEach((m, k) => {
+  const x = GAP + k * (SIZE + GAP);
+  paint(x, GAP, SIZE, (u, v) => m.texture(u, v));
+  ctx.fillStyle = '#ddd';
+  ctx.font = '20px sans-serif';
+  ctx.fillText(m.name, x, GAP + SIZE + 36);
+});
+
+</script>
+</body>
+</html>

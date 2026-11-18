@@ -74,6 +74,9 @@
 :root { --sec: var(--c1); }
 [data-section="math"] { --sec: var(--c2); }
 [data-section="special"] { --sec: var(--c3); }
+[data-section="textures"] { --sec: color-mix(in srgb, var(--c4), var(--c5)); }
+[data-section="shaders"] { --sec: color-mix(in srgb, var(--c6), var(--c2)); }
+[data-section="illusions"] { --sec: color-mix(in srgb, var(--c3), var(--c1)); }
 [data-section="printing"] { --sec: var(--c5); }
 [data-section="three"] { --sec: var(--c6); }
 [data-section="blender"] { --sec: var(--c4); }
@@ -535,6 +538,14 @@ html[data-fx="off"] .site-grid { display: none; }
 :root.live-grid[data-fx="on"] body { background-image: none; }
 
 html[data-fx="off"] *, html[data-fx="off"] *::before, html[data-fx="off"] *::after { transition: none !important; }
+
+/* ---------- references at the foot of a lesson ---------- */
+.refs { margin-top: 3.4rem; }
+.refs > p { color: var(--muted); margin-bottom: 0; }
+.refs ul { list-style: none; padding: 0; margin: 1.1rem 0 0; display: grid; gap: 0.75rem; }
+.refs li { padding: 0.1rem 0 0.1rem 0.95rem; border-left: 3px solid var(--sec); font-size: 0.94rem; line-height: 1.5; overflow-wrap: anywhere; }
+.refs cite { font-style: italic; }
+.refs .why { display: block; color: var(--muted); }
 
 @media print {
   .site-bar, .site-drawer, .site-backdrop, .site-pop, .site-rail, .site-top, .site-fx, .site-grid, .cover, .sf-mid, .jump, .continue { display: none !important; }

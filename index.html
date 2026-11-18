@@ -10,9 +10,9 @@
 <body>
 <main>
 <header>
-  <p class="kicker">A course in nineteen lessons, with sections on maths, 3D, Blender, printing and the web</p>
+  <p class="kicker">A course in nineteen lessons, with sections on maths, textures, shaders, illusions, 3D, Blender, printing and the web</p>
   <h1>Procedural Art</h1>
-  <p class="lede">You write the rules; the computer makes the picture. Nineteen lessons take you from a first rectangle to finished, fast, well-crafted generative work, and each one ends with a piece you build yourself. Further sections cover the maths, special topics, 3D printing, three.js, Blender and web design.</p>
+  <p class="lede">You write the rules; the computer makes the picture. Nineteen lessons take you from a first rectangle to finished, fast, well-crafted generative work, and each one ends with a piece you build yourself. Further sections cover the maths, textures, shaders, illusions, special topics, 3D printing, three.js, Blender and web design.</p>
 </header>
 
 <h2>How the course works</h2>
@@ -20,6 +20,7 @@
   <li><strong>Read the lesson.</strong> Every example on the page is live. Edit the code beside the picture and press <code>Ctrl + Enter</code> (or Run). Changing numbers and watching what happens is the fastest way to learn this subject.</li>
   <li><strong>Build the challenge.</strong> Each lesson ends with a brief, a list of requirements and some hints, but no solution. Open the matching file in the <code>challenges</code> folder in a code editor, write your sketch, and refresh the browser to see it.</li>
   <li><strong>Check yourself.</strong> Each challenge has a short checklist. When every item is true, move on.</li>
+  <li><strong>Read further.</strong> Every lesson ends with <em>References and further reading</em>: the papers and books its ideas come from, and other places that teach the same subject.</li>
 </ol>
 <p>Everything is plain JavaScript drawing on an HTML canvas. There is nothing to install: double-click <code>index.html</code> and you are running. A code editor such as VS Code makes the challenges more comfortable, but Notepad works.</p>
 
@@ -57,8 +58,35 @@
   <li><a href="math/06-linear-algebra.html"><span class="num">Maths 6</span><strong>Linear Algebra</strong><span class="desc">Bases and grids, the determinant, the inverse, chained matrices, 3D and perspective, eigenvectors, shapes as vectors.</span><span class="build">Goes with Lessons 6, 12, 18 and three.js</span></a></li>
 </ul>
 
+<h2>Textures</h2>
+<p>Four lessons on procedural surfaces: patterns written as functions of position, materials built from noise, textures grown by simulation or extended from a small sample, and the maps that let a surface be lit in 3D software. They follow on from Lessons 3 and 7. Each ends with a challenge and a starter file.</p>
+<ul class="lessons">
+  <li><a href="textures/01-patterns-from-coordinates.html"><span class="num">Textures 1</span><strong>Patterns from Coordinates</strong><span class="desc">Cells from floor and fract, bricks, honeycombs, weaves, aliasing, tiling.</span><span class="build">You build: a pattern sampler</span></a></li>
+  <li><a href="textures/02-materials-from-noise.html"><span class="num">Textures 2</span><strong>Materials from Noise</strong><span class="desc">Turbulence and ridges, colour ramps, wood, cell noise, masks and weathering.</span><span class="build">You build: a material board</span></a></li>
+  <li><a href="textures/03-grown-and-borrowed.html"><span class="num">Textures 3</span><strong>Grown and Borrowed Textures</strong><span class="desc">Reaction–diffusion coats, Wang tiles, synthesis from a sample, quilting, blending without washing out.</span><span class="build">You build: an endless surface</span></a></li>
+  <li><a href="textures/04-height-normals-and-light.html"><span class="num">Textures 4</span><strong>Height, Normals and Light</strong><span class="desc">Height, normal and roughness maps, lighting, occlusion, tileable map sets, use in three.js and Blender.</span><span class="build">You build: a material you could hand over</span></a></li>
+</ul>
+
+<h2>Shaders</h2>
+<p>Four lessons that take Lesson 9 further, treating the fragment shader as a craft of its own: the language and its shaping functions, patterns and noise on the graphics card, raymarched scenes with proper lighting, and shaders that remember their previous frame. Every example is live GLSL.</p>
+<ul class="lessons">
+  <li><a href="shaders/01-how-a-shader-thinks.html"><span class="num">Shaders 1</span><strong>How a Shader Thinks</strong><span class="desc">The pipeline, GLSL, shaping functions, one-pixel edges with fwidth, polar coordinates, layers, debugging by colour.</span><span class="build">You build: a stopwatch</span></a></li>
+  <li><a href="shaders/02-patterns-and-noise.html"><span class="num">Shaders 2</span><strong>Patterns and Noise on the Graphics Card</strong><span class="desc">Hashes, cells, Truchet tiles, value and gradient noise, lit relief, moving Voronoi, caustics.</span><span class="build">You build: a living texture</span></a></li>
+  <li><a href="shaders/03-raymarching-and-light.html"><span class="num">Shaders 3</span><strong>Raymarching and Light</strong><span class="desc">Cameras, sphere tracing, normals, diffuse and specular light, soft shadows, occlusion, fog, materials, repetition.</span><span class="build">You build: a still life in one shader</span></a></li>
+  <li><a href="shaders/04-memory-and-post-processing.html"><span class="num">Shaders 4</span><strong>Memory and Post-processing</strong><span class="desc">The previous frame as a texture, trails, feedback, simulations on the graphics card, post-processing, dithering.</span><span class="build">You build: a shader with a memory</span></a></li>
+</ul>
+
+<h2>Illusions</h2>
+<p>Four lessons on visual illusions as procedural material, built from the research that explains them. Every example has a control that switches the illusion off, so that you can check the claim for yourself. Illusions 3 contains moving and flickering patterns and says so where they occur.</p>
+<ul class="lessons">
+  <li><a href="illusions/01-brightness-and-colour.html"><span class="num">Illusions 1</span><strong>Brightness and Colour</strong><span class="desc">Contrast, the Cornsweet edge, grid illusions, White's illusion, shadows, colour assimilation.</span><span class="build">You build: an illusion with its proof</span></a></li>
+  <li><a href="illusions/02-geometry-and-shape.html"><span class="num">Illusions 2</span><strong>Geometry and Shape</strong><span class="desc">The café wall, bent lines, Müller-Lyer and how illusions are measured, illusory contours, the false spiral.</span><span class="build">You build: an experiment on your own eyes</span></a></li>
+  <li><a href="illusions/03-motion-that-is-not-there.html"><span class="num">Illusions 3</span><strong>Motion That Is Not There</strong><span class="desc">Peripheral drift, self-animating patterns, the Pinna–Brelstaff rings, the aperture problem, reversed phi.</span><span class="build">You build: a still image that moves</span></a></li>
+  <li><a href="illusions/04-depth-and-hidden-pictures.html"><span class="num">Illusions 4</span><strong>Depth and Hidden Pictures</strong><span class="desc">Autostereograms, kinetic depth, Shepard's tables, the impossible triangle, hybrid images.</span><span class="build">You build: a picture with a secret</span></a></li>
+</ul>
+
 <h2>Special topics</h2>
-<p>Nine longer pages on taking procedural design beyond the still image: interaction, practical uses, fabrication, sound, live hardware, working alongside AI, and the craft of judging, publishing and organising your work. Each ends with its own challenge and starter file. They are best read after Lesson 10, though the first can be started after Lesson 5.</p>
+<p>Ten longer pages on taking procedural design beyond the still image: interaction, practical uses, fabrication, sound, live hardware, working alongside AI, the craft of judging, publishing and organising your work, and what the research literature adds. Each ends with its own challenge and starter file. They are best read after Lesson 10, though the first can be started after Lesson 5.</p>
 <ul class="lessons">
   <li><a href="special/01-interactivity.html"><span class="num">Special 1</span><strong>Interactivity</strong><span class="desc">Pointer, keyboard, sliders, text, sound and scroll as input. Methods for websites and for games.</span><span class="build">You build: a visual instrument</span></a></li>
   <li><a href="special/02-practical-uses.html"><span class="num">Special 2</span><strong>Practical Uses</strong><span class="desc">Level generation, brand systems, automated layout, procedural materials, data-driven design.</span><span class="build">You build: a generator someone could use</span></a></li>
@@ -69,6 +97,7 @@
   <li><a href="special/07-critique-and-art-direction.html"><span class="num">Special 7</span><strong>Critique and Art Direction</strong><span class="desc">Judging your own output, parameter sweeps, studying other work, developing a style.</span><span class="build">You build: a study and a series</span></a></li>
   <li><a href="special/08-publishing.html"><span class="num">Special 8</span><strong>Publishing</strong><span class="desc">Portfolios, documentation, licences, prints and editions.</span><span class="build">You build: a published series page</span></a></li>
   <li><a href="special/09-project-workflow.html"><span class="num">Special 9</span><strong>Project Workflow</strong><span class="desc">Saving the recipe with every output, version control, a personal library, fingerprint checks.</span><span class="build">You build: a workshop of your own</span></a></li>
+  <li><a href="special/10-practical-uses-research.html"><span class="num">Special 10</span><strong>Practical Uses: What the Research Adds</strong><span class="desc">Expressive range, generating by search, MAP-Elites, design galleries, cities, facades, erosion, topology optimisation, label placement, with a reading list.</span><span class="build">You build: a measured and improved generator</span></a></li>
 </ul>
 
 <h2>3D printing</h2>
@@ -140,6 +169,7 @@
 
 <h2>Inside a live example</h2>
 <p>Example code on the lesson pages receives a few ready-made variables: <code>ctx</code> (the drawing context), <code>W</code> and <code>H</code> (the canvas size, 600 × 600 unless stated), <code>mouse</code> (<code>x</code>, <code>y</code>, <code>down</code>, <code>active</code>), <code>PA</code>, and <code>loop(fn)</code>, which calls <code>fn(seconds, frame)</code> on every animation frame. The special topics also use <code>keys</code> (the keys currently held, after you click the canvas) and <code>ui</code>, which adds sliders, text boxes and buttons under the canvas. In the challenge files you set these up yourself; each starter shows how.</p>
+<p>Shader examples are written in GLSL instead. They receive <code>u_res</code> (the canvas size in pixels), <code>u_time</code> (seconds), <code>u_mouse</code> (pixels, measured from the bottom left), <code>u_down</code> (1 while the mouse button is held), <code>u_frame</code> (frames drawn so far) and <code>u_prev</code> (the picture the shader drew on the previous frame, used in Shaders 4).</p>
 </main>
 </body>
 </html>

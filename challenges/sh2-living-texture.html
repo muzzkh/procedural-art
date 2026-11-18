@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shaders challenge 2 · A Living Texture</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; }
+  pre { position: fixed; left: 0; bottom: 0; margin: 0; padding: 12px; color: #ff9d94; background: #2b1111; font: 13px/1.5 Consolas, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<pre id="errors" hidden></pre>
+<script>
+/* SHADERS CHALLENGE 2 — A LIVING TEXTURE
+   Full brief: ../shaders/02-patterns-and-noise.html
+
+   One material that moves in life, as a single fragment shader that never stops changing.
+
+   The material:        ...
+   Hashes per pixel:    ...   (count them when you have finished)
+
+   Checklist
+   [ ] Built on a hash and noise functions you can explain line by line
+   [ ] Uses lattice noise and cell noise, or lattice noise and a cell pattern
+   [ ] It changes shape over time; it does not merely slide
+   [ ] It is lit: a normal from the slope of a height, a light at the pointer, a highlight
+   [ ] A colour ramp of at least three stops
+   [ ] It runs smoothly at full canvas size
+   [ ] Someone watching for thirty seconds cannot find the repeat or the direction of slide
+
+   Your shader goes in the FRAGMENT string below. Available inputs:
+     u_res    canvas size in pixels (vec2)
+     u_time   seconds since the page loaded (float)
+     u_mouse  mouse position in pixels (vec2)
+     u_down   1.0 while the mouse button is held (float)
+   fwidth() is switched on by the first line of FRAGMENT. Leave that line first.
+   Compile errors appear at the bottom of the page. The line numbers count from the start of FRAGMENT. */
+
+const FRAGMENT = `
+#extension GL_OES_standard_derivatives : enable
+precision highp float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+uniform float u_down;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// ---- your noise functions here ----
+
+void main() {
+  vec2 p = gl_FragCoord.xy / u_res.y;
+
+  // ---- your material here ----
+  vec3 col = vec3(hash(floor(p * 10.0)));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+/* ------------------------------------------------------------------------
+   Everything below is plumbing: it compiles the shader and draws it on a
+   full-canvas rectangle every frame. You do not need to change it.
+   ------------------------------------------------------------------------ */
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl');
+gl.getExtension('OES_standard_derivatives');
+const errors = document.getElementById('errors');
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    errors.textContent = gl.getShaderInfoLog(shader);
+    errors.hidden = false;
+    throw new Error(gl.getShaderInfoLog(shader));
+  }
+  return shader;
+}
+
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, 'attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }'));
+gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT.trim()));
+gl.linkProgram(program);
+gl.useProgram(program);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const position = gl.getAttribLocation(program, 'p');
+gl.enableVertexAttribArray(position);
+gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+const uRes = gl.getUniformLocation(program, 'u_res');
+const uTime = gl.getUniformLocation(program, 'u_time');
+const uMouse = gl.getUniformLocation(program, 'u_mouse');
+const uDown = gl.getUniformLocation(program, 'u_down');
+const mouse = { x: canvas.width / 2, y: canvas.height / 2, down: 0 };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * canvas.width;
+  mouse.y = (1 - (e.clientY - r.top) / r.height) * canvas.height;
+});
+canvas.addEventListener('pointerdown', () => { mouse.down = 1; });
+window.addEventListener('pointerup', () => { mouse.down = 0; });
+
+function frame(ms) {
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, ms / 1000);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.uniform1f(uDown, mouse.down);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Illusions challenge 3 · A Still Image That Moves</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1400" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* ILLUSIONS CHALLENGE 3 — A STILL IMAGE THAT MOVES
+   Full brief: ../illusions/03-motion-that-is-not-there.html
+
+   A poster that is one still image and appears to flow, turn, breathe or ripple.
+
+   What should appear to move, and which way:  ...
+   How to look at it (this becomes the caption):  ...
+
+   Checklist
+   [ ] A field you designed that says where the apparent motion goes
+   [ ] The four-step order (black, dark, white, light) laid along that field
+   [ ] The width of one set of steps chosen by testing at full-screen size
+   [ ] At least two regions that appear to move differently
+   [ ] A control version at the press of a key: a symmetric order, in which the motion stops
+   [ ] A seed, and export as a PNG large enough to fill a screen
+   [ ] Three people asked "is this an animation?" hesitate before answering
+
+   Keys (wire these up):  C control version   N next seed   S save PNG */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+let seed = 1, control = false;
+
+const BLACK = [0, 0, 0], DARK = [40, 72, 200], WHITE = [255, 255, 255], LIGHT = [232, 216, 0];
+const BAND = 24;                           // the width of one set of four steps, in pixels. Tune this by eye.
+
+// A number that rises steadily, by about 1 per pixel, in the direction the motion should seem to go.
+function field(x, y) {
+  // ---- your field here ----
+  return x;
+}
+
+function texture(x, y) {
+  const phase = PA.fract(field(x, y) / BAND);
+  const tones = control ? [BLACK, DARK, WHITE, DARK] : [BLACK, DARK, WHITE, LIGHT];
+  return tones[phase < 0.18 ? 0 : phase < 0.5 ? 1 : phase < 0.68 ? 2 : 3];
+}
+
+function draw() {
+  const img = ctx.createImageData(W, H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x, y), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// TODO: the keys
+draw();
+</script>
+</body>
+</html>

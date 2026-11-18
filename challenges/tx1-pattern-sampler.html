@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Textures challenge 1 · A Pattern Sampler</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="900" height="900"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* TEXTURES CHALLENGE 1 — A PATTERN SAMPLER
+   Full brief: ../textures/01-patterns-from-coordinates.html
+
+   A sheet of nine swatches, each a different regular pattern written as a function of u and v.
+
+   Checklist
+   [ ] Nine swatches in a 3 x 3 sheet, each from its own texture(u, v), all drawn through paint()
+   [ ] One pattern on an offset grid, one on a non-square grid, one that layers two directions
+   [ ] At least three patterns use a hash of the cell number, each for a different purpose
+   [ ] No stair-stepped edges
+   [ ] Every swatch tiles, and one of them is drawn four times to prove it
+   [ ] No noise anywhere
+   [ ] Changing the number of cells in any swatch never breaks it */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// A repeatable random number from 0 to 1 for the cell (i, j).
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// Fills the square at (x0, y0), `size` pixels wide, by calling texture(u, v) for every pixel.
+// texture must return [red, green, blue], each from 0 to 255. u and v run from 0 to 1.
+function paint(x0, y0, size, texture) {
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const c = texture((x + 0.5) / size, (y + 0.5) / size), k = (y * size + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, x0, y0);
+}
+
+const GAP = 12, SIZE = (W - GAP * 4) / 3;             // three swatches across, with a gap between them
+
+// ---- your nine patterns ----
+const swatches = [
+  // (u, v) => [r, g, b],
+];
+
+ctx.fillStyle = '#111';
+ctx.fillRect(0, 0, W, H);
+swatches.forEach((texture, k) => {
+  paint(GAP + (k % 3) * (SIZE + GAP), GAP + Math.floor(k / 3) * (SIZE + GAP), SIZE, texture);
+});
+
+// TODO: the tiling proof for one swatch
+
+</script>
+</body>
+</html>

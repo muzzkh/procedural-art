@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Special challenge 10 · Measure, Then Improve</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1200" height="1200"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* SPECIAL CHALLENGE 10 — MEASURE, THEN IMPROVE
+   Full brief: ../special/10-practical-uses-research.html
+
+   Treat a generator you have already built as a researcher would:
+   measure it, find what is wrong with it, and fix that with one method.
+
+   THE TWO MEASUREMENTS (say why a user would care about each)
+     1. ...
+     2. ...
+
+   DIAGNOSIS (fill in after the first plot)
+     The weakness the plot shows:  ...
+
+   REMEDY:  search toward a target / MAP-Elites / a dispersed gallery / annealing
+
+   Checklist
+   [ ] Two measurements of an output, computed by code
+   [ ] An expressive range plot of at least 1000 outputs
+   [ ] A written diagnosis of one specific weakness
+   [ ] One remedy from the lesson
+   [ ] A second plot beside the first, on the same axes
+   [ ] Six outputs from before and six from after, drawn the same way
+   [ ] You can state one thing the generator still cannot do, with the plot as evidence */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ---- THE GENERATOR: paste yours in. It must return a description of the output, not draw it. ----
+function generate(seed) {
+  const R = PA.rng(seed);
+  return {
+    // whatever your output is made of
+  };
+}
+
+// Draws one output inside the box (x, y, w, h).
+function render(output, x, y, w, h) {
+
+}
+
+// ---- THE MEASUREMENTS: each returns a number from 0 to 1 ----
+function measureA(output) {
+  return 0;
+}
+function measureB(output) {
+  return 0;
+}
+
+// Counts how many of `outputs` fall in each cell of a bins-by-bins grid of the two measurements.
+function range(outputs, bins) {
+  const counts = new Float32Array(bins * bins);
+  for (const o of outputs) {
+    const a = Math.min(bins - 1, Math.floor(measureA(o) * bins)), b = Math.min(bins - 1, Math.floor(measureB(o) * bins));
+    counts[b * bins + a]++;
+  }
+  return counts;
+}
+
+// TODO: plot range() for 1000 outputs, write the diagnosis, apply the remedy, plot again beside it
+
+</script>
+</body>
+</html>

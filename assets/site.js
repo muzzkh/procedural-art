@@ -37,6 +37,24 @@
       ['math/05-waves-chaos-and-chance.html', 'Maths 5', 'Waves, Curves, Chaos and Chance'],
       ['math/06-linear-algebra.html', 'Maths 6', 'Linear Algebra'],
     ] },
+    { id: 'textures', name: 'Textures', pages: [
+      ['textures/01-patterns-from-coordinates.html', 'Textures 1', 'Patterns from Coordinates'],
+      ['textures/02-materials-from-noise.html', 'Textures 2', 'Materials from Noise'],
+      ['textures/03-grown-and-borrowed.html', 'Textures 3', 'Grown and Borrowed Textures'],
+      ['textures/04-height-normals-and-light.html', 'Textures 4', 'Height, Normals and Light'],
+    ] },
+    { id: 'shaders', name: 'Shaders', pages: [
+      ['shaders/01-how-a-shader-thinks.html', 'Shaders 1', 'How a Shader Thinks'],
+      ['shaders/02-patterns-and-noise.html', 'Shaders 2', 'Patterns and Noise on the Graphics Card'],
+      ['shaders/03-raymarching-and-light.html', 'Shaders 3', 'Raymarching and Light'],
+      ['shaders/04-memory-and-post-processing.html', 'Shaders 4', 'Memory and Post-processing'],
+    ] },
+    { id: 'illusions', name: 'Illusions', pages: [
+      ['illusions/01-brightness-and-colour.html', 'Illusions 1', 'Brightness and Colour'],
+      ['illusions/02-geometry-and-shape.html', 'Illusions 2', 'Geometry and Shape'],
+      ['illusions/03-motion-that-is-not-there.html', 'Illusions 3', 'Motion That Is Not There'],
+      ['illusions/04-depth-and-hidden-pictures.html', 'Illusions 4', 'Depth and Hidden Pictures'],
+    ] },
     { id: 'special', name: 'Special topics', pages: [
       ['special/01-interactivity.html', 'Special 1', 'Interactivity'],
       ['special/02-practical-uses.html', 'Special 2', 'Practical Uses'],
@@ -47,6 +65,7 @@
       ['special/07-critique-and-art-direction.html', 'Special 7', 'Critique and Art Direction'],
       ['special/08-publishing.html', 'Special 8', 'Publishing'],
       ['special/09-project-workflow.html', 'Special 9', 'Project Workflow'],
+      ['special/10-practical-uses-research.html', 'Special 10', 'Practical Uses: What the Research Adds'],
     ] },
     { id: 'printing', name: '3D printing', pages: [
       ['printing/01-how-printing-works.html', 'Printing 1', 'How Printing Works'],

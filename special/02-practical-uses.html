@@ -8,7 +8,7 @@
 <script src="../assets/site.js"></script>
 </head>
 <body>
-<nav class="top"><a href="01-interactivity.html">← Special 1</a><span>Special topic 2 of 9</span><a href="03-into-the-real-world.html">Next →</a></nav>
+<nav class="top"><a href="01-interactivity.html">← Special 1</a><span>Special topic 2 of 10</span><a href="03-into-the-real-world.html">Next →</a></nav>
 <main>
 <header>
   <p class="kicker">Special Topic 2</p>
@@ -231,7 +231,7 @@ ui.onChange(draw);
 
 <h2>Textures and materials</h2>
 <p>In 3D graphics, film and games, most surfaces are not photographs. They are <strong>procedural materials</strong>: formulas, mostly built on noise, that compute the colour, roughness and bumpiness of a surface at any point. Their advantages are practical. They have no resolution limit, they never visibly repeat, they need almost no storage, and one parameter can turn new oak into weathered oak. Whole applications exist for authoring them as networks of nodes.</p>
-<p>Each quadrant below is one short formula. All four are applications of Lesson 3 and Maths 1.</p>
+<p>Each quadrant below is one short formula. All four are applications of Lesson 3 and Maths 1. The Textures section takes this subject much further: structure, cell noise, weathering, and the maps a renderer needs.</p>
 <ul>
   <li><strong>Wood:</strong> rings are the distance from a centre, wobbled by noise, wrapped by <code>fract</code>.</li>
   <li><strong>Marble:</strong> a sine wave across the surface, with its input pushed around by fBm noise.</li>
@@ -606,6 +606,7 @@ JSON.stringify(firstLabels, null, 1).split('\n').slice(0, 11).forEach((line, i) 
   <dt>A tool</dt><dd>The generator itself, with an interface, for other people to use. This needs sensible parameter ranges, guard rails and documentation, and is far more work than the algorithm.</dd>
   <dt>A live system</dt><dd>Code that runs for the audience: on a website, in a game, in an installation. It must be fast, robust, and correct for every input it will ever see.</dd>
 </dl>
+<p>Special Topic 10 returns to these fields with the research literature: how to measure a generator, how to search for outputs you can recognise but not construct, and how cities, terrain and engineering parts are generated in practice.</p>
 <p>Each step down that list raises the standard. A private tool only has to work for the seeds you try. A live system has to work for all of them, which is the lesson of the contact sheet in Lesson 10.</p>
 
 <h2>Working practices that matter in practice</h2>
@@ -663,6 +664,22 @@ JSON.stringify(firstLabels, null, 1).split('\n').slice(0, 11).forEach((line, i) 
   </ul>
   <a class="start" href="../challenges/s2-useful-generator.html">Open the starter file</a>
 </section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Noor Shaker, Julian Togelius and Mark J. Nelson, <a href="https://www.pcgbook.com/"><cite>Procedural Content Generation in Games</cite></a>, Springer, 2016. Free to read online. <span class="why">The textbook on generating game content.</span></li>
+    <li>Tanya X. Short and Tarn Adams (editors), <cite>Procedural Generation in Game Design</cite>, CRC Press, 2017. <span class="why">Short chapters by working game developers on levels, names, quests and more.</span></li>
+    <li>Amit Patel (Red Blob Games), <a href="https://www.redblobgames.com/maps/mapgen2/"><cite>Polygonal Map Generation for Games</cite></a>, 2010. Interactive demo, with a link to the article. <span class="why">An island with rivers, biomes and regions, explained step by step.</span></li>
+    <li>Martin O'Leary, <a href="https://github.com/mewo2/terrain"><cite>Generating Fantasy Maps</cite></a>, 2016. Code and notes. <span class="why">Terrain, erosion, borders and place names.</span></li>
+    <li>Hartmut Bohnacker, Benedikt Groß, Julia Laub and Claudius Lazzeroni, <a href="http://www.generative-gestaltung.de/2/"><cite>Generative Design: Visualize, Program, and Create with JavaScript in p5.js</cite></a>, Princeton Architectural Press, 2018. <span class="why">Generative methods in graphic design.</span></li>
+    <li>Edward Tufte, <cite>The Visual Display of Quantitative Information</cite>, Graphics Press, 1983. <span class="why">The standard for honest pictures of data.</span></li>
+    <li>David Ebert, F. Kenton Musgrave, Darwyn Peachey, Ken Perlin and Steven Worley, <cite>Texturing and Modeling: A Procedural Approach</cite>, 3rd edition, Morgan Kaufmann, 2003. <span class="why">Procedural materials in production.</span></li>
+  </ul>
+</section>
+<!-- /references -->
 
 <footer class="next"><a href="01-interactivity.html">← Special Topic 1</a><a href="03-into-the-real-world.html">Special Topic 3: Into the Real World →</a></footer>
 </main>

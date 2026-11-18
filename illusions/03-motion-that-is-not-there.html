@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Illusions 3 · Motion That Is Not There</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-geometry-and-shape.html">← Illusions 2</a><span>Illusions 3 of 4</span><a href="04-depth-and-hidden-pictures.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Illusions 3</p>
+  <h1>Motion That Is Not There</h1>
+  <p class="lede">A still image can appear to move, and a moving one can appear to go the wrong way. Motion illusions are the newest part of this subject: several of the strongest were found after 1995, and one line of computer graphics research is devoted to generating them. This lesson builds both kinds, the still pictures that drift and the moving pictures that mislead.</p>
+</header>
+
+<div class="note"><p><strong>Before you start.</strong> Some of these patterns are uncomfortable to look at for long, and one example flickers when you press its play button. If you are sensitive to flicker or to moving patterns, read the text and skip the examples marked for it. Nothing on this page flashes by itself.</p></div>
+
+<h2>How motion is seen</h2>
+<p>There is no sense organ for motion. It is computed, by cells that compare what one small patch of the retina saw a moment ago with what a neighbouring patch sees now. Two properties of that computation account for most of this lesson.</p>
+<ul>
+  <li><strong>It is local.</strong> Each detector looks through a small window and cannot see the whole object. Later stages combine many detectors' reports into the motion of a thing.</li>
+  <li><strong>It depends on timing.</strong> The comparison is between "then" and "now", so anything that makes one signal arrive sooner than another can be mistaken for movement. Bright, high-contrast things are signalled slightly faster than dim, low-contrast ones.</li>
+</ul>
+
+<h2>Still pictures that drift</h2>
+<p>In 1979 Alex Fraser and Kimerly Wilcox reported, in "Perception of Illusory Movement" (Nature), that a static pattern of repeated sawtooth gradients appeared to rotate slowly when seen out of the corner of the eye. The effect became known as peripheral drift. In 2003 Akiyoshi Kitaoka and Hiroshi Ashida gave the recipe that makes it strong, in "Phenomenal Characteristics of the Peripheral Drift Illusion": replace the smooth gradient with four flat steps in the order <strong>black, dark, white, light</strong>, repeated. The pattern appears to move in the direction of that order. Kitaoka's own image built on this recipe, <em>Rotating Snakes</em>, is probably the best known illusion of this century.</p>
+<p>Why it happens is not fully settled. Bevil Conway and colleagues, in "Neural Basis for a Powerful Static Motion Illusion" (Journal of Neuroscience, 2005), recorded from motion-sensitive cells in monkeys and found that they respond to these static step pairs as they would to movement. Their account is the timing one above: the high-contrast steps are signalled faster than the low-contrast ones, and each time the eye lands on the picture that difference in arrival time is read as a small jump. Others give the tiny eye movements that never stop a larger role.</p>
+<p>The example draws four discs of rings. Each ring cell holds the four steps in order. Neighbouring discs use opposite orders, so they appear to turn against each other.</p>
+<ul>
+  <li>Look at one disc and attend to the others without looking at them. The drift is seen away from where you are looking.</li>
+  <li>Let your eyes wander, or blink. The drift restarts at each eye movement.</li>
+  <li>Switch on the control. With a symmetric order, black, dark, white, dark, there is nothing to choose a direction and the drift stops.</li>
+</ul>
+
+<div class="example" data-title="IL3.1 Four steps in order, round a ring">
+<script type="text/plain">
+const direction = ui.slider('direction of the order (-1 or 1)', -1, 1, 1, 2);
+const colour = ui.slider('colour', 0, 1, 1, 1);
+const control = ui.slider('control: a symmetric order', 0, 1, 0, 1);
+
+function sector(cx, cy, r1, r2, a1, a2, fill) {        // a piece of a ring
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r2, a1, a2);
+  ctx.arc(cx, cy, r1, a2, a1, true);
+  ctx.closePath(); ctx.fill();
+}
+
+function draw() {
+  const dark = colour() ? '#2848c8' : '#555555', light = colour() ? '#e8d800' : '#aaaaaa';
+  const tones = control() ? ['#000', dark, '#fff', dark] : ['#000', dark, '#fff', light];
+  const ends = [0, 0.18, 0.5, 0.68, 1];                // black and white are narrow, the other two wide
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let j = 0; j < 2; j++) {
+    for (let i = 0; i < 2; i++) {
+      const cx = 150 + i * 300, cy = 150 + j * 300;
+      const way = ((i + j) % 2 ? 1 : -1) * direction(); // neighbouring discs run opposite ways
+      const CELLS = 16, cell = PA.TAU / CELLS;
+      for (let ring = 0; ring < 8; ring++) {
+        const r2 = 138 - ring * 16, r1 = r2 - 16.5;
+        for (let c = 0; c < CELLS; c++) {
+          const start = (c + (ring % 2) * 0.5) * cell;  // alternate rings are shifted by half a cell
+          for (let k = 0; k < 4; k++) {
+            const a1 = start + way * ends[k] * cell, a2 = start + way * ends[k + 1] * cell;
+            sector(cx, cy, Math.max(0, r1), r2, Math.min(a1, a2), Math.max(a1, a2) + 0.004, tones[k]);
+          }
+        }
+      }
+    }
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Three practical facts from the research. The effect depends on size: it is stronger when the picture is large and each cell falls well away from the centre of gaze. It depends on contrast: blue and yellow in place of the two greys strengthens it for most people. And it varies between people, a point Fraser and Wilcox already made. Some see strong motion and a few see none.</p>
+
+<h2>Generating drift from any field</h2>
+<p>In "Self-Animating Images: Illusory Motion Using Repeated Asymmetric Patterns" (SIGGRAPH 2008), Ming-Te Chi, Tong-Yee Lee, Yingge Qu and Tien-Tsin Wong turned the recipe into a generator. Their name for the four-step unit is a repeated asymmetric pattern. Given a field of directions, their method lays these units end to end along the field's streamlines, as in Lesson 5, and chooses colours for them from a source image. The picture then appears to flow along the field.</p>
+<p>The version below reaches the same result in the manner of the Textures section, one pixel at a time. It needs a quantity that increases steadily in the direction the motion should go. Distance from a point is such a quantity, so the canvas is divided into cells around scattered points (Textures 2), and each pixel's distance from its cell's point is wrapped into the four steps. In half the cells the order runs outward and in half inward. The cells appear to swell or shrink.</p>
+
+<div class="example" data-pixel data-w="600" data-h="400" data-title="IL3.2 A field of cells that seem to breathe">
+<script type="text/plain">
+const cells = ui.slider('cells', 2, 7, 4, 1);
+const band = ui.slider('width of one set of four steps (pixels)', 10, 44, 22, 1);
+const control = ui.slider('control: a symmetric order', 0, 1, 0, 1);
+const img = ctx.createImageData(W, H);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+const BLACK = [0, 0, 0], BLUE = [40, 72, 200], WHITE = [255, 255, 255], YELLOW = [232, 216, 0];
+
+function texture(x, y) {
+  const n = cells(), size = H / n;                     // a grid cell is `size` pixels across
+  const px = x / size, py = y / size, cx = Math.floor(px), cy = Math.floor(py);
+  let nearest = 9, owner = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;
+      const d = Math.hypot(px - gx - hash(gx, gy), py - gy - hash(gy + 57, gx + 13));
+      if (d < nearest) { nearest = d; owner = hash(gx + 5, gy + 9); }
+    }
+  }
+  const way = owner < 0.5 ? 1 : -1;                    // outward in some cells, inward in others
+  const phase = PA.fract(way * nearest * size / band()); // distance in pixels, wrapped into one set of steps
+  const tones = control() ? [BLACK, BLUE, WHITE, BLUE] : [BLACK, BLUE, WHITE, YELLOW];
+  return tones[phase < 0.18 ? 0 : phase < 0.5 ? 1 : phase < 0.68 ? 2 : 3];
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x, y), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Any function that rises steadily will do in place of distance: the height of a slope gives sliding, the angle round a point gives rotation, and noise gives a slow boil, though where the function changes slowly the bands become wide and the effect fades. This is a rich area for original work. The paper's results and Kitaoka's are the references to study, and the rule for this course applies: build your own arrangement, do not copy theirs.</p>
+
+<h2>Turning without turning</h2>
+<p>Baingio Pinna and Gavin Brelstaff's "A New Visual Illusion of Relative Motion" (Vision Research, 2000) needs real movement, but the movement seen is not the movement made. Their figure is rings of small tilted elements. Fix your eyes on the centre and move your head toward the page: the rings appear to rotate, neighbouring rings in opposite directions.</p>
+<p>The explanation is the local window. As the figure grows on the retina, every element moves straight outward. A detector looking at a slanted edge through a small window can only register the part of that movement at right angles to the edge. For an edge slanted 45° to the outward direction, half of the registered movement is sideways. Every element in a ring is slanted the same way, so the sideways parts all agree, and the ring is seen to turn.</p>
+<p>The example makes the approach for you by changing the scale of the picture. Nothing in the code rotates. The paper's elements are small squares with light and dark sides. This one uses a simpler element with the same essential property, an edge between light and dark at an angle to the radius. Set the tilt to zero and the turning stops.</p>
+
+<div class="example" data-title="IL3.3 Rings that grow and shrink, and seem to turn (keep your eyes on the dot)">
+<script type="text/plain">
+const tilt = ui.slider('tilt of the elements (degrees)', 0, 60, 45, 1);
+const rings = [{ r: 95, n: 22, way: 1 }, { r: 150, n: 34, way: -1 }, { r: 205, n: 46, way: 1 }];
+
+loop((t) => {
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, W, H);
+  const scale = 1 + 0.2 * Math.sin(t * 1.6);           // the whole picture grows and shrinks: the only thing that changes
+  const slant = tilt() * Math.PI / 180;
+  for (const ring of rings) {
+    for (let i = 0; i < ring.n; i++) {
+      const a = i / ring.n * PA.TAU;
+      ctx.save();
+      ctx.translate(W / 2 + Math.cos(a) * ring.r * scale, H / 2 + Math.sin(a) * ring.r * scale);
+      ctx.rotate(a + ring.way * slant);                // the element's long side, measured from the outward direction
+      ctx.fillStyle = '#fff'; ctx.fillRect(-10 * scale, -3.5 * scale, 20 * scale, 3.5 * scale);
+      ctx.fillStyle = '#000'; ctx.fillRect(-10 * scale, 0, 20 * scale, 3.5 * scale);
+      ctx.restore();
+    }
+  }
+  ctx.fillStyle = '#d7263d';
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, 5, 0, PA.TAU); ctx.fill();
+});
+</script>
+</div>
+
+<h2>The window problem itself</h2>
+<p>The limit that explains the last example can be shown alone. A field of diagonal stripes is drifting. Through a round window it appears to move at right angles to the stripes, which is the only movement a stripe can show, since sliding along its own length changes nothing. Through a long window the same stripes appear to move along the window: sideways in the wide slot, vertically in the tall one. The ends of the stripes, where they meet the window's edge, are the only features with a definite position, and they travel along the edge.</p>
+<p>This is the barber-pole effect, and the underlying ambiguity is called the aperture problem. All three windows below show the same stripes at the same moment.</p>
+
+<div class="example" data-h="420" data-title="IL3.4 One drifting pattern through three windows">
+<script type="text/plain">
+const speed = ui.slider('speed', 0, 2, 1, 0.05);
+let travelled = 0, before = 0;
+
+function stripes() {                                   // the same diagonal stripes every time it is called
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(-Math.PI / 4);
+  ctx.fillStyle = '#f1efe8';
+  for (let x = -800 + travelled % 36; x < 800; x += 36) ctx.fillRect(x, -800, 18, 1600);
+  ctx.restore();
+}
+
+const windows = [
+  () => ctx.rect(40, 30, 520, 76),                     // a wide slot
+  () => ctx.rect(60, 140, 86, 250),                    // a tall slot
+  () => ctx.arc(390, 265, 118, 0, PA.TAU),             // a round window
+];
+
+loop((t) => {
+  travelled += (t - before) * 34 * speed();
+  before = t;
+  ctx.fillStyle = '#20242c';
+  ctx.fillRect(0, 0, W, H);
+  for (const shape of windows) {
+    ctx.save();
+    ctx.beginPath(); shape(); ctx.clip();              // everything drawn until restore() is cut to this shape
+    ctx.fillStyle = '#101216';
+    ctx.fillRect(0, 0, W, H);
+    stripes();
+    ctx.restore();
+  }
+});
+</script>
+</div>
+
+<p>Yair Weiss, Eero Simoncelli and Edward Adelson, in "Motion Illusions as Optimal Percepts" (Nature Neuroscience, 2002), showed that a wide range of motion illusions, including the way low-contrast patterns seem to move more slowly, follow from one assumption: the visual system treats its local measurements as uncertain and prefers the slowest movement consistent with them. On that view these are not faults. They are the best available guess from limited evidence, and they are wrong only in pictures built to exploit them.</p>
+
+<h2>Contrast changes apparent speed</h2>
+<p>The claim that low contrast looks slower can be seen directly. Stuart Anstis's footsteps illusion ("Moving Objects Appear to Slow Down at Low Contrasts", Neural Networks, 2003) has a light block and a dark block gliding at the same constant speed across black and white stripes. When the dark block's front and back edges lie on black stripes, their contrast is low and it seems to hesitate. A moment later they lie on white stripes and it seems to hurry. The light block does the opposite, so the two appear to take turns, like feet.</p>
+<p>Each block is exactly as wide as two pairs of stripes, so its two edges are always on the same kind of stripe. Fade the stripes and both blocks glide together, which they were doing all along.</p>
+
+<div class="example" data-h="340" data-title="IL3.5 Two blocks at one constant speed">
+<script type="text/plain">
+const contrast = ui.slider('stripe contrast', 0, 1, 1, 0.01);
+const STRIPE = 14;
+
+loop((t) => {
+  const k = contrast();
+  for (let i = 0; i * STRIPE < W; i++) {
+    ctx.fillStyle = PA.hsl(0, 0, i % 2 ? 50 + 50 * k : 50 - 50 * k);
+    ctx.fillRect(i * STRIPE, 0, STRIPE, H);
+  }
+  const x = 30 + (t * 24) % (W - 140);                 // one position, one speed, for both blocks
+  ctx.fillStyle = '#f2e94e';
+  ctx.fillRect(x, 90, STRIPE * 4, 50);
+  ctx.fillStyle = '#16205e';
+  ctx.fillRect(x, 200, STRIPE * 4, 50);
+});
+</script>
+</div>
+
+<h2>Motion in the wrong direction</h2>
+<p>Show a pattern, then show it again shifted slightly to the right, and it is seen to step to the right. This is how film and screens produce movement. In "Phi Movement as a Subtraction Process" (Vision Research, 1970) Stuart Anstis reported what happens if the second picture is also a negative of the first, with light and dark exchanged: the step is seen to go to the <em>left</em>. The effect is called reversed phi. It is evidence that the earliest motion detectors multiply the signals they compare, so that a reversal of sign in one of them reverses the answer.</p>
+<p>The strip below is a random pattern of bars that is moved a short step to the right, again and again. With the second control on, the pattern is also turned into its negative at each step. <strong>This example flickers while it plays.</strong> It starts paused.</p>
+
+<div class="example" data-h="300" data-title="IL3.6 Stepping right, seen going left (press play)">
+<script type="text/plain">
+const rate = ui.slider('steps per second', 2, 10, 6, 1);
+const negative = ui.slider('swap light and dark at every step', 0, 1, 1, 1);
+let playing = false, step = 0, last = 0;
+ui.button('play / pause', () => { playing = !playing; });
+
+const R = PA.rng('phi'), COLS = 210, pattern = [];
+while (pattern.length < COLS) {                        // random bars, each three columns (6 pixels) wide
+  const light = R.chance();
+  pattern.push(light, light, light);
+}
+
+loop((t) => {
+  if (playing && t - last > 1 / rate()) { last = t; step++; }
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, W, H);
+  for (let c = 0; c < COLS; c++) {
+    let light = pattern[((c - step) % COLS + COLS) % COLS];      // the pattern is one column (2 pixels) further right at each step
+    if (negative() && step % 2) light = !light;
+    ctx.fillStyle = light ? '#a8a8a8' : '#585858';
+    ctx.fillRect(90 + c * 2, 60, 2, 150);
+  }
+  ctx.fillStyle = '#fff'; ctx.font = '13px sans-serif';
+  ctx.fillText('Every step moves the pattern 2 pixels to the right.   Steps so far: ' + step, 90, 250);
+});
+</script>
+</div>
+
+<h2>More to explore</h2>
+<table>
+  <thead><tr><th>Effect</th><th>What happens</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>Motion aftereffect</td><td>After watching steady movement for half a minute, a still scene appears to drift the other way. Known since antiquity as the waterfall illusion.</td><td>Any textbook of perception</td></tr>
+    <tr><td>Motion-induced blindness</td><td>Small bright dots in plain view vanish for seconds at a time when a pattern moves around them.</td><td>Bonneh, Cooperman and Sagi, "Motion-Induced Blindness in Normal Observers", Nature, 2001</td></tr>
+    <tr><td>Kinetic depth</td><td>Flat dots that move as if on a turning object are seen as a solid.</td><td>Illusions 4</td></tr>
+  </tbody>
+</table>
+<p>For design, the lesson of this page is that movement is cheap to suggest and hard to control. A background pattern with repeated asymmetric steps of contrast will shimmer on a page whether or not you intended it, and people who are sensitive to it will not thank you. Use these effects as the subject of a piece, where the viewer has chosen to look, and keep them out of anything people must read.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Motion is computed from local comparisons across space and time, so timing differences and small windows both produce errors.</li>
+  <li>Four flat steps in the order black, dark, white, light, repeated, make a still pattern drift in that direction when seen away from the centre of gaze.</li>
+  <li>Wrapping any steadily rising quantity into those four steps turns a field into apparent flow.</li>
+  <li>An edge seen through a small window shows only movement at right angles to itself. Tilted elements turn a real expansion into an apparent rotation.</li>
+  <li>The same stripes seem to move along whatever window they are seen through.</li>
+  <li>Low contrast looks slower. A pattern that turns negative as it steps appears to go backwards.</li>
+  <li>The control for a drift illusion is a symmetric order of steps.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Drift patterns drawn too small. Each set of four steps should be large enough to see clearly, and the picture should fill much of the screen.</li>
+  <li>Smooth gradients or blurred steps. The steps should be flat with sharp edges between them.</li>
+  <li>Staring fixedly at the centre of a drift pattern and seeing nothing. Look to one side, and let your eyes move.</li>
+  <li>Assuming everyone sees what you see. Test on several people, and say in the caption what to look for.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Illusions challenge 3</p>
+  <h2>A Still Image That Moves</h2>
+  <p>Design a poster that is a single still image and appears to move: to flow, turn, breathe or ripple. The movement should suit the subject, and the piece should include its own control.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>field you designed</strong> that says where the apparent motion goes: a flow field, a set of centres, a function of position.</li>
+    <li>The <strong>four-step order</strong> laid along that field, at a scale you chose by testing, not by guessing.</li>
+    <li>At least <strong>two regions that appear to move differently</strong>: opposite directions, or one moving against one that is still.</li>
+    <li>A <strong>control version</strong> at the press of a key: the same picture with a symmetric order, in which the motion stops.</li>
+    <li>A <strong>seed</strong>, and export as a PNG at a size large enough to fill a screen.</li>
+    <li>A caption saying how to look at it.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Try each band width at full-screen size before settling. A width that works at 600 pixels may do nothing at 2000.</li>
+    <li>Where your field changes slowly the bands spread out. Divide by the steepness of the field to keep them even, or choose a field that rises steadily.</li>
+    <li>A still region next to a drifting one makes the drift easier to see.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Take the colours from an image, as the SIGGRAPH paper does, keeping the brightness order of the four steps.</li>
+    <li>Add a real, very slow change of scale and compare what is seen with the still version.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Three people asked "is this an animation?" hesitate before answering.</li>
+    <li>They can say which parts move which way, and their answers match your field.</li>
+  </ul>
+  <a class="start" href="../challenges/il3-still-image-that-moves.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Alex Fraser and Kimerly Wilcox, “Perception of Illusory Movement”, Nature, 1979. <span class="why">The first report of peripheral drift.</span></li>
+    <li>Akiyoshi Kitaoka and Hiroshi Ashida, “<a href="https://www.psy.ritsumei.ac.jp/akitaoka/PDrift.pdf">Phenomenal Characteristics of the Peripheral Drift Illusion</a>”, Vision, 2003. <span class="why">The four-step order that makes it strong.</span></li>
+    <li>Bevil Conway and four co-authors, “Neural Basis for a Powerful Static Motion Illusion”, Journal of Neuroscience, 2005. <span class="why">Recordings from motion-sensitive cells.</span></li>
+    <li>Ming-Te Chi, Tong-Yee Lee, Yingge Qu and Tien-Tsin Wong, “<a href="https://cgvsl-ncku.github.io/SAI/">Self-Animating Images: Illusory Motion Using Repeated Asymmetric Patterns</a>”, SIGGRAPH 2008. <span class="why">A generator of drifting pictures.</span></li>
+    <li>Baingio Pinna and Gavin Brelstaff, “<a href="https://doi.org/10.1016/S0042-6989(00)00072-9">A New Visual Illusion of Relative Motion</a>”, Vision Research, 2000. <span class="why">The rings that turn as you approach.</span></li>
+    <li>Yair Weiss, Eero Simoncelli and Edward Adelson, “<a href="https://doi.org/10.1038/nn858">Motion Illusions as Optimal Percepts</a>”, Nature Neuroscience, 2002. <span class="why">Motion illusions as the best guess from uncertain evidence.</span></li>
+    <li>Stuart Anstis, “Phi Movement as a Subtraction Process”, Vision Research, 1970. <span class="why">Reversed phi.</span></li>
+    <li>Stuart Anstis, “Moving Objects Appear to Slow Down at Low Contrasts”, Neural Networks, 2003. <span class="why">The footsteps illusion.</span></li>
+    <li>Akiyoshi Kitaoka, <a href="https://www.psy.ritsumei.ac.jp/akitaoka/index-e.html"><cite>Akiyoshi's Illusion Pages</cite></a>. <span class="why">Hundreds of drift illusions by the leading designer of them.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="02-geometry-and-shape.html">← Illusions 2</a><a href="04-depth-and-hidden-pictures.html">Illusions 4: Depth and Hidden Pictures →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

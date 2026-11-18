@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Textures 2 · Materials from Noise</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-patterns-from-coordinates.html">← Textures 1</a><span>Textures 2 of 4</span><a href="03-grown-and-borrowed.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Textures 2</p>
+  <h1>Materials from Noise</h1>
+  <p class="lede">Regular patterns look manufactured. Stone, wood, rust and cloud are irregular, but not random: they have a characteristic size, direction and roughness. This lesson turns the noise of Lesson 3 into those materials, adds a second kind of noise made of cells, and shows how layers and masks age a surface.</p>
+</header>
+
+<h2>Where this comes from</h2>
+<p>Ken Perlin introduced noise as a texturing tool in "An Image Synthesizer" (SIGGRAPH 1985), with marble, fire and clouds as his examples, and revised the function in "Improving Noise" (SIGGRAPH 2002). The noise in <code>PA.noise</code> is that revised version. Steven Worley added the cell-based kind in "A Cellular Texture Basis Function" (SIGGRAPH 1996). Almost every procedural material since is some combination of the two. If you want the whole family in one place, read "A Survey of Procedural Noise Functions" by Lagae and others (Computer Graphics Forum, 2010).</p>
+<p>The recipe for a material is nearly always the same four steps:</p>
+<ol>
+  <li><strong>A basis:</strong> gradient noise, cell noise, or a regular pattern from Textures 1.</li>
+  <li><strong>A way of adding octaves:</strong> how the fine detail is stacked on the coarse.</li>
+  <li><strong>A distortion:</strong> stretching, warping or wrapping the coordinates before sampling.</li>
+  <li><strong>A colour ramp:</strong> the lookup that turns one number into a colour.</li>
+</ol>
+
+<h2>Four ways to stack octaves</h2>
+<p>Lesson 3 added octaves of noise directly, which is called fBm and gives soft, cloudy shapes. Changing what is done to each octave <em>before</em> it is added changes the character completely. Noise is taken here as a value from −1 to 1.</p>
+<dl class="vocab">
+  <dt>fBm</dt><dd>Add the octaves as they are. Soft hills, clouds, stains.</dd>
+  <dt>Turbulence</dt><dd>Add the absolute value of each octave. Every place where the noise crossed zero becomes a sharp crease. Perlin used it for marble veins and fire.</dd>
+  <dt>Ridged</dt><dd>One minus the absolute value, squared. The creases turn upward into sharp ridges: mountain ranges, lightning, cracks.</dd>
+  <dt>Warped</dt><dd>fBm sampled at a position that has been pushed around by more fBm (Lesson 3). Folded, flowing shapes: agate, smoke, oil on water.</dd>
+</dl>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX2.1 fBm, turbulence, ridged, warped">
+<script type="text/plain">
+const N = PA.noise('octaves');
+const scale = ui.slider('scale', 1, 8, 3, 0.1);
+const img = ctx.createImageData(W, H);
+
+// Add five octaves, passing each one through `shape` first.
+function stack(x, y, shape) {
+  let sum = 0, amp = 0.5, total = 0;
+  for (let o = 0; o < 5; o++) {
+    const n = N.get(x, y, o * 9.1) * 2 - 1;            // this octave, from -1 to 1
+    sum += amp * shape(n);
+    total += amp;
+    x *= 2; y *= 2; amp *= 0.5;                        // the next octave: twice as fine, half as strong
+  }
+  return sum / total;
+}
+const fbm = (x, y) => stack(x, y, (n) => n * 0.5 + 0.5);
+const turbulence = (x, y) => stack(x, y, (n) => Math.abs(n)) * 2.2;
+const ridged = (x, y) => stack(x, y, (n) => (1 - Math.abs(n)) ** 2);
+const warped = (x, y) => fbm(x + 3 * fbm(x + 1.7, y + 9.2), y + 3 * fbm(x + 8.3, y + 2.8));
+
+function draw() {
+  const half = W / 2, s = scale();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const px = (x % half) / half * s, py = (y % half) / half * s;
+      const f = y < half ? (x < half ? fbm : turbulence) : (x < half ? ridged : warped);
+      const g = PA.clamp(f(px, py)) * 255, k = (y * W + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = g;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.font = '11px sans-serif';
+  [['fBm', 0, 0], ['turbulence', 1, 0], ['ridged', 0, 1], ['warped', 1, 1]].forEach(([label, i, j]) => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(i * half + 4, j * half + 4, ctx.measureText(label).width + 10, 17);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, i * half + 9, j * half + 16);
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>The colour ramp</h2>
+<p>A noise function returns one number. A material needs colours. The link is a <strong>ramp</strong>: a short list of positions from 0 to 1, each with a colour, and a function that finds the two entries either side of your number and blends between them (Maths 1). Node-based material tools call this a colour ramp or gradient map.</p>
+<p>The ramp carries a surprising share of the result. Below, one field of warped noise is passed through four ramps. Nothing else differs between the quarters. Where two stops are close together the ramp makes an edge, and where they are far apart it makes a soft blend, so the ramp decides not only the colours but how hard the shapes look.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX2.2 One noise field, four ramps">
+<script type="text/plain">
+const N = PA.noise('ramp');
+const scale = ui.slider('scale', 1, 6, 2.4, 0.1);
+const img = ctx.createImageData(W, H);
+
+// A ramp is a list of [position, [r, g, b]] in rising order of position.
+function ramp(stops, t) {
+  if (t <= stops[0][0]) return stops[0][1];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, a] = stops[i - 1], [t1, b] = stops[i];
+      const f = (t - t0) / (t1 - t0);
+      return [PA.lerp(a[0], b[0], f), PA.lerp(a[1], b[1], f), PA.lerp(a[2], b[2], f)];
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+const ramps = [
+  [[0.30, [70, 130, 200]], [0.55, [150, 190, 230]], [0.70, [255, 255, 255]]],                              // sky
+  [[0.25, [10, 4, 4]], [0.45, [150, 20, 10]], [0.60, [240, 120, 20]], [0.72, [255, 230, 120]], [0.85, [255, 255, 240]]],   // lava
+  [[0.40, [60, 70, 40]], [0.41, [110, 100, 60]], [0.52, [110, 100, 60]], [0.53, [40, 45, 30]], [0.62, [40, 45, 30]], [0.63, [150, 140, 100]]],   // camouflage: stops close together make hard edges
+  [[0.30, [40, 60, 70]], [0.45, [120, 190, 170]], [0.50, [230, 240, 220]], [0.55, [190, 120, 80]], [0.75, [70, 40, 50]]],  // agate
+];
+
+function draw() {
+  const half = W / 2, s = scale();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const px = (x % half) / half * s, py = (y % half) / half * s;
+      const q = N.fbm(px + 4.1, py + 1.3), r = N.fbm(px + 9.7, py + 6.1);
+      const t = N.fbm(px + 2.5 * q, py + 2.5 * r, { octaves: 5 });       // the same warped field in every quarter
+      const c = ramp(ramps[(y < half ? 0 : 2) + (x < half ? 0 : 1)], t), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Structure plus noise: a plank floor</h2>
+<p>Most real materials are a regular structure with irregular detail inside it. A floor is a grid of planks (Textures 1) in which every plank is a different piece of tree. The hash of the plank's cell number supplies what makes it different: its tone, where the tree's centre lay, and which part of the noise it samples.</p>
+<p>The grain itself is rings: the distance from a line, wrapped by <code>fract</code>. The line wanders because the distance has slow noise added to it, sampled with a much lower frequency along the plank than across it. Stretching noise like this is how you give a texture a direction.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX2.3 A plank floor">
+<script type="text/plain">
+const N = PA.noise('floor');
+const rings = ui.slider('ring density', 40, 300, 150, 1);
+const vary = ui.slider('plank variation', 0, 0.8, 0.35, 0.05);
+const img = ctx.createImageData(W, H);
+const PW = 1 / 6, PL = 0.85;                           // plank width and length, in texture units
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+function texture(u, v) {
+  const col = Math.floor(u / PW);
+  const start = hash(col, 7);                          // each strip of planks begins at its own offset
+  const row = Math.floor(v / PL + start);
+  const fu = PA.fract(u / PW), fv = PA.fract(v / PL + start);
+  const r = hash(col, row), r2 = hash(col + 31, row);  // two random numbers for this plank
+  const edge = Math.min(Math.min(fu, 1 - fu) * PW, Math.min(fv, 1 - fv) * PL);
+  if (edge < 0.0025) return [38, 24, 14];              // the gap between planks
+
+  const along = v * 2 + r * 40;                        // position along the plank; r moves each plank to its own part of the noise
+  const across = (fu - 0.5 + (r2 - 0.5) * 2.5) * PW;   // distance from where the tree's centre was
+  const wander = N.fbm(across * 8 + r * 9, along) - 0.5;          // slow along the plank, quick across it
+  const ring = PA.fract((Math.abs(across) + wander * 0.05) * rings());
+  const dark = PA.smoothstep(0.55, 0.95, ring) * (1 - PA.smoothstep(0.95, 1, ring));   // a dark band late in every ring
+  const fibre = N.get(u * 260, along * 1.2) - 0.5;     // fine streaks
+  const tone = 1 + (r - 0.5) * vary();
+  const k = tone * (1 - dark * 0.35 + fibre * 0.12);
+  return [186 * k, 136 * k, 84 * k];
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x / W, y / H), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Cell noise</h2>
+<p>Gradient noise is smooth everywhere, so it cannot make things with edges: pebbles, scales, cracks, foam. Worley's noise can. Scatter points across the plane. For any position, measure the distance to the nearest point, called F1, and to the second nearest, F2.</p>
+<ul>
+  <li><strong>F1</strong> is a field of dimples, dark at every point and brightest midway between them.</li>
+  <li><strong>F2 − F1</strong> is zero exactly where the two nearest points are equally far away, which is the boundary between two cells. It draws the walls.</li>
+  <li><strong>The nearest point's identity</strong>, hashed, gives each cell a flat random value.</li>
+</ul>
+<p>The scattering has to be something a function can look up without storing anything. The method is the one from Textures 1: divide the plane into grid cells and use a hash to place one point inside each. The nearest point to any position must then lie in its own grid cell or one of the eight around it, so nine distances are enough. This is the Voronoi diagram of Lesson 7, computed per pixel with no list of seeds.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX2.4 Cell noise from scratch">
+<script type="text/plain">
+const cells = ui.slider('cells', 2, 12, 5, 1);
+const img = ctx.createImageData(W, H);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// Returns [F1, F2, id]: distance to the nearest point, to the second nearest, and a random number for the nearest.
+function worley(x, y) {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9, id = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;                          // one of the nine grid cells around this position
+      const px = gx + hash(gx, gy), py = gy + hash(gy + 57, gx + 13);   // that cell's point
+      const d = Math.hypot(x - px, y - py);
+      if (d < f1) { f2 = f1; f1 = d; id = hash(gx + 5, gy + 9); }
+      else if (d < f2) f2 = d;
+    }
+  }
+  return [f1, f2, id];
+}
+
+function draw() {
+  const half = W / 2, n = cells();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const [f1, f2, id] = worley((x % half) / half * n, (y % half) / half * n);
+      const which = (y < half ? 0 : 2) + (x < half ? 0 : 1);
+      const g = [f1, 1 - f1, (f2 - f1) * 1.6, id][which];
+      const k = (y * W + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = PA.clamp(g) * 255;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.font = '11px sans-serif';
+  [['F1', 0, 0], ['1 − F1', 1, 0], ['F2 − F1', 0, 1], ['id of nearest', 1, 1]].forEach(([label, i, j]) => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(i * half + 4, j * half + 4, ctx.measureText(label).width + 10, 17);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, i * half + 9, j * half + 16);
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Materials from cells</h2>
+<p>Those three outputs are enough for a family of materials. The differences between the three below are small, and each is one decision.</p>
+<ul>
+  <li><strong>Cobbles:</strong> F2 − F1 as a height. Low values are the dark joints. The identity tints each stone. A little noise roughens the tops.</li>
+  <li><strong>Dried mud:</strong> the same field, but only a thin band near zero is drawn, as cracks. The position is warped with noise first, so the cracks wander instead of running straight.</li>
+  <li><strong>Scales:</strong> F1 from a nearly regular arrangement of points, shaded from one side so that each cell looks domed.</li>
+</ul>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX2.5 Cobbles, dried mud, scales">
+<script type="text/plain">
+const N = PA.noise('cells');
+const kind = ui.slider('material', 0, 2, 0, 1);
+const cells = ui.slider('cells', 4, 16, 8, 1);
+const img = ctx.createImageData(W, H);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// `jitter` is how far a point may stray from the middle of its grid cell: 1 is fully random, 0 is a regular grid.
+function worley(x, y, jitter) {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9, id = 0, nx = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;
+      const px = gx + 0.5 + (hash(gx, gy) - 0.5) * jitter, py = gy + 0.5 + (hash(gy + 57, gx + 13) - 0.5) * jitter;
+      const d = Math.hypot(x - px, y - py);
+      if (d < f1) { f2 = f1; f1 = d; id = hash(gx + 5, gy + 9); nx = x - px; }
+      else if (d < f2) f2 = d;
+    }
+  }
+  return [f1, f2, id, nx];
+}
+
+function texture(u, v) {
+  const n = cells(), x = u * n, y = v * n;
+  if (kind() === 0) {                                          // cobbles
+    const [f1, f2, id] = worley(x, y, 0.9);
+    const top = PA.smoothstep(0.03, 0.3, f2 - f1);             // 0 in the joints, 1 on top of a stone
+    const rough = 0.85 + N.fbm(u * 30, v * 30) * 0.3;
+    const k = (0.25 + 0.75 * top) * rough * (0.8 + id * 0.4);
+    return [150 * k, 146 * k, 138 * k];
+  }
+  if (kind() === 1) {                                          // dried mud
+    const wx = x + (N.fbm(u * 6, v * 6) - 0.5) * 1.2, wy = y + (N.fbm(u * 6 + 40, v * 6) - 0.5) * 1.2;
+    const [f1, f2, id] = worley(wx, wy, 1);
+    const crack = 1 - PA.smoothstep(0.0, 0.07, f2 - f1);       // 1 only in a thin band along the cell walls
+    const k = (0.9 + id * 0.15 + N.fbm(u * 40, v * 40) * 0.15) * (1 - crack * 0.8);
+    return [176 * k, 140 * k, 100 * k];
+  }
+  const [f1, , id, nx] = worley(x, y * 1.4, 0.25);             // scales: almost regular, squashed, lit from the left
+  const dome = 1 - PA.smoothstep(0.0, 0.62, f1);
+  const k = 0.25 + dome * (0.6 - nx * 0.6);
+  return [(40 + id * 30) * k, (150 + id * 50) * k, (120 + id * 40) * k];
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x / W, y / H), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Masks and layers: ageing a surface</h2>
+<p>A new surface is one material. A used surface is several, each showing through the one above where it has worn away. The tool for this is a <strong>mask</strong>: a field from 0 to 1 that says how much of the upper layer remains at each point. The final colour is a blend of the layers by their masks.</p>
+<p>What makes weathering convincing is that the mask is not arbitrary. Rust starts where water sits and runs downward from there, so its mask is noise stretched vertically. Paint lifts at the edge of rust before it falls away, so there is a pale ring of primer just outside the mask's edge. And one number, the age, moves the threshold so that the same noise gives a new panel, a tired one and a ruin.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX2.6 Painted metal, by age">
+<script type="text/plain">
+const N = PA.noise('rust');
+const age = ui.slider('age', 0, 1, 0.45, 0.01);
+const img = ctx.createImageData(W, H);
+const blend = (a, b, t) => [PA.lerp(a[0], b[0], t), PA.lerp(a[1], b[1], t), PA.lerp(a[2], b[2], t)];
+
+function texture(u, v) {
+  // Layer 1: paint. Nearly flat, with faint brush streaks across it.
+  const streak = N.get(u * 4, v * 90) - 0.5;
+  const paint = [38 + streak * 14, 112 + streak * 18, 128 + streak * 18];
+
+  // Layer 2: rust. Blotchy, in two tones.
+  const blotch = N.fbm(u * 14, v * 14, { octaves: 5 });
+  const rust = blend([96, 44, 20], [186, 104, 42], PA.smoothstep(0.35, 0.65, blotch));
+
+  // The mask: where the paint has gone. Patches, plus streaks that run downward.
+  const patch = N.fbm(u * 3.5 + 7, v * 3.5, { octaves: 5 });
+  const run = N.fbm(u * 16 + 3, v * 1.2, { octaves: 3 });
+  const wear = patch * 0.7 + run * 0.3;                // from 0 to 1; high values rust first
+  const level = 0.78 - age() * 0.5;                    // ageing lowers the level at which paint fails
+  const gone = PA.smoothstep(level, level + 0.03, wear);
+
+  // Just outside the bare patch the paint has lifted and shows pale primer.
+  const lifted = PA.smoothstep(level - 0.035, level, wear) * (1 - gone);
+
+  let c = blend(paint, [196, 196, 184], lifted * 0.8);
+  c = blend(c, rust, gone);
+  const stain = PA.smoothstep(level - 0.2, level, wear) * (1 - gone) * 0.25;      // a brown wash around older damage
+  return blend(c, [110, 70, 40], stain);
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x / W, y / H), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Drag the age slider slowly. The rust does not fade in evenly. It appears first in a few places and spreads from them, because ageing moves a threshold across a fixed field. This is the same idea as the terrain bands of Lesson 3, and it is why a well-built material has a small number of meaningful sliders.</p>
+
+<h2>A working method</h2>
+<ol>
+  <li><strong>Look at the real thing first</strong>, and write down what you see as a list: its structure, its sizes, its direction, what varies from piece to piece, what happens at edges.</li>
+  <li><strong>Build in grey.</strong> Get one number per point right before choosing any colours.</li>
+  <li><strong>Work from large to small.</strong> The big shapes first, then medium variation, then fine grit. If the big shapes are wrong, no amount of detail will rescue the material.</li>
+  <li><strong>Give each kind of variation its own noise.</strong> Tone, wear and grit that all come from one field move together and look false. Offset the coordinates or use another seed (Lesson 3).</li>
+  <li><strong>Name the sliders after the material</strong>, not the maths: age, moisture, plank width. That is what makes a generator into a tool (Special Topic 2).</li>
+</ol>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A material is a basis, a way of stacking octaves, a distortion and a colour ramp.</li>
+  <li>Absolute values of noise make creases (turbulence). Inverted, they make ridges.</li>
+  <li>A ramp turns one number into a colour, and its spacing decides how hard the shapes are.</li>
+  <li>Stretching the coordinates gives a texture a direction.</li>
+  <li>Cell noise gives edges: F1 for dimples, F2 − F1 for walls, the nearest point's identity for flat cells.</li>
+  <li>Layers blended by masks age a surface. One threshold moved across a fixed field gives a believable history.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Detail at one scale only. If a material looks like plastic, it is usually missing either the largest or the smallest scale of variation.</li>
+  <li>Too much contrast. Real surfaces vary by a few percent in tone. Halve the amount you first try.</li>
+  <li>Searching more than nine cells for cell noise, or fewer. With one point per cell, the eight neighbours are exactly enough for F1. F2 can occasionally be wrong at high jitter, which shows as a rare nick in a cell wall.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Textures challenge 2</p>
+  <h2>A Material Board</h2>
+  <p>Build three materials that could sit next to each other in one room or one landscape, and show them as a designer's material board: three large swatches with their names.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Three materials, each from a written description of a real surface that you observed. Put the description in a comment above the function.</li>
+    <li>At least one uses <strong>gradient noise</strong> with turbulence or ridges, one uses <strong>cell noise</strong>, and one has a <strong>regular structure</strong> with noise inside it.</li>
+    <li>Every material uses a <strong>colour ramp</strong> with at least three stops.</li>
+    <li>One material has an <strong>age</strong> or <strong>wear</strong> control built from at least two layers and a mask.</li>
+    <li>Each material has at least two named parameters, and stays believable across their whole range.</li>
+    <li>A fixed seed gives the same board every time. A different seed gives a different piece of the same material, not a different material.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Photograph the surface, convert the photograph to grey, and compare it with your grey version before adding colour.</li>
+    <li>Take ramp colours from the photograph with a colour picker. Guessed colours are usually too saturated.</li>
+    <li>To check a parameter's range, draw a strip of five swatches from its lowest to its highest value.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Make one material change along the swatch: dry at the top, wet at the bottom.</li>
+    <li>Write a second seed's worth of each and check that a stranger would say "same material".</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone can name all three materials without being told.</li>
+    <li>You can say which line of code is responsible for each thing they noticed.</li>
+  </ul>
+  <a class="start" href="../challenges/tx2-material-board.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Ken Perlin, “An Image Synthesizer”, SIGGRAPH 1985. <span class="why">Noise, turbulence and marble, from their inventor.</span></li>
+    <li>Ken Perlin, “Improving Noise”, SIGGRAPH 2002. <span class="why">The revised noise function.</span></li>
+    <li>Steven Worley, “A Cellular Texture Basis Function”, SIGGRAPH 1996. <span class="why">Cell noise.</span></li>
+    <li>Ares Lagae and eight co-authors, “<a href="https://doi.org/10.1111/j.1467-8659.2010.01827.x">A Survey of Procedural Noise Functions</a>”, Computer Graphics Forum, 2010. <span class="why">A comparison of every noise function.</span></li>
+    <li>David Ebert, F. Kenton Musgrave, Darwyn Peachey, Ken Perlin and Steven Worley, <cite>Texturing and Modeling: A Procedural Approach</cite>, 3rd edition, Morgan Kaufmann, 2003. <span class="why">Chapters by Perlin, Worley and Musgrave on building materials from noise.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/fbm/"><cite>fBM</cite></a>. <span class="why">Octaves and what their parameters do.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/warp/"><cite>Domain Warping</cite></a>. <span class="why">Warped noise for marble and smoke.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="01-patterns-from-coordinates.html">← Textures 1</a><a href="03-grown-and-borrowed.html">Textures 3: Grown and Borrowed Textures →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

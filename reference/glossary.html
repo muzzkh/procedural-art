@@ -14,7 +14,7 @@
 <header>
   <p class="kicker">Reference</p>
   <h1>Glossary</h1>
-  <p class="lede">The terms used in this course, in plain words, with the place each is introduced. L is a lesson, M a maths page, S a special topic, P a 3D printing lesson, T three.js, B Blender, W web design.</p>
+  <p class="lede">The terms used in this course, in plain words, with the place each is introduced. L is a lesson, M a maths page, TX a textures lesson, SH a shaders lesson, IL an illusions lesson, S a special topic, P a 3D printing lesson, T three.js, B Blender, W web design.</p>
 </header>
 
 <h2>A to C</h2>
@@ -22,24 +22,35 @@
   <dt>Acceleration</dt><dd>How much velocity changes each step. Forces act here. <small>L5</small></dd>
   <dt>Add-on</dt><dd>A Python package that adds tools to Blender's interface. <small>B4</small></dd>
   <dt>Additive blending</dt><dd>Overlapping colours add their brightness, like light. <small>L4, T2</small></dd>
+  <dt>Albedo</dt><dd>The colour of a surface itself, with no light or shadow in it. Also called base colour. <small>TX4</small></dd>
   <dt>Algorithm</dt><dd>A precise, step-by-step procedure for doing something.</dd>
+  <dt>Aliasing</dt><dd>False patterns that appear when detail finer than two pixels is sampled once per pixel. <small>TX1, SH1</small></dd>
+  <dt>Ambient occlusion</dt><dd>The darkening of creases and hollows, where light from all around cannot easily reach. <small>TX4, SH3</small></dd>
   <dt>Amplitude</dt><dd>How far a wave swings from its centre. <small>L4</small></dd>
   <dt>Analyser</dt><dd>A Web Audio node that reports how loud a sound is in each band of pitch. <small>S1</small></dd>
+  <dt>Anisotropy</dt><dd>Behaving differently in different directions, such as diffusion that is faster one way. <small>TX3</small></dd>
+  <dt>Aperture problem</dt><dd>Through a small window, a moving edge shows only the motion at right angles to itself. <small>IL3</small></dd>
   <dt>Arc length</dt><dd>Distance measured along a curve, used to space things evenly on a path. <small>M3</small></dd>
+  <dt>Assimilation</dt><dd>A patch taking on some of the colour of thin stripes that cross it. The opposite of contrast. <small>IL1</small></dd>
   <dt>Attract mode</dt><dd>What an interactive piece does when nobody is touching it. <small>S1</small></dd>
   <dt>Attractor</dt><dd>A point that pulls particles toward it. Also the shape a chaotic system settles onto. <small>L5, M4</small></dd>
+  <dt>Autostereogram</dt><dd>A single picture that gives each eye a different view when you look through it, so that depth appears. <small>IL4</small></dd>
   <dt>Barycentric coordinates</dt><dd>Weights that add up to 1, giving a position inside a triangle as a blend of its corners. <small>M6</small></dd>
   <dt>Basis</dt><dd>The set of arrows a coordinate system is built from. Any two that are not along the same line give a grid. <small>M6</small></dd>
   <dt>Bézier curve</dt><dd>A smooth curve defined by control points, built from repeated interpolation. <small>M5</small></dd>
   <dt>Bleed</dt><dd>Artwork extended past the trim line so that a print can run to the edge. <small>S3</small></dd>
   <dt>Boids</dt><dd>Craig Reynolds's flocking model: separation, alignment and cohesion. <small>L8</small></dd>
   <dt>Buffer geometry</dt><dd>In three.js, a shape stored as arrays of per-vertex numbers. <small>T2</small></dd>
+  <dt>Café wall illusion</dt><dd>Parallel mortar lines between shifted rows of dark and light tiles look tilted. <small>IL2</small></dd>
+  <dt>Cell noise</dt><dd>Noise built from the distance to the nearest scattered points. Also called Worley noise. <small>TX2, SH2</small></dd>
   <dt>Cellular automaton</dt><dd>A grid of cells, each updated from its neighbours by a fixed rule. <small>L8</small></dd>
   <dt>Chroma</dt><dd>How colourful a colour is, in OKLCH. Zero is grey. <small>L11</small></dd>
+  <dt>Chromatic aberration</dt><dd>Colour fringes from reading the red and blue channels at slightly different positions. <small>SH4</small></dd>
   <dt>Circle packing</dt><dd>Filling an area with circles that do not overlap. <small>L7</small></dd>
   <dt>Clamp</dt><dd>Limit a value to a range. <small>L1</small></dd>
   <dt>Clipping</dt><dd>Cutting geometry at a boundary and keeping the inside part. <small>L18</small></dd>
   <dt>Collapse</dt><dd>In Wave Function Collapse, fixing a cell to one tile. <small>L14</small></dd>
+  <dt>Colour ramp</dt><dd>A list of positions and colours that turns one number into a colour. <small>TX2</small></dd>
   <dt>Complex number</dt><dd>A point on the plane written as one number. Multiplying two rotates and scales. <small>M2</small></dd>
   <dt>Compositing mode</dt><dd>The rule by which new drawing combines with what is already on the canvas. <small>L10, W1</small></dd>
   <dt>Constraint</dt><dd>A rule that must hold: in a design, a margin or minimum size; in physics, a condition enforced by moving points. <small>L10, L17</small></dd>
@@ -47,6 +58,7 @@
   <dt>Contradiction</dt><dd>In Wave Function Collapse, a cell left with no possible tile. <small>L14</small></dd>
   <dt>Contrast ratio</dt><dd>A measure from 1 to 21 of how different two colours are in lightness. <small>L11</small></dd>
   <dt>Corner pin</dt><dd>Warping an image by dragging its four corners, used in projection mapping. <small>S5</small></dd>
+  <dt>Cornsweet effect</dt><dd>Two equal areas look different because of the shape of the edge between them. <small>IL1</small></dd>
   <dt>Cosine palette</dt><dd>A smooth colour ramp made from three out-of-phase cosine waves. <small>L9</small></dd>
   <dt>Curl noise</dt><dd>A flow field that follows the contours of noise, so nothing converges or spreads. <small>L5</small></dd>
   <dt>Curvature</dt><dd>How sharply a curve is turning at a point. <small>M3</small></dd>
@@ -56,13 +68,16 @@
 <dl class="vocab">
   <dt>Delaunay triangulation</dt><dd>A way of joining points into triangles that avoids thin slivers. The partner of the Voronoi diagram. <small>L18</small></dd>
   <dt>Derivative</dt><dd>The rate at which something changes: its slope. <small>M3</small></dd>
+  <dt>Design gallery</dt><dd>A page of results chosen to look as different from each other as possible, shown in place of sliders. <small>S10</small></dd>
   <dt>Determinant</dt><dd>One number for a matrix: the factor by which it changes area. Negative means mirrored, zero means collapsed. <small>M6</small></dd>
   <dt>Deterministic</dt><dd>Giving the same result every time for the same inputs. <small>L1, L2</small></dd>
   <dt>Differential equation</dt><dd>A rule for how something changes, solved by stepping forward in time. <small>M4</small></dd>
   <dt>Differential growth</dt><dd>A line that keeps lengthening but cannot cross itself, and so folds. <small>L16</small></dd>
+  <dt>Diffuse light</dt><dd>The matt part of shading: brightest where the surface faces the light. <small>TX4, SH3</small></dd>
   <dt>Diffusion-limited aggregation</dt><dd>Growth by random walkers that stick where they touch a cluster. <small>L16</small></dd>
   <dt>Distribution</dt><dd>The pattern of how often random values fall where: uniform, bell-shaped, biased. <small>L2</small></dd>
   <dt>Dithering</dt><dd>Representing shades of grey with only black and white pixels. <small>L13</small></dd>
+  <dt>Domain randomisation</dt><dd>Varying everything that should not matter in synthetic training images, so that a model learns only what does. <small>S2, S10</small></dd>
   <dt>Domain warping</dt><dd>Distorting the input of a function, often noise with more noise. <small>L3</small></dd>
   <dt>Donor file</dt><dd>A sliced file from which the printer's start and end G-code are taken. <small>P5</small></dd>
   <dt>Dot product</dt><dd>One number measuring how much two directions agree. <small>M2</small></dd>
@@ -74,11 +89,14 @@
   <dt>Emergence</dt><dd>Large-scale structure arising from simple local rules. <small>L8</small></dd>
   <dt>Entropy</dt><dd>In Wave Function Collapse, how many options a cell still has. <small>L14</small></dd>
   <dt>Envelope</dt><dd>The shape of a note's loudness over time. <small>S4</small></dd>
+  <dt>Erosion (simulated)</dt><dd>Carving a generated terrain by simulating water carrying soil downhill. <small>S10</small></dd>
   <dt>Euclidean rhythm</dt><dd>A number of hits spread as evenly as possible over a number of steps. <small>S4</small></dd>
   <dt>Euler integration</dt><dd>Stepping a simulation: velocity plus acceleration, position plus velocity. <small>L5, M4</small></dd>
+  <dt>Expressive range</dt><dd>The spread of outputs a generator produces, seen by measuring thousands of them on two scales. <small>S10</small></dd>
   <dt>Extension</dt><dd>Blender's packaging format for add-ons since version 4.2. <small>B4</small></dd>
   <dt>Extrusion</dt><dd>In printing, pushing plastic through the nozzle; the E value in G-code. In modelling, giving a flat shape a height. <small>P4, P2</small></dd>
   <dt>fBm</dt><dd>Fractal Brownian motion: several layers of noise at rising frequency and falling strength. <small>L3</small></dd>
+  <dt>Feedback</dt><dd>A shader reading the picture it drew on the previous frame. <small>SH4</small></dd>
   <dt>Field</dt><dd>A rule that gives a value for every point in space. <small>L1</small></dd>
   <dt>Fingerprint</dt><dd>A short number computed from data, which changes if the data changes at all. <small>S9</small></dd>
   <dt>Finite difference</dt><dd>Estimating a slope from two nearby values. <small>M3</small></dd>
@@ -88,6 +106,7 @@
   <dt>Fractal</dt><dd>A shape whose parts resemble the whole. <small>L6</small></dd>
   <dt>Fragment shader</dt><dd>A small program that computes the colour of one pixel. <small>L9</small></dd>
   <dt>Frequency</dt><dd>How fast a wave repeats, or how fine the features of noise are. In sound, pitch. <small>L3, L4, S4</small></dd>
+  <dt>fwidth</dt><dd>A GLSL function giving how much a value changes from one pixel to the next. Used for edges exactly one pixel soft. <small>SH1</small></dd>
 </dl>
 
 <h2>G to L</h2>
@@ -104,15 +123,20 @@
   <dt>Hash</dt><dd>A function that scrambles an input into an apparently random but repeatable number. <small>L2, L3</small></dd>
   <dt>Hatching</dt><dd>Shading with parallel lines. <small>L10, L18</small></dd>
   <dt>Height map</dt><dd>A grid of heights, one per point: a field treated as a surface. <small>L3, P2</small></dd>
+  <dt>Hermann grid</dt><dd>A grid of light streets on dark in which grey spots appear at the crossings. <small>IL1</small></dd>
   <dt>Hidden-line removal</dt><dd>Deleting the parts of lines that are behind nearer shapes. <small>L18</small></dd>
   <dt>Homogeneous coordinates</dt><dd>Adding a coordinate fixed at 1 so that a matrix can shift as well as rotate and scale. <small>M6</small></dd>
   <dt>HSL</dt><dd>Colour as hue, saturation and lightness. Convenient, but its lightness is not perceptual. <small>L1, L11</small></dd>
+  <dt>Hybrid image</dt><dd>The broad shapes of one picture added to the fine detail of another. Distance chooses which is seen. <small>IL4</small></dd>
+  <dt>Illusory contour</dt><dd>An edge that is seen where none is drawn, completed from aligned gaps in other shapes. <small>IL2</small></dd>
+  <dt>Impossible object</dt><dd>A drawing in which every part is a possible corner but the whole cannot exist. <small>IL4</small></dd>
   <dt>Instancing</dt><dd>Drawing many copies of one shape efficiently, each with its own placement. <small>T2, B3</small></dd>
   <dt>Integral</dt><dd>A running total: accumulation over time or distance. <small>M3</small></dd>
   <dt>Interpolation</dt><dd>Finding values between known ones. See lerp. <small>L1</small></dd>
   <dt>Inverse matrix</dt><dd>The matrix that undoes another. It turns screen positions back into grid coordinates. <small>M6</small></dd>
   <dt>Iterated function system</dt><dd>A fractal made by applying randomly chosen shrinking transformations repeatedly. <small>L6</small></dd>
   <dt>Kerf</dt><dd>The width of material removed by a laser or cutter. <small>S3</small></dd>
+  <dt>Kinetic depth effect</dt><dd>Flat dots moving as if on a turning object are seen as a solid. <small>IL4</small></dd>
   <dt>L-system</dt><dd>A grammar that rewrites a string, which a turtle then draws. <small>L6</small></dd>
   <dt>Lacunarity and gain</dt><dd>How much frequency grows and strength shrinks with each octave of fBm. <small>L3</small></dd>
   <dt>Laplacian</dt><dd>How different a cell is from the average of its neighbours. <small>L8, M4</small></dd>
@@ -130,14 +154,19 @@
 <h2>M to P</h2>
 <dl class="vocab">
   <dt>Map (range)</dt><dd>Rescale a value from one range to another. <small>L1</small></dd>
+  <dt>MAP-Elites</dt><dd>A search that keeps the best output found in every cell of a map of measurements. <small>S10</small></dd>
   <dt>Marching tetrahedra</dt><dd>An algorithm that turns a 3D distance function into triangles. <small>P3</small></dd>
   <dt>Mask</dt><dd>A shape or image that decides where something may appear. <small>L7, W1</small></dd>
   <dt>Matrix</dt><dd>A small grid of numbers describing a transformation of space. <small>M2, M6</small></dd>
   <dt>Mesh</dt><dd>A 3D shape made of triangles or other flat faces. <small>P2</small></dd>
+  <dt>Method of adjustment</dt><dd>Measuring an illusion by asking a person to adjust one thing until it matches another. <small>IL2</small></dd>
+  <dt>Mipmap</dt><dd>A stored image at full, half, quarter size and so on, each properly blurred, to avoid aliasing. <small>TX1</small></dd>
+  <dt>Mixed-initiative design</dt><dd>A tool in which a person and a generator share the work, with the tool guaranteeing the constraints. <small>S10</small></dd>
   <dt>Modifier</dt><dd>In Blender, an editable operation applied to an object's geometry. <small>B2</small></dd>
   <dt>Modulo</dt><dd>The remainder after division. Makes things wrap and repeat. <small>L1</small></dd>
   <dt>Noise</dt><dd>Smooth, repeatable randomness that depends on position. <small>L3</small></dd>
   <dt>Normal</dt><dd>The direction at right angles to a curve or surface. <small>M3</small></dd>
+  <dt>Normal map</dt><dd>A surface's facing direction at every point, packed into red, green and blue. <small>TX4</small></dd>
   <dt>Normalise</dt><dd>Turn a value into a 0 to 1 fraction; or scale a vector to length 1. <small>M1, M2</small></dd>
   <dt>Octave</dt><dd>One layer of fBm noise. In music, a doubling of frequency. <small>L3, S4</small></dd>
   <dt>Offsetting</dt><dd>Moving an outline inward or outward by a fixed distance. <small>L18</small></dd>
@@ -151,14 +180,17 @@
   <dt>Parameter sweep</dt><dd>A grid of outputs in which two parameters vary and everything else is fixed. <small>S7</small></dd>
   <dt>Parametric curve</dt><dd>A curve whose x and y are both functions of one parameter. <small>L4</small></dd>
   <dt>Particle system</dt><dd>Many simple moving points with birth, life and death. <small>L5</small></dd>
+  <dt>Peripheral drift</dt><dd>Apparent motion in a still pattern of four repeated brightness steps, seen away from the centre of gaze. <small>IL3</small></dd>
   <dt>Perlin noise</dt><dd>Ken Perlin's gradient noise, the most widely used kind. <small>L3</small></dd>
   <dt>Perspective projection</dt><dd>Drawing 3D on a flat screen by dividing by depth, so that far things are smaller. <small>M6</small></dd>
   <dt>Phase</dt><dd>Where in its cycle a wave or a loop is. <small>L4, L15</small></dd>
   <dt>Phase space</dt><dd>A plot of a system's state, such as position against speed. <small>M4</small></dd>
   <dt>Phyllotaxis</dt><dd>The spiral arrangement of seeds and leaves, from the golden angle. <small>L4</small></dd>
+  <dt>Ping-pong</dt><dd>Two images that take turns: one is read while the other is written, then they swap. <small>SH4</small></dd>
   <dt>Pixel sorting</dt><dd>Rearranging runs of pixels in order of brightness. <small>L13</small></dd>
   <dt>Poisson-disc sampling</dt><dd>Random points with a guaranteed minimum spacing. <small>L7</small></dd>
   <dt>Polar coordinates</dt><dd>A position given as an angle and a distance. <small>L4</small></dd>
+  <dt>Post-processing</dt><dd>A shader applied to a finished picture: vignette, grain, tone curve and so on. <small>SH4</small></dd>
   <dt>Preflight</dt><dd>Checking a file for problems before sending it to a machine. <small>P4</small></dd>
   <dt>PRNG</dt><dd>Pseudo-random number generator: produces repeatable "random" numbers from a seed. <small>L2</small></dd>
   <dt>Procedural</dt><dd>Made by a procedure, a set of rules, instead of by hand. <small>L1</small></dd>
@@ -168,6 +200,8 @@
 <h2>Q to S</h2>
 <dl class="vocab">
   <dt>Quadtree</dt><dd>A square repeatedly divided into four where more detail is wanted. <small>L7</small></dd>
+  <dt>Quality-diversity search</dt><dd>Search for many good answers that are deliberately different from each other. <small>S10</small></dd>
+  <dt>Quilting</dt><dd>Extending a texture by copying overlapping blocks and joining them along the path of least difference. <small>TX3</small></dd>
   <dt>Random walk</dt><dd>A path made of accumulated small random steps. <small>L2</small></dd>
   <dt>Raycasting</dt><dd>Finding what a line from the camera through a screen point hits. <small>T3</small></dd>
   <dt>Raymarching</dt><dd>Rendering a 3D distance function by stepping along rays. <small>L9</small></dd>
@@ -176,22 +210,31 @@
   <dt>Recursion</dt><dd>A function that calls itself on a smaller problem. <small>L6</small></dd>
   <dt>Rejection sampling</dt><dd>Proposing at random and keeping only what passes a test. <small>L7, M5</small></dd>
   <dt>Resolution independence</dt><dd>Drawing in unit coordinates so the same piece renders at any size. <small>L10</small></dd>
+  <dt>Reversed phi</dt><dd>A pattern that turns negative as it steps is seen moving the opposite way. <small>IL3</small></dd>
+  <dt>Roughness</dt><dd>How matt or glossy a surface is at a point. It decides how tight the highlight is. <small>TX4</small></dd>
   <dt>Scale (music)</dt><dd>The subset of pitches a piece uses. <small>S4</small></dd>
   <dt>Scene graph</dt><dd>The tree of nested objects in a 3D scene. <small>T1</small></dd>
+  <dt>Search-based generation</dt><dd>Generating by altering candidates and keeping the best, given a way to score them. <small>S10</small></dd>
   <dt>Seed</dt><dd>The number or text that starts a random sequence, and so identifies an output. <small>L2</small></dd>
   <dt>Self-similarity</dt><dd>Looking alike at different scales. <small>L6</small></dd>
   <dt>Shaping function</dt><dd>A function that bends a 0 to 1 value by another route. <small>M1</small></dd>
   <dt>Signed distance function</dt><dd>A function giving the distance to a shape's edge, negative inside. <small>L9, P3</small></dd>
+  <dt>Simulated annealing</dt><dd>A search that accepts some bad moves at first and fewer as it cools, to avoid getting stuck. <small>S10</small></dd>
+  <dt>Simultaneous contrast</dt><dd>A patch looks lighter on a dark ground and darker on a light one. <small>IL1</small></dd>
   <dt>Slicer</dt><dd>Software that turns a 3D model into layers and toolpaths. <small>P1</small></dd>
   <dt>Smoothing (input)</dt><dd>Moving a value part of the way toward its target each frame. <small>S1</small></dd>
   <dt>Smoothstep</dt><dd>A ramp from 0 to 1 that eases in and out. <small>L3, L9</small></dd>
   <dt>Socket</dt><dd>In Wave Function Collapse, an edge label; two tiles fit where sockets match. In Blender, a node's input or output. <small>L14, B3</small></dd>
+  <dt>Soft shadow</dt><dd>A shadow with a blurred edge, estimated from how closely a ray toward the light misses an object. <small>SH3</small></dd>
   <dt>Space colonisation</dt><dd>Branches that grow toward unclaimed attraction points. <small>L16</small></dd>
   <dt>Spatial hash</dt><dd>A coarse grid of buckets that makes "what is near here?" fast. <small>L7, L19</small></dd>
+  <dt>Specular light</dt><dd>The highlight: a reflection of the light source, tighter on smoother surfaces. <small>TX4, SH3</small></dd>
+  <dt>Sphere tracing</dt><dd>Stepping along a ray by the distance to the nearest surface. The method behind raymarching. <small>SH3</small></dd>
+  <dt>Split grammar</dt><dd>Rules that cut a shape into smaller labelled parts, repeating a part as many times as fit. <small>S10</small></dd>
   <dt>Stagger</dt><dd>Giving each element its own delay, so motion travels as a wave. <small>L15</small></dd>
-  <dt>STL</dt><dd>The simplest 3D file format: a list of triangles. <small>P2</small></dd>
   <dt>Stick</dt><dd>A constraint keeping two points a fixed distance apart. <small>L17</small></dd>
   <dt>Stippling</dt><dd>Shading with dots, denser where darker. <small>L13, M5</small></dd>
+  <dt>STL</dt><dd>The simplest 3D file format: a list of triangles. <small>P2</small></dd>
   <dt>Strange attractor</dt><dd>The structure a chaotic system stays on without ever repeating. <small>M4</small></dd>
   <dt>Streamline</dt><dd>The path of a particle through a flow field. <small>L5</small></dd>
   <dt>Subdivision</dt><dd>Repeatedly cutting a shape into smaller pieces. <small>L7</small></dd>
@@ -203,27 +246,34 @@
 <dl class="vocab">
   <dt>Tangent</dt><dd>The direction of travel along a curve. <small>M3</small></dd>
   <dt>Tau</dt><dd>A full turn in radians: twice pi, about 6.283. <small>L1</small></dd>
+  <dt>Texture synthesis</dt><dd>Making more of a texture from a small sample of it. <small>TX3</small></dd>
   <dt>Tile</dt><dd>A small unit repeated or combined to cover an area. <small>L2, L14</small></dd>
   <dt>Toolpath</dt><dd>The route a pen, cutter or nozzle follows. <small>S3, P5</small></dd>
+  <dt>Topology optimisation</dt><dd>Computing where material should go in a part, from its loads and a material budget. <small>S10</small></dd>
   <dt>Trace</dt><dd>The sum of the two diagonal numbers of a matrix. <small>M6</small></dd>
   <dt>Trait</dt><dd>A named, seed-chosen feature of an output in a generative collection. <small>L10</small></dd>
   <dt>Transform</dt><dd>Moving, rotating or scaling the coordinate system. <small>L1</small></dd>
   <dt>Truchet tile</dt><dd>A tile whose pattern connects with its neighbours however it is turned. <small>L2</small></dd>
+  <dt>Turbulence</dt><dd>Octaves of noise added as absolute values, which gives sharp creases. <small>TX2</small></dd>
   <dt>Turtle</dt><dd>A pen with a position and a heading that follows drawing instructions. <small>L6</small></dd>
   <dt>Typed array</dt><dd>A compact block of raw numbers, faster than objects for large counts. <small>L19</small></dd>
   <dt>Uniform</dt><dd>In a shader, a value passed in from outside. In randomness, equally likely everywhere. <small>L9, L2</small></dd>
   <dt>Unit coordinates</dt><dd>Positions as fractions from 0 to 1 instead of pixels. <small>L10</small></dd>
+  <dt>UV coordinates</dt><dd>A position on a surface, from 0 to 1 each way, used to look up a texture. <small>TX1</small></dd>
   <dt>Value noise</dt><dd>Noise made by smoothly blending random values at grid points. <small>L3</small></dd>
   <dt>Vector</dt><dd>A pair or triple of numbers read as a direction with a length. Also: an image made of shapes, not pixels. <small>L5, M2</small></dd>
   <dt>Velocity</dt><dd>How much position changes each step. <small>L5</small></dd>
   <dt>Verlet integration</dt><dd>Simulating motion from the current and previous positions only. <small>L17</small></dd>
   <dt>Vertex shader</dt><dd>A program that decides where each vertex of a 3D shape appears. <small>T3</small></dd>
+  <dt>Vignette</dt><dd>Darkening toward the corners of a picture. <small>SH4</small></dd>
   <dt>Volumetric flow</dt><dd>The volume of plastic a printer extrudes per second. Its real speed limit. <small>P1</small></dd>
   <dt>Voronoi diagram</dt><dd>The division of space into regions nearest to each of a set of seeds. <small>L7</small></dd>
+  <dt>Wang tiles</dt><dd>Square tiles with coloured edges, laid so that touching edges match. A small set covers a plane without repeating. <small>TX3</small></dd>
   <dt>Watertight</dt><dd>A mesh with no holes: every edge shared by exactly two faces. <small>P2</small></dd>
   <dt>Wave Function Collapse</dt><dd>An algorithm that fills a grid with tiles so that every neighbour fits. <small>L14</small></dd>
   <dt>Web worker</dt><dd>A second thread for heavy work, so the page stays responsive. <small>L19</small></dd>
   <dt>Weighted choice</dt><dd>Picking from a list where some options are more likely than others. <small>L2</small></dd>
+  <dt>White's illusion</dt><dd>Grey blocks set into black stripes look lighter than the same grey set into white stripes. <small>IL1</small></dd>
   <dt>Winding order</dt><dd>The direction in which a face's corners are listed, which tells the outside from the inside. <small>P2</small></dd>
 </dl>
 

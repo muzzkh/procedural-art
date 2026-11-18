@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Illusions challenge 1 · An Illusion with Its Proof</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* ILLUSIONS CHALLENGE 1 — AN ILLUSION WITH ITS PROOF
+   Full brief: ../illusions/01-brightness-and-colour.html
+
+   An original composition in which areas of exactly the same colour look clearly different,
+   with the proof built in.
+
+   The two causes I am combining:  ...  and  ...
+
+   Checklist
+   [ ] An original arrangement generated from a seed, not a textbook figure
+   [ ] At least two different causes from the lesson working together
+   [ ] The equal areas take their colour from ONE variable, set in one place (TARGET below)
+   [ ] A strength control from no illusion to the strongest you can make
+   [ ] A proof mode that removes the context and leaves the target pixels untouched
+   [ ] A readout of the colour values under the pointer
+   [ ] Three people out of three say the areas differ, and are surprised by the proof
+
+   Keys (wire these up):  P proof mode   up and down arrows: strength   N next seed */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const TARGET = 'rgb(128, 128, 128)';      // the colour of every area that is claimed to be equal. Set it here only.
+let seed = 1, strength = 1, proof = false;
+
+function draw() {
+  const R = PA.rng('illusion-' + seed);
+
+  // ---- 1. the context: everything that is NOT a target area. In proof mode, draw a flat ground instead. ----
+
+  // ---- 2. the target areas, all filled with TARGET ----
+
+}
+
+// ---- 3. the readout: the pixel under the pointer, as numbers ----
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width * W), y = Math.floor((e.clientY - r.top) / r.height * H);
+  const [red, green, blue] = ctx.getImageData(x, y, 1, 1).data;
+  // TODO: show these three numbers somewhere that does not cover the picture
+});
+
+// TODO: the keys
+draw();
+</script>
+</body>
+</html>

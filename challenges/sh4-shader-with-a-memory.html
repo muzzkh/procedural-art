@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shaders challenge 4 · A Shader with a Memory</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; }
+  pre { position: fixed; left: 0; bottom: 0; margin: 0; padding: 12px; color: #ff9d94; background: #2b1111; font: 13px/1.5 Consolas, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="800" height="800"></canvas>
+<pre id="errors" hidden></pre>
+<script>
+/* SHADERS CHALLENGE 4 — A SHADER WITH A MEMORY
+   Full brief: ../shaders/04-memory-and-post-processing.html
+
+   A simulation that lives on the graphics card, responds to the pointer, and is displayed with care.
+
+   The state (say what each channel holds):
+     red    ...
+     green  ...
+     blue   ...
+     alpha  ...
+
+   Checklist
+   [ ] A state held in the previous-frame texture, documented above
+   [ ] An update that reads the pixel and its neighbours
+   [ ] A separate display that adds colour and lighting without changing the state
+   [ ] A defined first frame, and a way to restart (press R)
+   [ ] The pointer adds, removes or disturbs something
+   [ ] At least two post-processes in the display
+   [ ] It runs for five minutes without freezing, or settles into something worth keeping
+
+   There are two shaders. UPDATE writes the new state. DISPLAY turns the state into the picture.
+   Both can read:
+     u_prev   the state: in UPDATE the previous frame's, in DISPLAY the one just written (sampler2D)
+     u_res    canvas size in pixels (vec2)
+     u_time   seconds since the page loaded (float)
+     u_mouse  mouse position in pixels (vec2)
+     u_down   1.0 while the mouse button is held (float)
+     u_frame  frames since the start or the last restart (float)
+   STEPS is how many times UPDATE runs for each picture drawn.
+   Compile errors appear at the bottom of the page. */
+
+const STEPS = 1;
+
+const COMMON = `
+precision highp float;
+uniform sampler2D u_prev;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+uniform float u_down;
+uniform float u_frame;
+`;
+
+const UPDATE = COMMON + `
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec4 old = texture2D(u_prev, uv);
+
+  // ---- your rule here ----
+  vec4 next = old;
+  if (u_frame < 1.0) next = vec4(0.0);                  // the first frame
+
+  gl_FragColor = next;
+}
+`;
+
+const DISPLAY = COMMON + `
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec4 state = texture2D(u_prev, uv);
+
+  // ---- your rendering of the state here ----
+  gl_FragColor = vec4(state.rgb, 1.0);
+}
+`;
+
+/* ------------------------------------------------------------------------
+   Everything below is plumbing. It is worth reading once.
+   Two textures hold the state. Each step reads one and draws into the other,
+   then they swap. Finally DISPLAY draws the newest one to the screen.
+   ------------------------------------------------------------------------ */
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl');
+const errors = document.getElementById('errors');
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    errors.textContent = gl.getShaderInfoLog(shader);
+    errors.hidden = false;
+    throw new Error(gl.getShaderInfoLog(shader));
+  }
+  return shader;
+}
+function build(fragment) {
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, 'attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }'));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragment.trim()));
+  gl.bindAttribLocation(program, 0, 'p');
+  gl.linkProgram(program);
+  return program;
+}
+const update = build(UPDATE), display = build(DISPLAY);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+// The state textures hold decimal numbers if the graphics card can draw into such textures,
+// and ordinary 8-bit values if it cannot.
+let type = gl.UNSIGNED_BYTE, smooth = true;
+if (gl.getExtension('OES_texture_float')) {
+  gl.getExtension('WEBGL_color_buffer_float');
+  type = gl.FLOAT;
+  smooth = !!gl.getExtension('OES_texture_float_linear');
+}
+function makeTarget() {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, type, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, smooth ? gl.LINEAR : gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, smooth ? gl.LINEAR : gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const framebuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  return { texture, framebuffer };
+}
+let targets = [makeTarget(), makeTarget()];
+if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {   // decimal textures refused: fall back
+  type = gl.UNSIGNED_BYTE; smooth = true;
+  targets = [makeTarget(), makeTarget()];
+}
+
+const mouse = { x: canvas.width / 2, y: canvas.height / 2, down: 0 };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * canvas.width;
+  mouse.y = (1 - (e.clientY - r.top) / r.height) * canvas.height;
+});
+canvas.addEventListener('pointerdown', () => { mouse.down = 1; });
+window.addEventListener('pointerup', () => { mouse.down = 0; });
+
+let count = 0;
+window.addEventListener('keydown', (e) => { if (e.key === 'r' || e.key === 'R') count = 0; });   // restart
+
+function use(program, ms) {
+  gl.useProgram(program);
+  gl.uniform2f(gl.getUniformLocation(program, 'u_res'), canvas.width, canvas.height);
+  gl.uniform1f(gl.getUniformLocation(program, 'u_time'), ms / 1000);
+  gl.uniform2f(gl.getUniformLocation(program, 'u_mouse'), mouse.x, mouse.y);
+  gl.uniform1f(gl.getUniformLocation(program, 'u_down'), mouse.down);
+  gl.uniform1f(gl.getUniformLocation(program, 'u_frame'), count);
+  gl.uniform1i(gl.getUniformLocation(program, 'u_prev'), 0);
+}
+
+function frame(ms) {
+  for (let k = 0; k < STEPS; k++) {
+    const from = targets[count % 2], to = targets[(count + 1) % 2];
+    gl.bindTexture(gl.TEXTURE_2D, from.texture);          // read the old state...
+    gl.bindFramebuffer(gl.FRAMEBUFFER, to.framebuffer);   // ...and draw the new one into the other texture
+    use(update, ms);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    count++;
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);               // now draw to the screen
+  gl.bindTexture(gl.TEXTURE_2D, targets[count % 2].texture);
+  use(display, ms);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

@@ -15,13 +15,22 @@
      PA               the helper library from pa.js
 
    Inside a shader example (data-mode="shader") you write a GLSL fragment shader.
-   These uniforms are declared for you: u_res (pixels), u_time (seconds), u_mouse (pixels). */
+   These uniforms are declared for you:
+     u_res (pixels), u_time (seconds), u_mouse (pixels), u_down (1.0 while the mouse is pressed),
+     u_frame (frames drawn since the example started),
+     u_prev  (a texture holding what this shader drew on the previous frame).
+   A shader that reads u_prev has a memory (Shaders 4). Written with one main() its output is
+   both the memory and the picture. Written as void update() and void display() instead, update()
+   computes the new memory and display() turns it into the colours you see.
+   fwidth(), dFdx() and dFdy() are switched on. */
 (function () {
   'use strict';
 
   const VERT = 'attribute vec2 a_pos; void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }';
-  const FRAG_HEAD = 'precision highp float;\nuniform vec2 u_res;\nuniform float u_time;\nuniform vec2 u_mouse;\n';
-  const FRAG_HEAD_LINES = 4;
+  const FRAG_HEAD = '#extension GL_OES_standard_derivatives : enable\nprecision highp float;\n' +
+    'uniform vec2 u_res;\nuniform float u_time;\nuniform vec2 u_mouse;\nuniform float u_down;\n' +
+    'uniform float u_frame;\nuniform sampler2D u_prev;\n';
+  const FRAG_HEAD_LINES = 8;
   const all = [];
 
   function dedent(text) {
@@ -204,6 +213,14 @@
       canvas.width = W * dpr; canvas.height = H * dpr;
       gl = gl || canvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
       if (!gl) throw new Error('WebGL is not available in this browser.');
+      gl.getExtension('OES_standard_derivatives');
+      const made = { programs: [], textures: [], buffers: [], frames: [] };
+      cleanups.push(() => {                       // free the GPU memory when the example is re-run
+        made.programs.forEach((x) => gl.deleteProgram(x));
+        made.textures.forEach((x) => gl.deleteTexture(x));
+        made.frames.forEach((x) => gl.deleteFramebuffer(x));
+        made.buffers.forEach((x) => gl.deleteBuffer(x));
+      });
       const compile = (type, src) => {
         const s = gl.createShader(type);
         gl.shaderSource(s, src);
@@ -216,27 +233,106 @@
         }
         return s;
       };
-      const prog = gl.createProgram();
-      gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
-      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG_HEAD + code));
-      gl.linkProgram(prog);
-      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
-      gl.useProgram(prog);
+      const link = (frag) => {
+        const prog = gl.createProgram();
+        made.programs.push(prog);
+        gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+        gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG_HEAD + frag));
+        gl.bindAttribLocation(prog, 0, 'a_pos');
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+        const u = (name) => gl.getUniformLocation(prog, name);
+        return { prog, res: u('u_res'), time: u('u_time'), mouse: u('u_mouse'), down: u('u_down'), frame: u('u_frame'), prev: u('u_prev') };
+      };
+
+      // One main(): an ordinary shader. update() and display(): a shader with a memory, in two parts.
+      const paired = /void\s+update\s*\(/.test(code) && /void\s+display\s*\(/.test(code);
+      const feedback = paired || /\bu_prev\b/.test(code);
+      const main = link(paired ? code + '\nvoid main() { update(); }' : code);
+      const show = !feedback ? null
+        : paired ? link(code + '\nvoid main() { display(); }')
+        : link('void main() { gl_FragColor = vec4(texture2D(u_prev, gl_FragCoord.xy / u_res).rgb, 1.0); }');
+
       const buf = gl.createBuffer();
+      made.buffers.push(buf);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-      const loc = gl.getAttribLocation(prog, 'a_pos');
-      gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      const uRes = gl.getUniformLocation(prog, 'u_res');
-      const uTime = gl.getUniformLocation(prog, 'u_time');
-      const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
+
+      // The memory: two textures. Each frame reads one and writes the other, then they swap.
+      // Decimal (float) textures are used where the graphics card allows, so that small
+      // changes are not rounded away; otherwise ordinary 8-bit ones.
+      let targets = null;
+      if (feedback) {
+        const kinds = [];
+        if (gl.getExtension('OES_texture_float')) kinds.push([gl.FLOAT, !!gl.getExtension('OES_texture_float_linear')]);
+        const half = gl.getExtension('OES_texture_half_float');
+        if (half) kinds.push([half.HALF_FLOAT_OES, !!gl.getExtension('OES_texture_half_float_linear')]);
+        kinds.push([gl.UNSIGNED_BYTE, true]);
+        gl.getExtension('WEBGL_color_buffer_float');
+        gl.getExtension('EXT_color_buffer_half_float');
+        const make = (type, smooth) => {
+          const tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, type, null);
+          const filter = smooth ? gl.LINEAR : gl.NEAREST;
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          const fbo = gl.createFramebuffer();
+          gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+          const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+          if (ok) { gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); made.textures.push(tex); made.frames.push(fbo); }
+          else { gl.deleteFramebuffer(fbo); gl.deleteTexture(tex); }
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          return ok ? { tex, fbo } : null;
+        };
+        for (const [type, smooth] of kinds) {
+          const a = make(type, smooth);
+          if (!a) continue;
+          targets = [a, make(type, smooth)];
+          state.memory = type === gl.UNSIGNED_BYTE ? '8-bit' : (type === gl.FLOAT ? 'float' : 'half float');
+          break;
+        }
+        if (!targets) throw new Error('This graphics card cannot draw into a texture.');
+      }
+
+      let n = 0;
+      const steps = Math.max(1, Math.round(+(root.dataset.steps || 1)));
+      const use = (p, t) => {
+        gl.useProgram(p.prog);
+        gl.uniform2f(p.res, canvas.width, canvas.height);
+        gl.uniform1f(p.time, t);
+        gl.uniform2f(p.mouse, mouse.x * dpr, (H - mouse.y) * dpr);
+        gl.uniform1f(p.down, mouse.down ? 1 : 0);
+        gl.uniform1f(p.frame, n);
+        gl.uniform1i(p.prev, 0);
+      };
       startLoop((t) => {
-        gl.uniform2f(uRes, canvas.width, canvas.height);
-        gl.uniform1f(uTime, t);
-        gl.uniform2f(uMouse, mouse.x * dpr, (H - mouse.y) * dpr);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        if (feedback) {
+          gl.activeTexture(gl.TEXTURE0);
+          for (let k = 0; k < steps; k++) {                // data-steps="8" runs the memory forward 8 times a frame
+            const from = targets[n % 2], to = targets[(n + 1) % 2];
+            gl.bindTexture(gl.TEXTURE_2D, from.tex);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, to.fbo);
+            use(main, t);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);        // the new memory
+            n++;
+          }
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.bindTexture(gl.TEXTURE_2D, targets[n % 2].tex);
+          use(show, t);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);          // the picture on the page
+        } else {
+          use(main, t);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          n++;
+        }
       });
     }
 
@@ -361,6 +457,7 @@
       total: all.length,
       animatedFrames: all.filter((s) => s.frames).map((s) => s.title.split(' ')[0] + '=' + s.frames).join(' '),
       errors: all.filter((s) => s.error).map((s) => s.title + ': ' + s.error),
+      memory: all.filter((s) => s.memory).map((s) => s.title.split(' ')[0] + '=' + s.memory).join(' '),
     };
   };
 

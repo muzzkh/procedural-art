@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Illusions 1 · Brightness and Colour</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Illusions 1 of 4</span><a href="02-geometry-and-shape.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Illusions 1</p>
+  <h1>Brightness and Colour</h1>
+  <p class="lede">An illusion is a reliable disagreement between what a picture measures and what a person sees. Because the disagreement is reliable, it can be designed. This section treats illusions as procedural material: each one is a small generator with parameters, built from the research that explains it. It starts with the simplest case, where two patches of exactly the same grey do not look the same.</p>
+</header>
+
+<h2>Why illusions belong in this course</h2>
+<ul>
+  <li><strong>They are procedures.</strong> Almost every classic illusion is a rule applied across a grid or a field: a tile shifted on alternate rows, a sequence of four greys repeated round a ring. They are a few lines of code, and they come with parameters that have been studied for a century.</li>
+  <li><strong>They are a body of art.</strong> The Op art of the 1960s, in the work of painters such as Bridget Riley and Victor Vasarely, is built from these effects, drawn by hand with great labour. A program can explore the same territory in seconds.</li>
+  <li><strong>They are a hazard.</strong> The same effects distort charts, maps and interfaces by accident. A designer who knows them can keep two colours in a chart looking equal when they are equal.</li>
+  <li><strong>They show what seeing is.</strong> Vision does not report the light that arrives. It estimates what is out there: surfaces, lights, edges, motion. Each illusion is a case where that estimate, usually a good one, is wrong in a way that reveals how it is made.</li>
+</ul>
+
+<div class="note"><p><strong>The rule for this section: every illusion comes with its proof.</strong> A picture that only claims "these two greys are the same" asks to be believed. Each example here has a control that removes the cause, so that you can watch the difference vanish without the pixels in question changing. Build yours the same way. An illusion you cannot switch off is only an assertion.</p></div>
+
+<h2>Contrast: the surround changes the patch</h2>
+<p>The oldest and most general effect is <strong>simultaneous contrast</strong>. A grey looks lighter against dark and darker against light. The cells of the eye and brain mostly signal <em>differences</em> between a point and its surroundings, not absolute amounts of light. That is efficient, and it makes vision nearly independent of how bright the day is, but it means a patch is always judged against its neighbours.</p>
+<p>The bar across the middle of the canvas is one flat grey from end to end. Behind it is a gradient from dark to light. The bar appears to carry a gradient running the other way. Reduce the background's contrast to zero and the bar is plainly uniform. Its pixels never change.</p>
+
+<div class="example" data-h="300" data-title="IL1.1 One grey bar, on a gradient">
+<script type="text/plain">
+const contrast = ui.slider('background contrast', 0, 1, 1, 0.01);
+
+function draw() {
+  const k = contrast();
+  const ramp = ctx.createLinearGradient(0, 0, W, 0);
+  ramp.addColorStop(0, PA.hsl(0, 0, 50 - 42 * k));
+  ramp.addColorStop(1, PA.hsl(0, 0, 50 + 42 * k));
+  ctx.fillStyle = ramp;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = PA.hsl(0, 0, 50);                   // one grey, set once, used for the whole bar
+  ctx.fillRect(50, H / 2 - 35, W - 100, 70);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>An edge that paints two areas</h2>
+<p>If vision signals differences, then most of what it knows about a large flat area comes from its edges. The Craik–O'Brien–Cornsweet effect shows this directly. Two halves of the picture have exactly the same grey over almost their whole width. Only in a narrow zone at the boundary does the left side brighten and the right side darken, meeting in a sharp step. The step is seen, the slow return to grey on each side is too gradual to register, and the whole left half looks lighter than the whole right half.</p>
+<p>The yellow line under the picture is the actual brightness of each column of pixels, which is the proof. Cover the edge with the second slider and the two halves match.</p>
+
+<div class="example" data-pixel data-w="600" data-h="300" data-title="IL1.2 Two equal halves, and their true profile">
+<script type="text/plain">
+const strength = ui.slider('edge strength', 0, 0.15, 0.09, 0.005);
+const cover = ui.slider('cover the edge', 0, 1, 0, 1);
+const img = ctx.createImageData(W, H);
+
+// The brightness of column x, from 0 to 1. Mid-grey everywhere except close to the middle.
+function level(x) {
+  const d = x - W / 2;
+  const bump = strength() * Math.exp(-Math.abs(d) / 55);     // dies away with distance from the edge
+  return 0.5 + (d < 0 ? bump : -bump);                       // up on the left, down on the right
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let v = y < 200 ? level(x) : 0.08;                     // the picture above, a dark strip for the plot below
+      if (y < 200 && cover() && Math.abs(x - W / 2) < 45) v = 0.2;
+      const i = (y * W + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 1;               // the plot: a line at mid-grey, then the true profile
+  ctx.beginPath(); ctx.moveTo(0, 250); ctx.lineTo(W, 250); ctx.stroke();
+  ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let x = 0; x < W; x++) ctx.lineTo(x, 250 - (level(x) - 0.5) * 300);
+  ctx.stroke();
+  ctx.fillStyle = '#ccc'; ctx.font = '11px sans-serif';
+  ctx.fillText('true brightness of each column', 8, 214);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>This is a practical tool as well as a demonstration. A screen cannot show anything brighter than white, but a region bounded by an edge of this kind <em>looks</em> brighter than the white around it. Painters have used the same device to make a moon or a lamp glow.</p>
+
+<h2>Grids: spots that are not there</h2>
+<p>In a grid of white streets on black, faint grey smudges appear at the crossings you are not looking at directly. This is the Hermann grid, described in 1870. A stronger variant puts a white disc on each crossing of a grey grid, and dark dots flash inside the discs as your eyes move. It was reported by Michael Schrauf, Bernd Lingelbach and Eugene Wist in "The Scintillating Grid Illusion" (Vision Research, 1997).</p>
+<p>For a century the textbook explanation was simple: a cell looking at a crossing has bright street on four sides, a cell looking at a street has it on two, and so the crossing is more strongly inhibited and looks darker. In 2008 János Geier and colleagues published a test that this explanation fails. Bend the streets slightly, keeping the crossings and the amount of white the same, and the spots disappear, although the textbook account predicts no change. Their paper is called "Straightness as the Main Factor of the Hermann Grid Illusion" (Perception, 2008). Use the waviness slider to run their experiment.</p>
+
+<div class="example" data-h="420" data-title="IL1.3 A grid, with and without straight streets">
+<script type="text/plain">
+const discs = ui.slider('white discs on the crossings', 0, 1, 1, 1);
+const wavy = ui.slider('waviness of the streets', 0, 1, 0, 0.02);
+const GAP = 60;
+
+function draw() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = discs() ? '#8a8a8a' : '#fff';      // grey streets under the discs, white streets without them
+  ctx.lineWidth = 11;
+  const bend = wavy() * 7;
+  // each street wobbles once between one crossing and the next, and passes through every crossing
+  for (let y = GAP / 2; y < H; y += GAP) {
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 3) ctx.lineTo(x, y + bend * Math.sin((x - GAP / 2) / GAP * PA.TAU));
+    ctx.stroke();
+  }
+  for (let x = GAP / 2; x < W; x += GAP) {
+    ctx.beginPath();
+    for (let y = 0; y <= H; y += 3) ctx.lineTo(x + bend * Math.sin((y - GAP / 2) / GAP * PA.TAU), y);
+    ctx.stroke();
+  }
+  if (!discs()) return;
+  ctx.fillStyle = '#fff';
+  for (let y = GAP / 2; y < H; y += GAP) {
+    for (let x = GAP / 2; x < W; x += GAP) { ctx.beginPath(); ctx.arc(x, y, 8, 0, PA.TAU); ctx.fill(); }
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Two lessons come out of that history. First, an illusion is an experiment, and its parameters are the variables: the way to learn what causes one is to change one thing at a time, which is exactly what a slider is for. Second, an explanation that sounds complete can still be wrong. The cause of these spots is still argued over.</p>
+
+<h2>When contrast runs backwards</h2>
+<p>Simultaneous contrast predicts that a grey surrounded mostly by white will look darker. Michael White's "A New Effect of Pattern on Perceived Lightness" (Perception, 1979) showed a pattern in which the opposite happens. Grey blocks are set into the stripes of a black-and-white grating. A block that replaces part of a <em>black</em> stripe has white stripes above and below it and so touches mostly white, yet it looks <strong>lighter</strong> than an identical block set into a white stripe.</p>
+<p>The usual reading is that vision treats each block as belonging to the stripe it interrupts, as if it lay on that stripe, and judges it against the stripe and not against its touching neighbours. Edward Adelson's chapter "Lightness Perception and Lightness Illusions" (2000) is the standard account of this kind of grouping.</p>
+
+<div class="example" data-h="360" data-title="IL1.4 White's illusion">
+<script type="text/plain">
+const contrast = ui.slider('stripe contrast', 0, 1, 1, 0.01);
+const STRIPE = 20;
+
+function draw() {
+  const k = contrast();
+  const dark = PA.hsl(0, 0, 50 - 50 * k), light = PA.hsl(0, 0, 50 + 50 * k), grey = PA.hsl(0, 0, 50);
+  for (let row = 0; row * STRIPE < H; row++) {
+    const y = row * STRIPE, black = row % 2 === 0;
+    ctx.fillStyle = black ? dark : light;
+    ctx.fillRect(0, y, W, STRIPE);
+    ctx.fillStyle = grey;                              // the same grey in both columns of blocks
+    if (black && row > 2 && row < 15) ctx.fillRect(110, y, 150, STRIPE);       // left: set into the black stripes
+    if (!black && row > 2 && row < 15) ctx.fillRect(340, y, 150, STRIPE);      // right: set into the white stripes
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Light and shadow</h2>
+<p>The strongest brightness illusions are those in which the picture suggests lighting. A surface in shadow sends less light to the eye than the same surface in the open. Vision corrects for this without being asked: it estimates the lighting and reports the surface. Edward Adelson's checker-shadow figure of 1995 is the famous demonstration, and the example below builds a flat version of the same idea from numbers.</p>
+<p>A board has light squares that reflect 78% of the light and dark squares that reflect 39%. A soft-edged band of shadow halves the light falling on part of it. So a light square in the shadow sends 78% × 0.5 = 39%, exactly the same as a dark square outside it. The squares marked A and B are that pair. Use the slider to hide everything else.</p>
+
+<div class="example" data-pixel data-w="480" data-h="480" data-title="IL1.5 A dark square in the light, a light square in the shade">
+<script type="text/plain">
+const hide = ui.slider('hide everything except A and B', 0, 1, 0, 0.01);
+const img = ctx.createImageData(W, H);
+const SQ = 60;
+const A = [1, 1], B = [4, 3];                          // the two squares to compare: column, row
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const col = Math.floor(x / SQ), row = Math.floor(y / SQ);
+      const paint = (col + row) % 2 === 0 ? 0.39 : 0.78;                 // how much light the square reflects
+      const across = Math.abs((x + y - W) / Math.SQRT2);                 // distance from the diagonal
+      const lightHere = 1 - 0.5 * (1 - PA.smoothstep(60, 115, across));  // a band of half light, with soft edges
+      let v = paint * lightHere;                                         // what reaches the eye
+
+      const marked = (col === A[0] && row === A[1]) || (col === B[0] && row === B[1]);
+      if (!marked) v = PA.lerp(v, 0.12, hide());                         // fade the rest toward a flat dark grey
+      const i = (y * W + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText('A', A[0] * SQ + 23, A[1] * SQ + 37);
+  ctx.fillText('B', B[0] * SQ + 23, B[1] * SQ + 37);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Notice what the soft edge of the shadow is doing. A sharp change in brightness is read as a change of paint. A gradual one is read as a change of light and is discounted. If you make the band's edges hard, by changing <code>60, 115</code> to <code>87, 88</code>, the band starts to look like a stripe painted on the board and the effect weakens. This is the general recipe: to make people see a surface colour that is not in the pixels, give them a reason to believe in a light.</p>
+
+<h2>Colour that leaks</h2>
+<p>With thin stripes, colour does the opposite of contrast. A patch takes on some of the colour of the stripes that run across it, an effect called assimilation. In this arrangement, known as the Munker–White illusion, identical red blocks are set into a grating of blue and yellow stripes. Where the red interrupts the yellow stripes it is crossed by blue ones and looks purple or magenta. Where it interrupts the blue stripes it is crossed by yellow and looks orange.</p>
+<p>The difference can be very large, far larger than the brightness effects above. Fade the stripes to grey and the two patches return to the same red.</p>
+
+<div class="example" data-h="360" data-title="IL1.6 One red, twice">
+<script type="text/plain">
+const colour = ui.slider('stripe colour', 0, 1, 1, 0.01);
+const STRIPE = 12;
+
+function draw() {
+  const k = colour();
+  const blue = PA.hsl(225, 85 * k, 45), yellow = PA.hsl(55, 95 * k, 55 - 10 * (1 - k)), red = 'rgb(225, 60, 60)';
+  for (let row = 0; row * STRIPE < H; row++) {
+    const y = row * STRIPE, isBlue = row % 2 === 0;
+    ctx.fillStyle = isBlue ? blue : yellow;
+    ctx.fillRect(0, y, W, STRIPE);
+    ctx.fillStyle = red;                               // the same red on both sides
+    if (!isBlue && row > 4 && row < 25) ctx.fillRect(90, y, 170, STRIPE);      // left: in place of yellow, so crossed by blue
+    if (isBlue && row > 4 && row < 25) ctx.fillRect(340, y, 170, STRIPE);      // right: in place of blue, so crossed by yellow
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Using these on purpose, and avoiding them</h2>
+<table>
+  <thead><tr><th>Situation</th><th>What the research says to do</th></tr></thead>
+  <tbody>
+    <tr><td>A chart or map where colour stands for a value</td><td>The same colour will read differently against different neighbours. Separate coloured areas with a thin neutral line, keep backgrounds flat, and never put a legend on a different background from the data.</td></tr>
+    <tr><td>You want something to glow</td><td>Surround it with a soft gradient that falls away, as in IL1.2. The eye reads the edge and fills in the area.</td></tr>
+    <tr><td>You want two things to look equal</td><td>Give them the same surround, or check them on a neutral ground. Lesson 11's contrast check measures pixels, and pixels are not what people see.</td></tr>
+    <tr><td>Thin coloured lines over a fill</td><td>Expect the fill to shift toward the line colour. Use it deliberately to get more apparent colours out of a small palette, as weavers and printers do.</td></tr>
+    <tr><td>A generative piece with a field of light and shade</td><td>Soft changes read as light, sharp ones as paint. Decide which you mean.</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>An illusion is a reliable difference between measurement and appearance, so it can be designed and tuned.</li>
+  <li>Vision reports differences from the surroundings. A patch looks lighter on dark and darker on light.</li>
+  <li>Edges carry most of the information about areas. A shaped edge can make two equal areas look different.</li>
+  <li>Grouping can reverse contrast: a patch is judged against what it seems to belong to.</li>
+  <li>Soft changes are read as lighting and discounted. Sharp changes are read as surface colour.</li>
+  <li>Thin stripes pull a patch's colour toward their own.</li>
+  <li>Every illusion needs a control that switches it off. That control is also how its cause is found.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Computing the "same" colour two ways. Rounding makes them differ by one level and the proof is spoiled. Compute it once and reuse it.</li>
+  <li>Anti-aliased or blurred edges between a patch and its surround. They add pixels of in-between values exactly where the eye is most sensitive. Keep patches on whole pixels.</li>
+  <li>Judging strength on one screen. These effects change with size, brightness and viewing distance. Try it small, large and from across the room.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Illusions challenge 1</p>
+  <h2>An Illusion with Its Proof</h2>
+  <p>Make a composition of your own, not a textbook figure, in which two or more areas of exactly the same colour look clearly different, and build the proof into the piece.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>An <strong>original arrangement</strong>: a pattern, a scene or an abstract design generated from a seed, in which the illusion is part of the picture and not a diagram of it.</li>
+    <li>At least <strong>two different causes</strong> from this lesson working together: for example, a suggested shadow and thin stripes.</li>
+    <li>The equal areas get their colour from <strong>one variable</strong>, set in one place.</li>
+    <li>A <strong>strength control</strong> that runs from no illusion to the strongest you can make.</li>
+    <li>A <strong>proof mode</strong> that removes the context while leaving the target pixels untouched.</li>
+    <li>A <strong>readout</strong>: the colour values under the pointer, shown as numbers.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Start from a subject that gives a reason for light and shade: folded paper, a tiled floor in sunlight, a striped awning.</li>
+    <li><code>ctx.getImageData(x, y, 1, 1).data</code> reads one pixel for the readout.</li>
+    <li>Ask someone to point at "the lighter one" before you show them the proof. If they hesitate, strengthen it.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Make the effect work in colour as well as in grey.</li>
+    <li>Animate the context while the targets stay fixed, so that they appear to change.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Three people out of three say the areas differ, and all three are surprised by the proof.</li>
+    <li>The piece is worth looking at even to someone who is never told about the trick.</li>
+  </ul>
+  <a class="start" href="../challenges/il1-illusion-with-proof.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Edward Adelson, “Lightness Perception and Lightness Illusions”, in The New Cognitive Neurosciences, 2nd edition, MIT Press, 2000. <span class="why">The standard account of brightness illusions.</span></li>
+    <li>Michael White, “<a href="https://doi.org/10.1068/p080413">A New Effect of Pattern on Perceived Lightness</a>”, Perception, 1979. <span class="why">White's illusion.</span></li>
+    <li>Michael Schrauf, Bernd Lingelbach and Eugene Wist, “<a href="https://doi.org/10.1016/S0042-6989(96)00255-6">The Scintillating Grid Illusion</a>”, Vision Research, 1997. <span class="why">The scintillating grid.</span></li>
+    <li>János Geier, László Bernáth, Mariann Hudák and László Séra, “<a href="https://doi.org/10.1068/p5622">Straightness as the Main Factor of the Hermann Grid Illusion</a>”, Perception, 2008. <span class="why">The experiment with wavy streets.</span></li>
+    <li>Michael Bach, <a href="https://michaelbach.de/ot/"><cite>Optical Illusions and Visual Phenomena</cite></a>. <span class="why">More than a hundred illusions, each interactive and each with references.</span></li>
+    <li>Richard L. Gregory, <cite>Eye and Brain: The Psychology of Seeing</cite>, 5th edition, Oxford University Press, 1997. <span class="why">The classic introduction to how seeing works.</span></li>
+    <li>Josef Albers, <cite>Interaction of Color</cite>, Yale University Press, 1963. <span class="why">Colour contrast and assimilation taught by exercise.</span></li>
+    <li>Arthur Shapiro and Dejan Todorović (editors), <cite>The Oxford Compendium of Visual Illusions</cite>, Oxford University Press, 2017. <span class="why">A chapter on almost every known illusion, by the researchers who study them.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-geometry-and-shape.html">Illusions 2: Geometry and Shape →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

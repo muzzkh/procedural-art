@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shaders 2 · Patterns and Noise on the Graphics Card</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-how-a-shader-thinks.html">← Shaders 1</a><span>Shaders 2 of 4</span><a href="03-raymarching-and-light.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Shaders 2</p>
+  <h1>Patterns and Noise on the Graphics Card</h1>
+  <p class="lede">Everything in the Textures section was a function of position, which is exactly what a shader is. This lesson moves those ideas to the graphics card, where they run fast enough to animate: cells and hashes, tiles, the two kinds of noise, and the materials built from them.</p>
+</header>
+
+<h2>What changes when you move to GLSL</h2>
+<p>The ideas do not change. Three practical things do.</p>
+<ul>
+  <li><strong>There is no random number generator and no noise function.</strong> You write a hash and build noise on it. This is a few lines that you will paste into the top of almost every shader.</li>
+  <li><strong>Time is free.</strong> The whole picture is recomputed every frame anyway, so anything can depend on <code>u_time</code> at no extra cost.</li>
+  <li><strong>Numbers are less precise.</strong> A graphics card's <code>float</code> has about seven significant digits, against sixteen in JavaScript. Keep the numbers you hash small, and do not let <code>u_time</code> multiply into the thousands inside a <code>sin</code>.</li>
+</ul>
+
+<h2>Cells and a hash</h2>
+<p>As in Textures 1, <code>floor</code> gives the cell and <code>fract</code> the position inside it. The hash is the well-known one-liner from Lesson 9: a dot product to combine the two cell numbers, a sine, a large multiplier, and <code>fract</code> to keep the scrambled low digits. Adding a constant to the cell number before hashing gives a second, unrelated random number for the same cell.</p>
+<p>This example also shows a limit of <code>fwidth</code> from Shaders 1. Each cell's shape has its own random size, so the distance value jumps at cell borders, and <code>fwidth</code> reports a huge change there. When you know the scale of your coordinates it is safer to work out the size of a pixel yourself. Here the canvas is ten units tall, so one pixel is <code>10.0 / u_res.y</code> units.</p>
+
+<div class="example" data-mode="shader" data-title="SH2.1 A grid in which every cell is an individual">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / u_res.y * 10.0;       // ten cells up the canvas
+  float px = 10.0 / u_res.y;                       // the size of one pixel, in the same units
+  vec2 id = floor(p);                              // which cell
+  vec2 f = fract(p);                               // where in the cell
+
+  float r = hash(id);                              // this cell's random number
+  float r2 = hash(id + 71.3);                      // a second one, unrelated to the first
+
+  vec3 tint = 0.5 + 0.5 * cos(6.2832 * (r + vec3(0.0, 0.33, 0.67)));       // its own colour
+  float blink = smoothstep(0.6, 1.0, sin(u_time * (0.5 + r2) + r * 40.0)); // its own moment to light up
+  tint *= 0.25 + 0.75 * blink;
+
+  vec2 q = abs(f - 0.5);
+  float d = max(q.x, q.y) - (0.2 + 0.2 * r2);      // distance to a square of its own size
+  float mask = 1.0 - smoothstep(-px, px, d);
+
+  gl_FragColor = vec4(mix(vec3(0.05, 0.06, 0.09), tint, mask), 1.0);
+}
+</script>
+</div>
+
+<h2>Tiles that turn</h2>
+<p>Truchet tiles (Lesson 2) are a single tile laid in one of two orientations chosen at random. In a shader the orientation is a hash of the cell, and turning the tile is done by mirroring the position inside the cell before drawing. This is the general method for per-cell variation: <strong>change the coordinates, then draw the same thing</strong>.</p>
+<p>The tile holds two quarter-circles centred on opposite corners. Because every tile's curves meet its edges at their midpoints, any arrangement joins up into unbroken paths. Here each cell is rolled again from time to time, by adding a slowly counting whole number to what is hashed.</p>
+
+<div class="example" data-mode="shader" data-title="SH2.2 Truchet tiles that re-roll">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  float n = 9.0;
+  vec2 p = gl_FragCoord.xy / u_res.y * n;
+  float px = n / u_res.y;
+  vec2 id = floor(p), f = fract(p);
+
+  float turn = floor(u_time * 0.3 + hash(id + 5.0));     // a counter that ticks at a different moment in each cell
+  float roll = hash(id + turn * 17.0);                   // a fresh random number at every tick
+  if (roll < 0.5) f.x = 1.0 - f.x;                       // mirror half of the tiles
+
+  // distance to the nearer of two quarter-circles of radius 0.5, centred on opposite corners
+  float d = min(abs(length(f) - 0.5), abs(length(f - 1.0) - 0.5));
+  float band = 1.0 - smoothstep(0.13 - px, 0.13 + px, d);
+  float core = 1.0 - smoothstep(0.04 - px, 0.04 + px, d);
+
+  vec3 col = vec3(0.06, 0.08, 0.12);
+  col = mix(col, vec3(0.16, 0.42, 0.55), band);
+  col = mix(col, vec3(0.95, 0.85, 0.55), core);
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Two kinds of lattice noise</h2>
+<p>Lesson 9 used <strong>value noise</strong>: a random number at each whole-number position, blended smoothly in between. It is the simplest noise, and it has a flaw you can see once you look for it. The peaks and hollows sit exactly on the lattice, so the result has a faint squareness.</p>
+<p><strong>Gradient noise</strong>, which is what Perlin's noise is, stores a random <em>direction</em> at each lattice point instead of a random value. Each corner of a cell says "I am zero here, and I rise in this direction". The four corners' opinions are blended. The value is zero at every lattice point, the features fall between them, and the squareness largely disappears.</p>
+<p>The two are shown side by side with contour bands, which make the difference easier to see. Move the pointer to move the split.</p>
+
+<div class="example" data-mode="shader" data-title="SH2.3 Value noise left of the pointer, gradient noise right">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+vec2 direction(vec2 p) {                 // a random unit arrow for a lattice point
+  float a = hash(p) * 6.2832;
+  return vec2(cos(a), sin(a));
+}
+
+float valueNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i),                  hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+float gradientNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);          // Perlin's later, smoother fade curve
+  // each corner: how far along its arrow is this point?
+  float a = dot(direction(i),                  f);
+  float b = dot(direction(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0));
+  float c = dot(direction(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0));
+  float d = dot(direction(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0));
+  return 0.5 + 0.7 * mix(mix(a, b, u.x), mix(c, d, u.x), u.y); // moved from about -0.7..0.7 into 0..1
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / u_res.y * 7.0 + vec2(u_time * 0.15, 0.0);
+  bool left = gl_FragCoord.x < u_mouse.x;
+  float n = left ? valueNoise(p) : gradientNoise(p);
+
+  vec3 col = mix(vec3(0.05, 0.08, 0.16), vec3(0.95, 0.9, 0.8), n);
+  float band = abs(fract(n * 8.0 + 0.5) - 0.5) / fwidth(n * 8.0);          // a contour at every eighth
+  col = mix(col, vec3(0.9, 0.45, 0.25), 0.8 * (1.0 - smoothstep(0.0, 1.5, band)));
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.0, 1.5, abs(gl_FragCoord.x - u_mouse.x)));
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Octaves, and a surface with light on it</h2>
+<p>fBm is the same loop as before. One refinement is standard in shaders: <strong>rotate the coordinates a little between octaves</strong>. Without it, every octave's lattice lines up with the one below, and their faint grids reinforce each other. A fixed rotation matrix costs almost nothing and hides them.</p>
+<p>With a height available at any point, Textures 4 applies directly: take the slope by sampling the height a small step away in x and in y, build a normal, and light it. Below, the height is also passed through a colour ramp to make a map, anything under the water level is made flat and glossy, and the pointer is the lamp.</p>
+
+<div class="example" data-mode="shader" data-title="SH2.4 A relief map under a lamp (move the pointer)">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i),                  hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float height(vec2 p) {
+  mat2 turn = mat2(0.8, 0.6, -0.6, 0.8);           // a rotation of about 37 degrees
+  float sum = 0.0, amp = 0.5;
+  for (int i = 0; i < 6; i++) {
+    sum += amp * noise(p);
+    p = turn * p * 2.0;                            // next octave: twice as fine, and turned
+    amp *= 0.5;
+  }
+  return sum;
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / u_res.y * 3.0 + vec2(u_time * 0.03, 0.0);
+  float sea = 0.47;
+  float h = height(p);
+
+  // the slope, by measuring the height a small step away each way
+  float e = 0.003;
+  vec2 slope = vec2(height(p + vec2(e, 0.0)) - h, height(p + vec2(0.0, e)) - h) / e;
+  vec3 n = normalize(vec3(-slope * 0.35, 1.0));
+  if (h < sea) n = vec3(0.0, 0.0, 1.0);            // water is flat
+
+  // the colour ramp: sea, sand, grass, rock, snow
+  vec3 col = mix(vec3(0.05, 0.16, 0.32), vec3(0.14, 0.42, 0.55), smoothstep(sea - 0.2, sea, h));
+  col = mix(col, vec3(0.82, 0.76, 0.56), step(sea, h));
+  col = mix(col, vec3(0.30, 0.50, 0.25), smoothstep(sea + 0.015, sea + 0.05, h));
+  col = mix(col, vec3(0.45, 0.40, 0.36), smoothstep(0.60, 0.68, h));
+  col = mix(col, vec3(0.96, 0.97, 1.00), smoothstep(0.74, 0.78, h));
+
+  // the lamp is at the pointer, a little above the surface
+  vec3 toLamp = normalize(vec3((u_mouse - gl_FragCoord.xy) / u_res.y, 0.22));
+  float lambert = max(0.0, dot(n, toLamp));
+  vec3 halfway = normalize(toLamp + vec3(0.0, 0.0, 1.0));
+  float shine = h < sea ? pow(max(0.0, dot(n, halfway)), 200.0) : 0.0;
+
+  gl_FragColor = vec4(col * (0.25 + 1.1 * lambert) + shine, 1.0);
+}
+</script>
+</div>
+
+<h2>Cell noise with moving points</h2>
+<p>Worley's cell noise (Textures 2) is a short loop over the nine cells around the pixel. In a shader the points can move. Each one circles inside its own cell, driven by <code>u_time</code> and its own hash, and the whole diagram rearranges itself continuously. Keeping each point inside its cell matters: it is what guarantees that the nearest point is always among the nine cells searched.</p>
+
+<div class="example" data-mode="shader" data-title="SH2.5 A Voronoi diagram that will not keep still">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+vec2 hash2(vec2 p) {                     // two random numbers at once
+  return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / u_res.y * 6.0;
+  vec2 id = floor(p), f = fract(p);
+
+  float f1 = 9.0, f2 = 9.0;              // distance to the nearest point, and to the second nearest
+  vec2 owner = vec2(0.0);                // the cell that the nearest point belongs to
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j));                         // one of the nine cells
+      vec2 point = 0.5 + 0.4 * sin(u_time * 0.8 + 6.2832 * hash2(id + g));   // its point, circling inside it
+      float d = length(g + point - f);
+      if (d < f1) { f2 = f1; f1 = d; owner = id + g; }
+      else if (d < f2) { f2 = d; }
+    }
+  }
+
+  vec3 col = 0.5 + 0.5 * cos(6.2832 * (hash(owner) * 0.4 + vec3(0.55, 0.65, 0.8)));   // each cell's own colour
+  col *= 1.0 - 0.6 * f1;                                         // darker away from the point
+  col *= smoothstep(0.0, 0.06, f2 - f1);                         // a dark line where two points are equally near
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.03, 0.05, f1));   // the point itself
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Putting it together: light through water</h2>
+<p>The bright network on the floor of a swimming pool is called a caustic. It is expensive to compute physically and easy to imitate, which is the usual situation in shader writing. Two observations do it. The pattern looks like the walls of a cell diagram. And it shifts and breaks up, which suggests two such diagrams sliding across each other, each bent by slow noise.</p>
+<p>Every part of this has appeared above: cell noise, value noise used as a warp (Lesson 3), a sharp falloff from <code>exp</code>, and light that is added instead of mixed.</p>
+
+<div class="example" data-mode="shader" data-title="SH2.6 Sunlight on a pool floor">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+vec2 hash2(vec2 p) {
+  return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i),                  hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+// How close is this position to a cell wall? 1 on the wall, falling away quickly.
+float walls(vec2 p) {
+  vec2 id = floor(p), f = fract(p);
+  float f1 = 9.0, f2 = 9.0;
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j));
+      float d = length(g + hash2(id + g) - f);
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) { f2 = d; }
+    }
+  }
+  return exp(-16.0 * (f2 - f1));
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / u_res.y * 4.0;
+
+  // a slow warp, so that the cell walls bend and wander
+  vec2 bend = vec2(noise(p * 0.8 + u_time * 0.25), noise(p * 0.8 + 7.3 - u_time * 0.2)) - 0.5;
+
+  // two layers of cell walls drifting in different directions
+  float a = walls(p + bend * 0.9 + vec2(u_time * 0.12, 0.0));
+  float b = walls(p * 1.4 - bend * 0.7 + vec2(3.7, -u_time * 0.1));
+  float light = a * 0.55 + b * 0.35 + a * b * 1.2;     // brightest where both layers agree
+
+  // the floor: small tiles, seen through blue water
+  vec2 tile = abs(fract(p * 2.5 + bend * 0.06) - 0.5);
+  float grout = smoothstep(0.44, 0.48, max(tile.x, tile.y));
+  vec3 col = mix(vec3(0.10, 0.45, 0.62), vec3(0.05, 0.30, 0.46), grout);
+
+  col += vec3(0.75, 0.95, 1.0) * light * 0.6;          // light is added
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Keeping it fast</h2>
+<p>A shader's cost is what one pixel costs, multiplied by the number of pixels, sixty times a second. A canvas of 1200 by 1200 real pixels is 86 million shader runs each second. The habits that matter:</p>
+<ul>
+  <li><strong>Count the noise calls.</strong> One fBm of six octaves is six noise calls, each four hashes. A warp built from three fBms, sampled three times for a slope, is 216 hashes per pixel. Use fewer octaves for the warp than for the final value: nobody can see fine detail in a displacement.</li>
+  <li><strong>Loops have a fixed length</strong>, so an early <code>break</code> is the only way to save work inside one.</li>
+  <li><strong>Draw fewer pixels.</strong> Halving the canvas's width and height quarters the work, and soft, noisy pictures survive being scaled up.</li>
+</ul>
+<p>Lesson 19 covers measuring. The same rule applies here: measure before you optimise.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A shader has no random function. A hash of the cell number supplies repeatable randomness.</li>
+  <li>To vary cells, change the coordinates inside the cell, then draw the same thing.</li>
+  <li>Value noise stores a random value at each lattice point. Gradient noise stores a random direction and is less square.</li>
+  <li>Rotating the coordinates between octaves hides the lattice.</li>
+  <li>A height function, sampled twice more for its slope, can be lit like any height map.</li>
+  <li>Cell noise is a search of nine cells, and its points can move as long as each stays in its own cell.</li>
+  <li>Cost is per pixel. Count noise calls.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Hashing large or fast-growing numbers. The pattern breaks into stripes or blocks, differently on different machines. Hash cell numbers, and keep them below a few thousand.</li>
+  <li>Using <code>fwidth</code> across cell borders, where values jump. Work out the pixel size from your own scale instead.</li>
+  <li>Adding time to the coordinates of noise and calling it animation. That only slides the pattern. To make it change shape, move two layers differently, or warp one with another.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Shaders challenge 2</p>
+  <h2>A Living Texture</h2>
+  <p>Take one material from your Textures 2 board, or choose a new surface that moves in life (water, fire, cloud, a field of grass in wind, embers), and write it as a single fragment shader that never stops changing.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Built from a <strong>hash</strong> you pasted in and noise functions you can explain line by line.</li>
+    <li>Uses <strong>both</strong> lattice noise and cell noise, or lattice noise and a cell pattern from <code>floor</code> and <code>fract</code>.</li>
+    <li>It <strong>changes shape</strong> over time. Sliding the whole pattern sideways does not count.</li>
+    <li>It is <strong>lit</strong>: a normal from the slope of a height, a light at the pointer, and a highlight where the material would have one.</li>
+    <li>A <strong>colour ramp</strong> of at least three stops.</li>
+    <li>It runs smoothly on your machine at full canvas size. Write the number of hashes per pixel in a comment.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write the JavaScript version's <code>texture(u, v)</code> into GLSL one line at a time. Most lines need only types added.</li>
+    <li>Two layers moving at different speeds in different directions read as one changing thing.</li>
+    <li>Use <code>inspect</code> from Shaders 1 to look at the height on its own before lighting it.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Make it loop perfectly every ten seconds (Lesson 15).</li>
+    <li>Let the pointer disturb it as well as light it.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone watching for thirty seconds cannot find the moment it repeats or the direction it is sliding.</li>
+    <li>They can name the material.</li>
+  </ul>
+  <a class="start" href="../challenges/sh2-living-texture.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Patricio Gonzalez Vivo and Jen Lowe, <a href="https://thebookofshaders.com/11/"><cite>The Book of Shaders: Noise</cite></a>. <span class="why">Value and gradient noise in GLSL. The next two chapters cover cell noise and fBm.</span></li>
+    <li>Ken Perlin, “Improving Noise”, SIGGRAPH 2002. <span class="why">Gradient noise and its smoother fade curve.</span></li>
+    <li>Steven Worley, “A Cellular Texture Basis Function”, SIGGRAPH 1996. <span class="why">Cell noise.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/voronoilines/"><cite>Voronoi Edges</cite></a>. <span class="why">Exact distances to cell walls.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/fbm/"><cite>fBM</cite></a>. <span class="why">Octaves in a shader.</span></li>
+    <li>Ares Lagae and eight co-authors, “<a href="https://doi.org/10.1111/j.1467-8659.2010.01827.x">A Survey of Procedural Noise Functions</a>”, Computer Graphics Forum, 2010. <span class="why">Every noise function compared.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="01-how-a-shader-thinks.html">← Shaders 1</a><a href="03-raymarching-and-light.html">Shaders 3: Raymarching and Light →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

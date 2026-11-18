@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Textures 4 · Height, Normals and Light</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  window.THREE = THREE;
+  window.OrbitControls = OrbitControls;
+  window.dispatchEvent(new Event('three-ready'));
+</script>
+</head>
+<body>
+<nav class="top"><a href="03-grown-and-borrowed.html">← Textures 3</a><span>Textures 4 of 4</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Textures 4</p>
+  <h1>Height, Normals and Light</h1>
+  <p class="lede">A photograph of cobbles is flat: its shadows were fixed when it was taken. A material is a description of a surface that can be lit afresh from any side. This lesson turns a texture function into the set of maps that 3D software expects, lights them, makes them tile, and puts them on an object.</p>
+</header>
+
+<h2>A material is several textures</h2>
+<p>So far a texture function has returned a colour. A modern material is a small set of textures over the same coordinates, each answering a different question about the surface at that point. The renderer combines them with the lights in the scene.</p>
+<table>
+  <thead><tr><th>Map</th><th>What it answers</th><th>Stored as</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Colour</strong> (albedo, base colour)</td><td>What colour is the surface itself, with no lighting or shadow in it?</td><td>An ordinary colour image</td></tr>
+    <tr><td><strong>Height</strong> (displacement, bump)</td><td>How far does the surface stand above or below the flat plane?</td><td>Greyscale: white is high</td></tr>
+    <tr><td><strong>Normal</strong></td><td>Which way does the surface face here?</td><td>A direction packed into red, green and blue</td></tr>
+    <tr><td><strong>Roughness</strong></td><td>Is it matt or glossy here?</td><td>Greyscale: white is matt</td></tr>
+    <tr><td><strong>Ambient occlusion</strong></td><td>How much is this spot hidden from light arriving from all around?</td><td>Greyscale: black is hidden</td></tr>
+  </tbody>
+</table>
+<p>The procedural advantage is that all of them come from one generator. If the stones move, every map moves with them. The rule for writing such a generator is the one from Textures 2: <strong>build the height first</strong>. Colour, roughness and occlusion are then mostly functions of the height.</p>
+
+<h2>From height to a lit surface</h2>
+<p>The idea of shading a flat surface as if it were bumpy is James Blinn's, from "Simulation of Wrinkled Surfaces" (SIGGRAPH 1978). It needs two steps.</p>
+<ol>
+  <li><strong>The normal.</strong> A normal is an arrow one unit long pointing straight out of the surface. On a flat surface it points at you. Where the height rises to the right, the surface leans left, so the normal tilts left. The amount is the slope: the height one pixel to the right minus the height one pixel to the left, and the same up and down. This is a derivative measured by finite differences (Maths 3).</li>
+  <li><strong>The light.</strong> A surface is brightest when it faces the light and dark when it faces away. The brightness is the dot product of the normal and the direction to the light (Maths 2), with negative values cut off at zero. This is Lambert's law, the simplest model of a matt surface.</li>
+</ol>
+<p>Move the pointer over the canvas. It carries a lamp just above the surface. Nothing is recomputed but those two steps, yet the stones read as solid.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="TX4.1 A lamp over a height field (move the pointer)">
+<script type="text/plain">
+const N = PA.noise('bump');
+const strength = ui.slider('bump strength', 0, 10, 4, 0.1);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// The height of the surface: 0 deep in a joint, 1 on top of a stone, with a little grit.
+function height(u, v) {
+  const x = u * 7, y = v * 7, cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;
+      const d = Math.hypot(x - gx - hash(gx, gy), y - gy - hash(gy + 57, gx + 13));
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+    }
+  }
+  return PA.smoothstep(0, 0.35, f2 - f1) * 0.85 + N.fbm(u * 24, v * 24) * 0.15;
+}
+
+const Ht = new Float32Array(W * H);                    // the height map, computed once
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) Ht[y * W + x] = height(x / W, y / H);
+const at = (x, y) => Ht[PA.clamp(y, 0, H - 1) * W + PA.clamp(x, 0, W - 1)];
+
+const img = ctx.createImageData(W, H);
+loop((t) => {
+  // the lamp: under the pointer, or circling if the pointer has not been over the canvas yet
+  const lx = mouse.active ? mouse.x : W / 2 + Math.cos(t) * 70;
+  const ly = mouse.active ? mouse.y : H / 2 + Math.sin(t) * 70;
+  const lz = 45, s = strength();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      // slope: the change in height from left to right, and from above to below
+      const dx = (at(x + 1, y) - at(x - 1, y)) * s, dy = (at(x, y + 1) - at(x, y - 1)) * s;
+      // the normal leans away from uphill; divide by its length so that it is one unit long
+      const nl = Math.hypot(dx, dy, 1), nx = -dx / nl, ny = -dy / nl, nz = 1 / nl;
+      // the direction from this pixel to the lamp
+      const px = lx - x, py = ly - y, pl = Math.hypot(px, py, lz);
+      const lambert = Math.max(0, (nx * px + ny * py + nz * lz) / pl);
+      const k = 0.1 + 1.15 * lambert, i = (y * W + x) * 4;
+      img.data[i] = 158 * k; img.data[i + 1] = 150 * k; img.data[i + 2] = 138 * k; img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h2>The normal map</h2>
+<p>Working out normals from heights is cheap but must be redone for every pixel of every frame. A renderer usually wants them stored. A normal has three components, each from −1 to 1, and an image has three channels, each from 0 to 1, so the packing is one line: halve it and add a half. Red holds the lean to the right, green the lean upward, blue how much it faces you.</p>
+<p>A flat surface has the normal (0, 0, 1), which packs to (0.5, 0.5, 1): the pale violet that fills every normal map. The tints at the edges of the stones are the leaning.</p>
+
+<div class="example" data-pixel data-w="600" data-h="200" data-title="TX4.2 Height, the normal map made from it, and the lit result">
+<script type="text/plain">
+const N = PA.noise('bump');
+const strength = ui.slider('bump strength', 0, 10, 4, 0.1);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+const S = 200;
+
+function height(u, v) {                                // the same surface as TX4.1
+  const x = u * 7, y = v * 7, cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;
+      const d = Math.hypot(x - gx - hash(gx, gy), y - gy - hash(gy + 57, gx + 13));
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+    }
+  }
+  return PA.smoothstep(0, 0.35, f2 - f1) * 0.85 + N.fbm(u * 24, v * 24) * 0.15;
+}
+const Ht = new Float32Array(S * S);
+for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) Ht[y * S + x] = height(x / S, y / S);
+const at = (x, y) => Ht[PA.clamp(y, 0, S - 1) * S + PA.clamp(x, 0, S - 1)];
+
+const img = ctx.createImageData(W, H);
+function draw() {
+  const s = strength();
+  const light = [-0.55, -0.6, 0.58];                   // from the upper left, and towards you
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * s, dy = (at(x, y + 1) - at(x, y - 1)) * s;
+      const nl = Math.hypot(dx, dy, 1), nx = -dx / nl, ny = -dy / nl, nz = 1 / nl;
+      const lambert = Math.max(0, nx * light[0] + ny * light[1] + nz * light[2]);
+      const h = at(x, y) * 255;
+      const panels = [
+        [h, h, h],                                                   // the height map
+        [(nx * 0.5 + 0.5) * 255, (-ny * 0.5 + 0.5) * 255, (nz * 0.5 + 0.5) * 255],   // the normal map (green is "up", so y is flipped)
+        [158 * (0.15 + lambert), 150 * (0.15 + lambert), 138 * (0.15 + lambert)],    // lit
+      ];
+      for (let p = 0; p < 3; p++) {
+        const i = (y * W + x + p * S) * 4;
+        img.data[i] = panels[p][0]; img.data[i + 1] = panels[p][1]; img.data[i + 2] = panels[p][2]; img.data[i + 3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<div class="note"><p><strong>Two conventions for green.</strong> Programs disagree about whether green means leaning up or leaning down. three.js and Blender use up (often called the OpenGL convention). Some game engines use down (the DirectX convention). If a normal map makes bumps look like dents when lit from above, flip its green channel.</p></div>
+
+<h2>Roughness and highlights</h2>
+<p>Lambert's law describes a perfectly matt surface. Real surfaces also reflect the light source itself, as a highlight. How sharp that highlight is depends on how smooth the surface is at a scale too small to see: polished stone gives a small bright spot, chalk gives none. A roughness map stores that property per point.</p>
+<p>The classic cheap highlight, usually called Blinn–Phong, uses one more direction: the one halfway between the direction to the light and the direction to your eye. Where the normal lines up with it, the surface is angled to bounce the light straight to you. Raising that alignment to a high power makes a tight highlight, and a low power makes a broad dull one. Low roughness means a high power.</p>
+<p>Below, water fills the joints up to a level. Where a point is under water its normal is replaced by the flat one, its roughness drops to almost nothing, and its colour darkens. Raise the level and move the lamp across the puddles.</p>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="TX4.3 Wet cobbles (move the pointer)">
+<script type="text/plain">
+const N = PA.noise('bump');
+const level = ui.slider('water level', 0, 0.8, 0.3, 0.01);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+function height(u, v) {
+  const x = u * 7, y = v * 7, cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;
+      const d = Math.hypot(x - gx - hash(gx, gy), y - gy - hash(gy + 57, gx + 13));
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+    }
+  }
+  return PA.smoothstep(0, 0.35, f2 - f1) * 0.85 + N.fbm(u * 24, v * 24) * 0.15;
+}
+const Ht = new Float32Array(W * H);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) Ht[y * W + x] = height(x / W, y / H);
+const at = (x, y) => Ht[PA.clamp(y, 0, H - 1) * W + PA.clamp(x, 0, W - 1)];
+
+const img = ctx.createImageData(W, H);
+loop((t) => {
+  const lx = mouse.active ? mouse.x : W / 2 + Math.cos(t) * 70;
+  const ly = mouse.active ? mouse.y : H / 2 + Math.sin(t) * 70;
+  const lz = 60, water = level();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const h = at(x, y), wet = h < water;
+      let nx = 0, ny = 0, nz = 1;                      // under water: flat
+      if (!wet) {
+        const dx = (at(x + 1, y) - at(x - 1, y)) * 4, dy = (at(x, y + 1) - at(x, y - 1)) * 4;
+        const nl = Math.hypot(dx, dy, 1);
+        nx = -dx / nl; ny = -dy / nl; nz = 1 / nl;
+      }
+      const rough = wet ? 0.05 : 0.7;                  // the roughness map, in one line
+      const damp = wet ? 0.35 : 1 - 0.4 * PA.smoothstep(water + 0.15, water, h);   // stone just above the water is darker
+
+      let px = lx - x, py = ly - y, pz = lz;           // direction to the lamp
+      const pl = Math.hypot(px, py, pz);
+      px /= pl; py /= pl; pz /= pl;
+      const lambert = Math.max(0, nx * px + ny * py + nz * pz);
+
+      // the halfway direction between the lamp and the eye, which looks straight down the z axis
+      const hl = Math.hypot(px, py, pz + 1);
+      const align = Math.max(0, (nx * px + ny * py + nz * (pz + 1)) / hl);
+      const power = 2 / (rough * rough);               // rough 0.7 gives about 4, rough 0.05 gives 800
+      const shine = Math.pow(align, power) * (wet ? 1.3 : 0.12);
+
+      const k = (0.08 + lambert) * damp, i = (y * W + x) * 4;
+      img.data[i] = 158 * k + 255 * shine; img.data[i + 1] = 150 * k + 250 * shine; img.data[i + 2] = 138 * k + 235 * shine;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<h2>Ambient occlusion: light that does not reach</h2>
+<p>A single lamp leaves everything facing away from it black. In life, light also arrives from the sky and from every nearby surface, so shadowed areas are lit softly from all round. That soft light reaches open, raised places easily and deep, narrow places hardly at all. The darkening of creases and joints is called ambient occlusion, and it is the cue that makes a surface look deep even under flat lighting.</p>
+<p>Computing it properly means testing many directions from every point. A good approximation for a height map takes three lines: blur the height, and compare. A point lower than the average of its surroundings sits in a hollow, and is darkened in proportion.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX4.4 The same surface without and with occlusion">
+<script type="text/plain">
+const N = PA.noise('bump');
+const radius = ui.slider('radius', 2, 16, 7, 1);
+const amount = ui.slider('amount', 0, 6, 3, 0.1);
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+function height(u, v) {
+  const x = u * 7, y = v * 7, cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j;
+      const d = Math.hypot(x - gx - hash(gx, gy), y - gy - hash(gy + 57, gx + 13));
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+    }
+  }
+  return PA.smoothstep(0, 0.35, f2 - f1) * 0.85 + N.fbm(u * 24, v * 24) * 0.15;
+}
+const n = W * H, Ht = new Float32Array(n);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) Ht[y * W + x] = height(x / W, y / H);
+
+// Average every pixel with its neighbours up to r away: first along rows, then along columns.
+function blur(src, r) {
+  const mid = new Float32Array(n), out = new Float32Array(n);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let sum = 0;
+      for (let d = -r; d <= r; d++) sum += src[y * W + PA.clamp(x + d, 0, W - 1)];
+      mid[y * W + x] = sum / (2 * r + 1);
+    }
+  }
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let sum = 0;
+      for (let d = -r; d <= r; d++) sum += mid[PA.clamp(y + d, 0, H - 1) * W + x];
+      out[y * W + x] = sum / (2 * r + 1);
+    }
+  }
+  return out;
+}
+
+const img = ctx.createImageData(W, H);
+function draw() {
+  const around = blur(Ht, radius());
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const hollow = Math.max(0, around[i] - Ht[i]);   // how far this point is below its surroundings
+      const open = x < W / 2 ? 1 : PA.clamp(1 - hollow * amount());      // left half: no occlusion
+      const k = 0.95 * open;                           // flat, even light, so that only the occlusion shows
+      img.data[i * 4] = 158 * k; img.data[i * 4 + 1] = 150 * k; img.data[i * 4 + 2] = 138 * k; img.data[i * 4 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillRect(W / 2 - 1, 0, 2, H);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>The left half is the surface under perfectly even light, and it is featureless, because even light on a single-coloured surface shows nothing. The right half is the same light with occlusion. All the shape you can see there comes from the hollows.</p>
+
+<h2>A complete, tileable set of maps</h2>
+<p>To hand a material to someone else you deliver image files, and they must tile. Textures 1 gave the rule for patterns: a whole number of repeats. For noise there are two matching rules.</p>
+<ul>
+  <li><strong>Cell noise</strong> tiles if the grid cells wrap. When hashing a cell number to place its point, wrap the number to the tile first. The cell past the right edge then holds the same point as the first cell.</li>
+  <li><strong>Lattice noise</strong> tiles the same way. Value noise stores a random number at each whole-number position. Wrap the position before hashing it.</li>
+</ul>
+<p>Normals must wrap too: the slope at the right edge is measured against the left edge. The viewer below shows each map of one material, and then four copies lit together, which is the test. Use <strong>Save PNG</strong> on each map to export it.</p>
+
+<div class="example" data-pixel data-w="256" data-h="256" data-title="TX4.5 One generator, four maps, no seams">
+<script type="text/plain">
+const view = ui.slider('0 colour  1 height  2 normal  3 roughness  4 lit, tiled', 0, 4, 4, 1);
+const T = 256, P = 6;                                  // tile size in pixels, and stones across the tile
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+const wrap = (i, m) => ((i % m) + m) % m;
+
+// Value noise that repeats every `period` cells.
+function wrapped(x, y, period) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = PA.smoothstep(0, 1, x - ix), fy = PA.smoothstep(0, 1, y - iy);
+  const v = (i, j) => hash(wrap(i, period), wrap(j, period) + period * 7);
+  return PA.lerp(PA.lerp(v(ix, iy), v(ix + 1, iy), fx), PA.lerp(v(ix, iy + 1), v(ix + 1, iy + 1), fx), fy);
+}
+// Stones whose points repeat every P cells. Returns [how far up the stone, the stone's random number].
+function stones(u, v) {
+  const x = u * P, y = v * P, cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9, id = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const gx = cx + i, gy = cy + j, wx = wrap(gx, P), wy = wrap(gy, P);    // the hash sees the wrapped cell number
+      const d = Math.hypot(x - gx - hash(wx, wy), y - gy - hash(wy + 57, wx + 13));
+      if (d < f1) { f2 = f1; f1 = d; id = hash(wx + 5, wy + 9); } else if (d < f2) f2 = d;
+    }
+  }
+  return [PA.smoothstep(0, 0.35, f2 - f1), id];
+}
+
+// Build the maps once.
+const Ht = new Float32Array(T * T), Rough = new Float32Array(T * T);
+const Colour = new Float32Array(T * T * 3), Normal = new Float32Array(T * T * 3);
+for (let y = 0; y < T; y++) {
+  for (let x = 0; x < T; x++) {
+    const u = x / T, v = y / T, i = y * T + x;
+    const [top, id] = stones(u, v);
+    const grit = wrapped(u * 32, v * 32, 32) * 0.6 + wrapped(u * 64, v * 64, 64) * 0.4;
+    Ht[i] = top * 0.85 + grit * 0.15;                  // height first...
+    const tone = (0.45 + 0.55 * top) * (0.8 + id * 0.35) * (0.92 + grit * 0.16);    // ...then colour from it: dark joints, tinted stones
+    Colour[i * 3] = 168 * tone; Colour[i * 3 + 1] = (150 + id * 14) * tone; Colour[i * 3 + 2] = (136 - id * 20) * tone;
+    Rough[i] = PA.lerp(0.95, 0.55 + id * 0.3, top);    // joints are matt dirt, stone tops are worn smoother
+  }
+}
+for (let y = 0; y < T; y++) {
+  for (let x = 0; x < T; x++) {
+    const hx = Ht[y * T + wrap(x + 1, T)] - Ht[y * T + wrap(x - 1, T)];      // slopes measured across the tile's edges
+    const hy = Ht[wrap(y + 1, T) * T + x] - Ht[wrap(y - 1, T) * T + x];
+    const nl = Math.hypot(hx * 5, hy * 5, 1), i = (y * T + x) * 3;
+    Normal[i] = -hx * 5 / nl; Normal[i + 1] = -hy * 5 / nl; Normal[i + 2] = 1 / nl;
+  }
+}
+
+const img = ctx.createImageData(W, H);
+function draw() {
+  const mode = view();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = mode === 4 ? wrap(y * 2, T) * T + wrap(x * 2, T) : y * T + x;      // mode 4 shows 2 by 2 tiles
+      let c;
+      if (mode === 0) c = [Colour[i * 3], Colour[i * 3 + 1], Colour[i * 3 + 2]];
+      else if (mode === 1) c = [Ht[i] * 255, Ht[i] * 255, Ht[i] * 255];
+      else if (mode === 2) c = [(Normal[i * 3] * 0.5 + 0.5) * 255, (-Normal[i * 3 + 1] * 0.5 + 0.5) * 255, (Normal[i * 3 + 2] * 0.5 + 0.5) * 255];
+      else if (mode === 3) c = [Rough[i] * 255, Rough[i] * 255, Rough[i] * 255];
+      else {
+        const lambert = Math.max(0, Normal[i * 3] * -0.55 + Normal[i * 3 + 1] * -0.6 + Normal[i * 3 + 2] * 0.58);
+        const k = (0.2 + lambert) / 255 * 1.25;
+        c = [Colour[i * 3] * k * 255, Colour[i * 3 + 1] * k * 255, Colour[i * 3 + 2] * k * 255];
+      }
+      const o = (y * W + x) * 4;
+      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Where the maps go</h2>
+<p>Every renderer that uses this kind of material takes the same maps under slightly different names.</p>
+<table>
+  <thead><tr><th>Map</th><th>three.js <code>MeshStandardMaterial</code></th><th>Blender Principled BSDF</th></tr></thead>
+  <tbody>
+    <tr><td>Colour</td><td><code>map</code></td><td>Base Color</td></tr>
+    <tr><td>Roughness</td><td><code>roughnessMap</code> (read from the green channel)</td><td>Roughness</td></tr>
+    <tr><td>Normal</td><td><code>normalMap</code>, scaled by <code>normalScale</code></td><td>Through a Normal Map node into Normal</td></tr>
+    <tr><td>Height</td><td><code>displacementMap</code> (moves the vertices) or <code>bumpMap</code></td><td>Through a Displacement node into the material output</td></tr>
+    <tr><td>Occlusion</td><td><code>aoMap</code></td><td>Usually multiplied into the colour</td></tr>
+  </tbody>
+</table>
+<p>One setting causes most of the trouble. A colour map holds colours meant for the eye, and must be marked as sRGB. The others hold measurements, and must be marked as plain data: <code>Non-Color</code> in Blender, and left alone in three.js. A normal map read as a colour gives lighting that is subtly wrong everywhere.</p>
+<p>The last example builds a small set of maps as in TX4.5 and gives them to three.js. The sphere is perfectly smooth geometry. Everything you see on it is the maps. This example loads three.js from the internet.</p>
+
+<div class="example" data-mode="three" data-title="TX4.6 The maps on an object (drag to orbit)">
+<script type="text/plain">
+const bump = ui.slider('normal strength', 0, 3, 1.5, 0.1);
+const T = 256, P = 5;
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+const wrap = (i, m) => ((i % m) + m) % m;
+
+// A tileable height, colour and roughness, as in TX4.5.
+const Ht = new Float32Array(T * T), Id = new Float32Array(T * T);
+for (let y = 0; y < T; y++) {
+  for (let x = 0; x < T; x++) {
+    const px = x / T * P, py = y / T * P, cx = Math.floor(px), cy = Math.floor(py);
+    let f1 = 9, f2 = 9, id = 0;
+    for (let j = -1; j <= 1; j++) {
+      for (let i = -1; i <= 1; i++) {
+        const gx = cx + i, gy = cy + j, wx = wrap(gx, P), wy = wrap(gy, P);
+        const d = Math.hypot(px - gx - hash(wx, wy), py - gy - hash(wy + 57, wx + 13));
+        if (d < f1) { f2 = f1; f1 = d; id = hash(wx + 5, wy + 9); } else if (d < f2) f2 = d;
+      }
+    }
+    Ht[y * T + x] = PA.smoothstep(0, 0.35, f2 - f1);
+    Id[y * T + x] = id;
+  }
+}
+
+// Turn a function from pixel number to [r, g, b] into a three.js texture that repeats.
+function texture(pixel) {
+  const c = document.createElement('canvas');
+  c.width = c.height = T;
+  const g = c.getContext('2d'), img = g.createImageData(T, T);
+  for (let i = 0; i < T * T; i++) {
+    const p = pixel(i);
+    img.data[i * 4] = p[0]; img.data[i * 4 + 1] = p[1]; img.data[i * 4 + 2] = p[2]; img.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 2);                                // four times round the sphere, twice from pole to pole
+  cleanup(() => tex.dispose());
+  return tex;
+}
+
+const colourMap = texture((i) => {
+  const tone = (0.4 + 0.6 * Ht[i]) * (0.8 + Id[i] * 0.35);
+  return [176 * tone, (150 + Id[i] * 20) * tone, (126 - Id[i] * 20) * tone];
+});
+colourMap.colorSpace = THREE.SRGBColorSpace;           // colours for the eye; the other two maps are data
+const roughnessMap = texture((i) => {
+  const r = PA.lerp(0.95, 0.35 + Id[i] * 0.3, Ht[i]) * 255;
+  return [r, r, r];
+});
+const normalMap = texture((i) => {
+  const x = i % T, y = Math.floor(i / T);
+  const hx = (Ht[y * T + wrap(x + 1, T)] - Ht[y * T + wrap(x - 1, T)]) * 5;
+  const hy = (Ht[wrap(y + 1, T) * T + x] - Ht[wrap(y - 1, T) * T + x]) * 5;
+  const nl = Math.hypot(hx, hy, 1);
+  return [(-hx / nl * 0.5 + 0.5) * 255, (hy / nl * 0.5 + 0.5) * 255, (1 / nl * 0.5 + 0.5) * 255];   // green is "up"
+});
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(0, 0.6, 3.6);
+orbit(camera);
+
+const material = new THREE.MeshStandardMaterial({ map: colourMap, roughnessMap, normalMap, roughness: 1, metalness: 0 });
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.2, 96, 48), material));
+
+const lamp = new THREE.DirectionalLight(0xfff2dd, 3.2);
+scene.add(lamp);
+scene.add(new THREE.AmbientLight(0x8090b0, 0.5));
+
+loop((t) => {
+  material.normalScale.set(bump(), bump());
+  lamp.position.set(Math.cos(t * 0.6) * 4, 2.5, Math.sin(t * 0.6) * 4);       // the lamp circles the sphere
+  renderer.render(scene, camera);
+});
+</script>
+</div>
+
+<p>Set the normal strength to 0 and the sphere becomes a painted ball. The colour map alone carries no shape. Raise it and the same sphere has stones standing out of it, with highlights that move across each stone as the lamp passes. The outline of the sphere stays perfectly round, which is the limit of a normal map: it changes the lighting, not the shape. To change the shape, use the height map to move the vertices, as three.js 3 does in its vertex shader.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A material is a set of maps over the same coordinates: colour, height, normal, roughness, occlusion.</li>
+  <li>Build the height first and derive the others from it.</li>
+  <li>The normal comes from the slope of the height. The brightness is the dot product of the normal and the direction to the light.</li>
+  <li>A normal map packs a direction into a colour. Flat is pale violet.</li>
+  <li>Roughness decides how tight the highlight is.</li>
+  <li>A point below the average of its surroundings is in a hollow, and receives less light from all around.</li>
+  <li>Noise tiles when the cell numbers are wrapped before they are hashed.</li>
+  <li>Colour maps are sRGB. Every other map is plain data.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Painting shadows into the colour map. The renderer adds its own, and the two will disagree as soon as the light moves.</li>
+  <li>Normals that are not one unit long. Divide by the length after every calculation that could change it.</li>
+  <li>A normal map that tiles in colour but not in slope, because the slopes at the edges were measured against a clamped neighbour instead of a wrapped one.</li>
+  <li>Far too much bump. If the surface looks like a crumpled bag, quarter the strength.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Textures challenge 4</p>
+  <h2>A Material You Could Hand Over</h2>
+  <p>Take one material from your Textures 2 board and finish it: a tileable set of four maps, exported as files, proven on an object.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>One generator produces <strong>colour, height, normal and roughness</strong> maps, all from the same height.</li>
+    <li>All four <strong>tile</strong> in both directions. Show a 2 × 2 lit preview as proof.</li>
+    <li>Each map can be <strong>saved as a PNG</strong> of at least 1024 pixels square, named after the material and the map.</li>
+    <li>The colour map contains <strong>no lighting</strong>: no shadows, no highlights.</li>
+    <li>A <strong>lit preview</strong> with a light you can move, using diffuse light, a highlight driven by the roughness map, and occlusion.</li>
+    <li>The maps are used once outside your own preview: on an object in three.js, or on a plane in Blender.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Get the height tiling first. Every other map inherits it.</li>
+    <li>To export at 1024 pixels from a small preview, run the generator a second time at the larger size into an off-screen canvas and save that.</li>
+    <li>In Blender, set the Image Texture nodes for the normal, roughness and height files to <code>Non-Color</code>.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add an occlusion map as a fifth export.</li>
+    <li>Add one control, such as age or wetness, that changes all the maps consistently.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Four copies side by side show no seam under a moving light.</li>
+    <li>On an object, the material still reads correctly when the light is behind it, beside it and in front of it.</li>
+  </ul>
+  <a class="start" href="../challenges/tx4-material-maps.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>James Blinn, “Simulation of Wrinkled Surfaces”, SIGGRAPH 1978. <span class="why">The invention of bump mapping.</span></li>
+    <li>Matt Pharr, Wenzel Jakob and Greg Humphreys, <a href="https://pbr-book.org/"><cite>Physically Based Rendering: From Theory to Implementation</cite></a>, 4th edition, MIT Press, 2023. Free to read online. <span class="why">The reference on how light and materials are modelled.</span></li>
+    <li>Brent Burley, “Physically-Based Shading at Disney”, SIGGRAPH 2012 course notes. <span class="why">The material model that base colour, roughness and metalness come from.</span></li>
+    <li>Joey de Vries, <a href="https://learnopengl.com/Advanced-Lighting/Normal-Mapping"><cite>LearnOpenGL: Normal Mapping</cite></a>. <span class="why">Normal maps and tangent space, step by step.</span></li>
+    <li>three.js, <a href="https://threejs.org/docs/#api/en/materials/MeshStandardMaterial"><cite>MeshStandardMaterial</cite></a>. <span class="why">Which map goes in which property.</span></li>
+    <li>Blender Foundation, <a href="https://docs.blender.org/manual/en/latest/render/shader_nodes/shader/principled.html"><cite>Blender Manual: Principled BSDF</cite></a>. <span class="why">The same maps in Blender.</span></li>
+    <li>Tomas Akenine-Möller, Eric Haines, Naty Hoffman and three co-authors, <cite>Real-Time Rendering</cite>, 4th edition, CRC Press, 2018. <span class="why">Texturing, shading and occlusion as used in games.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="03-grown-and-borrowed.html">← Textures 3</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

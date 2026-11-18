@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Illusions 4 · Depth and Hidden Pictures</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-motion-that-is-not-there.html">← Illusions 3</a><span>Illusions 4 of 4</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Illusions 4</p>
+  <h1>Depth and Hidden Pictures</h1>
+  <p class="lede">Every picture of a solid thing is an illusion of depth, and it works because vision reconstructs three dimensions from flat evidence by fixed rules. Knowing the rules, a program can supply the evidence directly: depth with no visible object, a solid made of flat dots, an object that cannot exist, and a picture that changes with distance.</p>
+</header>
+
+<h2>Depth from two eyes, in one picture</h2>
+<p>Your eyes are a few centimetres apart and see slightly different views. A near object appears shifted between the two views by more than a far one, and the visual system turns the size of that shift into distance. Béla Julesz showed in the 1960s, in work collected in <em>Foundations of Cyclopean Perception</em> (1971), that this needs no recognisable object at all. Two fields of random dots, identical except that a central square of dots is shifted sideways in one, are seen as a square floating in depth when each eye is given one field.</p>
+<p>An <strong>autostereogram</strong> packs both views into a single picture. If you look <em>through</em> a repeating pattern, at a point behind the screen, each eye lands on a different repeat and the two fuse. Where the pattern repeats at shorter intervals, the eyes must converge more to fuse it, and that part is seen as nearer. So a depth map can be encoded as small changes in the repeat distance.</p>
+<p>The standard method is from "Displaying 3D Images: Algorithms for Single-Image Random-Dot Stereograms" by Harold Thimbleby, Stuart Inglis and Ian Witten (IEEE Computer, 1994), and the example follows it. For every pixel of a row:</p>
+<ol>
+  <li>Look up the depth at that position and work out how far apart the two eyes' lines of sight are where they cross the screen. Nearer surfaces give a smaller separation.</li>
+  <li>The two screen points that distance apart, either side of the pixel, are showing the <em>same</em> point of the surface, one to each eye. Record that they must have the same colour.</li>
+  <li>When the whole row has been processed, give each group of linked pixels one random colour.</li>
+</ol>
+
+<div class="example" data-pixel data-w="600" data-h="380" data-title="IL4.1 A dome and a ring, hidden in dots">
+<script type="text/plain">
+const amount = ui.slider('depth', 0, 1, 0.8, 0.05);
+let seed = 1;
+ui.button('new dots', () => { seed++; draw(); });
+const E = 220;                                         // the distance between the eyes, in pixels of this picture
+const MU = 1 / 3;                                      // the deepest relief, as a fraction of the viewing distance
+
+// The scene: how near the surface is at (x, y), from 0 (the far plane) to 1 (nearest).
+function depth(x, y) {
+  const r = Math.hypot(x - W / 2, y - H / 2 - 10);
+  let z = 0;
+  if (r < 70) z = Math.sqrt(1 - (r / 70) ** 2);                              // a dome
+  const d = Math.abs(r - 125);
+  if (d < 24) z = Math.max(z, 0.6 * Math.sqrt(1 - (d / 24) ** 2));           // a rounded ring round it
+  return z * amount();
+}
+// How far apart, on the screen, are the two eyes' views of a point at depth z?
+const separation = (z) => Math.round((1 - MU * z) * E / (2 - MU * z));
+
+function draw() {
+  const R = PA.rng('dots' + seed);
+  const img = ctx.createImageData(W, H);
+  const same = new Int32Array(W), tone = new Uint8Array(W);
+  const palette = [[20, 30, 60], [60, 110, 160], [230, 220, 190], [200, 120, 70]];
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) same[x] = x;           // to begin with, every pixel is linked only to itself
+    for (let x = 0; x < W; x++) {
+      const s = separation(depth(x, y));
+      let left = x - (s >> 1), right = left + s;       // the two pixels that show the same point of the surface
+      if (left < 0 || right >= W) continue;
+      // link them, taking care to keep earlier links: follow the chain until it can be joined
+      for (let k = same[left]; k !== left && k !== right; k = same[left]) {
+        if (k < right) left = k;
+        else { left = right; right = k; }
+      }
+      same[left] = right;
+    }
+    for (let x = W - 1; x >= 0; x--) {                 // from the right: a free pixel gets a random tone, a linked one copies
+      tone[x] = same[x] === x ? R.int(0, 3) : tone[same[x]];
+      const c = palette[tone[x]], i = (y * W + x) * 4;
+      img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = '#fff';                              // two guide dots, as far apart as the far plane's repeat
+  for (const x of [W / 2 - separation(0) / 2, W / 2 + separation(0) / 2]) {
+    ctx.beginPath(); ctx.arc(x, 12, 5, 0, PA.TAU); ctx.fill();
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<div class="note"><p><strong>How to see it.</strong> Make the example as large as you can. Look at the two white dots and relax your eyes as if gazing at something far behind the screen, until the two dots drift apart into four and the middle two merge into one. Hold that, and lower your attention into the picture without refocusing. A dome inside a ring should stand out from a flat background. It can take a minute the first time, and a small proportion of people cannot do it at all. Set the depth slider to 0 for the control: the same kind of dots, encoding a flat plane.</p></div>
+
+<p>This is as procedural as a picture can be. The depth map can be any function: a height field from Lesson 3, a distance function from Lesson 9, a rendered scene. The paper adds a refinement left out here, which removes links when one eye's view of a point would be blocked by a nearer part of the surface.</p>
+
+<h2>Depth from movement</h2>
+<p>Hans Wallach and D. N. O'Connell described the <strong>kinetic depth effect</strong> in 1953 (Journal of Experimental Psychology). They cast the shadow of a bent wire onto a screen. Still, it was a flat line. When the wire was turned, viewers saw a rigid solid shape turning in depth, although the shadow was as flat as before.</p>
+<p>The dots below lie on an invisible sphere, turned about a vertical axis and drawn with no perspective, no shading and no change of size. Each dot simply slides left and right. Almost everyone sees a turning globe. Because nothing says which dots are in front, the direction of spin is ambiguous, and with patience you can make it reverse by willing it. Set the speed to zero and the globe collapses into a flat disc of dots.</p>
+
+<div class="example" data-h="420" data-title="IL4.2 A globe made of sliding dots">
+<script type="text/plain">
+const speed = ui.slider('speed', 0, 2, 1, 0.05);
+const cue = ui.slider('hint: draw the far dots dimmer', 0, 1, 0, 0.01);
+const R = PA.rng('globe'), dots = [];
+for (let i = 0; i < 420; i++) {                        // points spread evenly over a sphere of radius 1
+  const y = R.range(-1, 1), a = R.range(PA.TAU), ring = Math.sqrt(1 - y * y);
+  dots.push([Math.cos(a) * ring, y, Math.sin(a) * ring]);
+}
+let turned = 0, before = 0;
+
+loop((t) => {
+  turned += (t - before) * speed();
+  before = t;
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  const c = Math.cos(turned), s = Math.sin(turned);
+  for (const [x, y, z] of dots) {
+    const sx = x * c + z * s, depth = z * c - x * s;   // turn about the vertical axis; depth is not used to place the dot
+    ctx.fillStyle = 'rgba(240, 235, 220, ' + (1 - cue() * 0.75 * (0.5 - depth * 0.5)) + ')';
+    ctx.beginPath(); ctx.arc(W / 2 + sx * 170, H / 2 + y * 170, 2.4, 0, PA.TAU); ctx.fill();
+  }
+});
+</script>
+</div>
+
+<p>Raise the hint slider and the ambiguity goes: dimmer dots are taken to be further away, and the globe settles on one direction. That is a small demonstration of how depth cues combine. Every cue you add to a generated scene, such as overlap, size, haze (Shaders 3) and shading, removes some ambiguity, and each can also be set to contradict the others, which is where the next two illusions come from.</p>
+
+<h2>Depth that distorts shape</h2>
+<p>Roger Shepard drew two tables in his book <em>Mind Sights</em> (1990). One looks long and narrow, the other nearly square. Their tops are the same parallelogram, turned. The legs and the angle tell the visual system that each top is a rectangle lying flat and receding from you, and it reports the shape that such a rectangle would have, stretching each one along the direction it takes to run into depth. As with brightness in Illusions 1, you see the inferred object and not the picture.</p>
+<p>The slider lifts a copy of the first top, turns it and lays it over the second.</p>
+
+<div class="example" data-h="420" data-title="IL4.3 Two table tops, one shape">
+<script type="text/plain">
+const move = ui.slider('carry the left top over to the right one', 0, 1, 0, 0.01);
+const TURN = Math.atan2(210, 70);                      // the angle that lays the long edge level
+const A0 = [95, 330], B0 = [320, 190];                 // one corner of each top
+
+// The top's four corners, starting at `origin`, turned by `angle`.
+function top(origin, angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return [[0, 0], [115, 0], [185, -210], [70, -210]].map(([x, y]) => [origin[0] + x * c - y * s, origin[1] + x * s + y * c]);
+}
+function table(corners, legs) {
+  ctx.strokeStyle = '#3b2f2f'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  for (const i of legs) {
+    ctx.beginPath(); ctx.moveTo(corners[i][0], corners[i][1]); ctx.lineTo(corners[i][0], corners[i][1] + 78); ctx.stroke();
+  }
+  ctx.fillStyle = '#c98f4e'; ctx.strokeStyle = '#3b2f2f'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  corners.forEach(([x, y]) => ctx.lineTo(x, y));
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+function draw() {
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, W, H);
+  table(top(A0, 0), [0, 1, 2]);
+  table(top(B0, TURN), [1, 2, 3]);
+
+  const t = move();                                    // the travelling copy: the same four corners, part of the way there
+  if (t === 0) return;
+  const origin = [PA.lerp(A0[0], B0[0], t), PA.lerp(A0[1], B0[1], t)];
+  ctx.fillStyle = 'rgba(215, 38, 61, 0.35)'; ctx.strokeStyle = '#d7263d'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  top(origin, TURN * t).forEach(([x, y]) => ctx.lineTo(x, y));
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>An object that cannot exist</h2>
+<p>Lionel and Roger Penrose, father and son, published "Impossible Objects: A Special Type of Visual Illusion" in the British Journal of Psychology in 1958. Its best known figure is a triangle of three square bars, each joined to the next at a right angle. The artist Oscar Reutersvärd had drawn such a figure in the 1930s, and M. C. Escher built whole prints on the same principle, among them <em>Waterfall</em> and <em>Ascending and Descending</em>.</p>
+<p>The paper's point is how the trick works. <strong>Every part of the drawing is a correct picture of a possible corner.</strong> The visual system checks a drawing locally, joint by joint, and each joint passes. Only the whole is contradictory, and nothing in vision checks the whole. So the recipe for an impossible object is to make something locally consistent and globally inconsistent.</p>
+<p>The figure below is built from two four-sided shapes, each used three times, turned by a third of a circle. Three shades stand for the three directions a face of a bar can point in. The slider pulls the three bars apart. Each on its own is an ordinary bar with slanted ends.</p>
+
+<div class="example" data-h="480" data-title="IL4.4 Three possible bars, one impossible triangle">
+<script type="text/plain">
+const apart = ui.slider('pull the bars apart', 0, 1, 0, 0.01);
+const L = 300, w = 46;                                 // the length of a bar and the width of one face
+
+// Positions are counted in steps along two directions 60 degrees apart: i along the base, j up the left side.
+const place = ([i, j]) => [i + j / 2, j * Math.sqrt(3) / 2];
+const centre = place([(L - w) / 3, (L + 2 * w) / 3]);
+const turnAbout = ([x, y], k) => {                     // turn a point by k thirds of a circle about the centre
+  const a = k * PA.TAU / 3, c = Math.cos(a), s = Math.sin(a), dx = x - centre[0], dy = y - centre[1];
+  return [centre[0] + dx * c - dy * s, centre[1] + dx * s + dy * c];
+};
+
+const outer = [[-w, w], [0, 0], [L, 0], [L - w, w]].map(place);                      // the outward face of the bottom bar
+const inner = [[L - w, w], [w, L - w], [w, L - 2 * w], [L - 2 * w, w]].map(place);   // the inward face of the right-hand bar
+const shades = ['#f2c14e', '#e2703a', '#7a3b2e'];
+
+function face(points, k, shade, slide) {
+  const out = turnAbout([centre[0], centre[1] - 1], slide);                          // which way that bar moves when pulled
+  const dx = (out[0] - centre[0]) * apart() * 70, dy = (out[1] - centre[1]) * apart() * 70;
+  ctx.fillStyle = shades[shade];
+  ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (const p of points) {
+    const [x, y] = turnAbout(p, k);
+    ctx.lineTo(W / 2 - centre[0] + x + dx, H / 2 + 30 + centre[1] - y - dy);         // y is flipped: the canvas counts downward
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+function draw() {
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, W, H);
+  for (let k = 0; k < 3; k++) {
+    face(outer, k, k, k);                              // bar k's outward face
+    face(inner, k, k, (k + 1) % 3);                    // the same shade continues onto the next bar's inward face
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Read the loop at the end. Each shade is used for the outward face of one bar and the inward face of the <em>next</em>. At every corner that is exactly right: two faces that point the same way meet and share a shade, as on any real bracket. Go round all three corners and each bar has been turned a quarter of a turn about its own length relative to where it started, which no rigid object can do.</p>
+
+<h2>A picture for two distances</h2>
+<p>Fine detail and broad shapes are carried by different ranges of what is called spatial frequency (Maths 5), and how much of each range you can see depends on how large the picture is on your retina. From close up, fine detail dominates. From far away, or when the picture is small, the fine detail is too small to resolve and only the broad shapes remain.</p>
+<p>Aude Oliva, Antonio Torralba and Philippe Schyns used this in "Hybrid Images" (ACM Transactions on Graphics, 2006). Take the broad shapes of one picture, by blurring it. Take the fine detail of another, by subtracting a blurred copy of it from itself. Add the two. The result shows the second picture close up and the first from a distance.</p>
+<p>The example builds one from two words. The same hybrid is drawn twice, large and small. Use the slider to shrink the small copy, which stands in for walking away.</p>
+
+<div class="example" data-h="330" data-title="IL4.5 One picture, read differently large and small">
+<script type="text/plain">
+const far = ui.slider('size of the small copy', 0.08, 0.5, 0.2, 0.01);
+const IW = 300, IH = 150, n = IW * IH;
+
+// Draw a word in white on black and return its brightness, 0 to 1, for every pixel.
+function word(text, font, outlineOnly) {
+  const c = document.createElement('canvas');
+  c.width = IW; c.height = IH;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, IW, IH);
+  g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = g.strokeStyle = '#fff'; g.lineWidth = 1.6;
+  if (outlineOnly) g.strokeText(text, IW / 2, IH / 2 + 4); else g.fillText(text, IW / 2, IH / 2 + 4);
+  const data = g.getImageData(0, 0, IW, IH).data, out = new Float32Array(n);
+  for (let i = 0; i < n; i++) out[i] = data[i * 4] / 255;
+  return out;
+}
+// Blur by averaging over a square, three times, which is close to a smooth bell-shaped blur.
+function blur(src, r) {
+  let a = src;
+  for (let pass = 0; pass < 3; pass++) {
+    const mid = new Float32Array(n), out = new Float32Array(n);
+    for (let y = 0; y < IH; y++) for (let x = 0; x < IW; x++) {
+      let sum = 0;
+      for (let d = -r; d <= r; d++) sum += a[y * IW + PA.clamp(x + d, 0, IW - 1)];
+      mid[y * IW + x] = sum / (2 * r + 1);
+    }
+    for (let y = 0; y < IH; y++) for (let x = 0; x < IW; x++) {
+      let sum = 0;
+      for (let d = -r; d <= r; d++) sum += mid[PA.clamp(y + d, 0, IH - 1) * IW + x];
+      out[y * IW + x] = sum / (2 * r + 1);
+    }
+    a = out;
+  }
+  return a;
+}
+
+const distant = blur(word('FAR', 'bold 120px sans-serif', false), 5);         // broad shapes only
+const close = word('NEAR', 'bold 92px sans-serif', true);
+const closeBlurred = blur(close, 2);
+
+const hybrid = document.createElement('canvas');                              // the hybrid, built once
+hybrid.width = IW; hybrid.height = IH;
+const hg = hybrid.getContext('2d'), img = hg.createImageData(IW, IH);
+for (let i = 0; i < n; i++) {
+  const detail = close[i] - closeBlurred[i];                                  // fine detail only: the picture minus its blur
+  const v = 0.42 + 0.42 * (distant[i] - 0.3) + 0.9 * detail;
+  img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = PA.clamp(v) * 255;
+  img.data[i * 4 + 3] = 255;
+}
+hg.putImageData(img, 0, 0);
+
+function draw() {
+  ctx.fillStyle = '#4b4b4b';                           // the same grey as the hybrid's own background
+  ctx.fillRect(0, 0, W, H);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(hybrid, 12, 30, 420, 210);
+  const s = far();
+  ctx.drawImage(hybrid, 520 - IW * s / 2, 135 - IH * s / 2, IW * s, IH * s);
+  ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
+  ctx.fillText('seen large', 12, 270);
+  ctx.fillText('the same picture, small', 448, 270);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>You can also test it without the small copy: step well back from the screen, or half close your eyes. The method works best when the two pictures are aligned, so that the edges of one do not cut across the shapes of the other, and the authors spend much of the paper on choosing the two blur sizes. The practical uses they suggest are designs that reward approach: a poster with one message across a room and another at arm's length.</p>
+
+<h2>Research that generates illusions</h2>
+<p>Finding a new illusion used to take a perceptive person and luck. A line of graphics research treats it as a search problem (Special Topic 10): define what the viewer should experience, and compute a picture that produces it.</p>
+<table>
+  <thead><tr><th>Work</th><th>What is computed</th></tr></thead>
+  <tbody>
+    <tr><td>Chi, Lee, Qu and Wong, "Self-Animating Images" (SIGGRAPH 2008)</td><td>A still picture that appears to flow along a chosen field (Illusions 3)</td></tr>
+    <tr><td>Mitra and colleagues, "Emerging Images" (SIGGRAPH Asia 2009)</td><td>A scatter of blotches in which a person, after a moment, suddenly sees an object, while each blotch alone means nothing</td></tr>
+    <tr><td>Chu and colleagues, "Camouflage Images" (SIGGRAPH 2010)</td><td>Figures hidden in the texture of a scene, findable but not obvious</td></tr>
+    <tr><td>Oliva, Torralba and Schyns, "Hybrid Images" (2006)</td><td>A picture with two readings at two distances</td></tr>
+    <tr><td>Geng, Park and Owens, "Visual Anagrams" (CVPR 2024)</td><td>Pictures made with a diffusion model that show one subject upright and another when turned, flipped or rearranged (Special Topic 6)</td></tr>
+  </tbody>
+</table>
+<p>Illusions also leave the screen. The mathematician Kokichi Sugihara designs solid objects, computed so that from one particular viewpoint they look like something that could not be built, or look entirely different in a mirror behind them. With the Printing section's tools, a shape designed for one viewpoint is a project within reach: an object is only ever seen from somewhere.</p>
+
+<h2>Designing with illusions</h2>
+<ul>
+  <li><strong>Decide what the viewer discovers, and when.</strong> The best pieces have a moment of surprise followed by a way to check it. Build the proof in.</li>
+  <li><strong>Tune on people.</strong> You cannot judge an illusion you built, because you know the answer. The method of adjustment from Illusions 2 gives you a number to improve.</li>
+  <li><strong>Size and distance are parameters.</strong> Drift, hybrids and stereograms all depend on how large the picture is in the eye. Say how it should be viewed, and test it that way.</li>
+  <li><strong>Not everyone sees it.</strong> People differ, and some effects need two working eyes or good contrast vision. A piece should still be worth looking at when the illusion fails.</li>
+  <li><strong>Do not use them to mislead.</strong> The effects of Illusions 1 and 2 can make a bar in a chart look longer or a price look smaller. Knowing them is a reason to check your own work for accidents, not a licence.</li>
+</ul>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Depth is inferred from cues. Supplying a cue is enough to produce the depth.</li>
+  <li>An autostereogram encodes a depth map as changes in the repeat distance of a pattern, by linking the pixels that each eye sees as the same point.</li>
+  <li>Flat dots moving as if on a turning object are seen as a solid, with an ambiguous direction until another cue settles it.</li>
+  <li>A shape drawn as lying in depth is seen as the object it implies, not as the shape on the page.</li>
+  <li>An impossible object is locally consistent and globally inconsistent.</li>
+  <li>A hybrid image adds the broad shapes of one picture to the fine detail of another, and distance chooses between them.</li>
+  <li>Illusions can be computed by search: state the experience, and solve for the picture.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>A stereogram whose pattern repeats too widely to fuse. Keep the far-plane repeat well under the distance between your eyes as measured on the screen: a hundred or so pixels on most displays.</li>
+  <li>Scaling a stereogram with smoothing. Blurred dots weaken the match. Keep its pixels crisp.</li>
+  <li>Kinetic depth with too few dots, or with dots that change size. Either breaks the impression of a rigid surface, or gives the direction away.</li>
+  <li>A hybrid whose distant picture is not blurred enough. It then shows through at close range and the two readings fight.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Illusions challenge 4</p>
+  <h2>A Picture with a Secret</h2>
+  <p>Make a finished piece that hides a second picture in the first, to be found by a change in how it is viewed: by looking through it, by stepping back, or by turning it.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Choose one: an <strong>autostereogram</strong> of a scene whose depth you generate, or a <strong>hybrid image</strong> of two pictures you generate.</li>
+    <li>The hidden content comes from <strong>your own generator</strong>: a height field, a distance function, a pattern from an earlier lesson. Not a found image.</li>
+    <li>The visible surface is designed too. For a stereogram, use a pattern or texture of your own in place of plain random dots. For a hybrid, both readings must be clear pictures.</li>
+    <li>A <strong>reveal</strong> at the press of a key: the depth map shown as grey, or the two source pictures side by side.</li>
+    <li>A <strong>seed</strong>, an export as PNG, and a caption that tells the viewer what to do without telling them what they will find.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>For a patterned stereogram, colour each free pixel from a texture function of its position instead of at random. The links take care of the rest.</li>
+    <li>Keep depth changes gentle at first. Steep steps are harder to fuse.</li>
+    <li>For a hybrid, align the two subjects: put the important edges of the close picture where the distant one is flat.</li>
+    <li>Test a hybrid by shrinking it on screen as well as by walking away. The two should agree.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add the hidden-surface refinement from the stereogram paper.</li>
+    <li>Animate the hidden depth while the surface pattern stays statistically the same.</li>
+    <li>Make a hybrid in colour, with the colour belonging to the distant picture.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone finds the hidden picture from your caption alone and can describe it.</li>
+    <li>Someone who cannot find it still thinks the surface is worth looking at.</li>
+  </ul>
+  <a class="start" href="../challenges/il4-picture-with-a-secret.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Béla Julesz, <cite>Foundations of Cyclopean Perception</cite>, University of Chicago Press, 1971. <span class="why">Depth from random dots.</span></li>
+    <li>Harold Thimbleby, Stuart Inglis and Ian Witten, “<a href="https://researchcommons.waikato.ac.nz/handle/10289/47">Displaying 3D Images: Algorithms for Single-Image Random-Dot Stereograms</a>”, IEEE Computer, 1994. <span class="why">The autostereogram algorithm of example IL4.1.</span></li>
+    <li>Hans Wallach and D. N. O'Connell, “The Kinetic Depth Effect”, Journal of Experimental Psychology, 1953. <span class="why">Depth from movement.</span></li>
+    <li>Roger Shepard, <cite>Mind Sights</cite>, W. H. Freeman, 1990. <span class="why">The two tables, and many more drawings by a perception scientist.</span></li>
+    <li>Lionel Penrose and Roger Penrose, “Impossible Objects: A Special Type of Visual Illusion”, British Journal of Psychology, 1958. <span class="why">The impossible triangle and staircase.</span></li>
+    <li>Aude Oliva, Antonio Torralba and Philippe Schyns, “<a href="https://doi.org/10.1145/1141911.1141919">Hybrid Images</a>”, ACM Transactions on Graphics, 2006. <span class="why">Hybrid images.</span></li>
+    <li>Bruno Ernst, <cite>The Magic Mirror of M. C. Escher</cite>, Random House, 1976. <span class="why">How Escher constructed his impossible prints.</span></li>
+    <li>Daniel Geng, Inbum Park and Andrew Owens, “<a href="https://arxiv.org/abs/2311.17919">Visual Anagrams: Generating Multi-View Optical Illusions with Diffusion Models</a>”, CVPR 2024. <span class="why">Illusions generated by a diffusion model.</span></li>
+    <li>Neural Correlate Society, <a href="https://illusionoftheyear.com/"><cite>Best Illusion of the Year Contest</cite></a>. <span class="why">New illusions every year, with explanations.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="03-motion-that-is-not-there.html">← Illusions 3</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

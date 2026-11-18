@@ -195,6 +195,42 @@ edge   : 1 - smoothstep(0, 0.01, d)</code></pre>
 </section>
 
 <section>
+<h2>Textures</h2>
+<pre><code>cell   : id = floor(u * n);  f = fract(u * n)
+hash   : fract(sin(i * 127.1 + j * 311.7) * 43758.5453)
+bricks : shift u by half a cell on odd rows
+cell noise: nearest scattered point, 9 cells searched
+  F1 dimples   F2 - F1 walls   id flat cells
+turbulence: sum of abs(noise)   ridged: (1 - abs)^2
+ramp   : sorted stops, lerp between the two around t
+tiles  : whole number of repeats; wrap cell
+         numbers before hashing them
+normal : n = normalize(-dh/dx, -dh/dy, 1)
+store  : rgb = n * 0.5 + 0.5      flat = (.5, .5, 1)
+light  : diffuse = max(0, dot(n, toLight))
+shine  : pow(max(0, dot(n, halfway)), 2 / rough^2)</code></pre>
+</section>
+
+<section>
+<h2>Shaders (GLSL)</h2>
+<pre><code>uv = gl_FragCoord.xy / u_res            // 0..1
+p  = (gl_FragCoord.xy * 2. - u_res) / u_res.y
+soft edge : smoothstep(-1., 1., v / fwidth(v))
+line      : 1. - smoothstep(0., 1.5, abs(v) / fwidth(v))
+layer     : col = mix(col, colour, mask)
+polar     : r = length(p);  a = atan(p.y, p.x)
+camera    : f = normalize(target - eye)
+            r = normalize(cross(f, vec3(0, 1, 0)))
+            ray = normalize(f * 1.6 + r * p.x
+                            + cross(r, f) * p.y)
+march     : t += map(eye + ray * t)  until &lt; 0.001
+normal    : map(p + e) - map(p - e) on x, y, z
+shadow    : march to the light; min(k * d / t)
+screen    : pow(col, vec3(1. / 2.2)) last of all
+memory    : texture2D(u_prev, uv)   (Shaders 4)</code></pre>
+</section>
+
+<section>
 <h2>Colour</h2>
 <pre><code>PA.hsl(h, s, l, alpha)
 PA.oklch(L, C, H)      // L 0–1, C 0–0.3, H degrees

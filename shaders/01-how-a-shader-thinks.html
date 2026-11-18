@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shaders 1 · How a Shader Thinks</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Shaders 1 of 4</span><a href="02-patterns-and-noise.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Shaders 1</p>
+  <h1>How a Shader Thinks</h1>
+  <p class="lede">Lesson 9 introduced shaders through distance fields. This section treats them as a craft of their own. It starts with what the graphics card actually does, the handful of functions every shader is built from, and the habits that make shader code readable and its edges clean.</p>
+</header>
+
+<h2>What the graphics card does</h2>
+<p>A graphics card draws triangles. For each triangle it runs two small programs that you supply.</p>
+<ol>
+  <li>The <strong>vertex shader</strong> runs once for each corner, and says where on the screen that corner goes.</li>
+  <li>The card then works out which pixels the triangle covers.</li>
+  <li>The <strong>fragment shader</strong> runs once for each of those pixels, and says what colour it is.</li>
+</ol>
+<p>The examples in this section draw two triangles that together cover the canvas, with a vertex shader that does nothing interesting. Everything happens in the fragment shader, so it runs once for every pixel of the canvas, every frame. three.js 3 shows the other half, where the vertex shader moves the corners of a real model.</p>
+<p>The card runs thousands of copies of the fragment shader at the same time. That is where the speed comes from, and it is paid for with three restrictions which shape everything else:</p>
+<ul>
+  <li><strong>No memory.</strong> A shader cannot keep a variable from one pixel to the next, or from one frame to the next. Shaders 4 shows the one way round this.</li>
+  <li><strong>No neighbours.</strong> A pixel cannot ask what colour the pixel beside it turned out to be.</li>
+  <li><strong>No order.</strong> You cannot draw one thing and then another on top. Every pixel must work out for itself everything that might be visible there.</li>
+</ul>
+<p>So a shader is a function from position to colour, exactly like the texture functions of the Textures section. The idea of letting artists write that function is forty years old: Robert Cook's "Shade Trees" (SIGGRAPH 1984) described shading as a tree of small operations, and Ken Perlin's "An Image Synthesizer" (SIGGRAPH 1985) gave a programming language that ran at every pixel. GLSL is the descendant that runs in your browser.</p>
+
+<h2>What you are given</h2>
+<table>
+  <thead><tr><th>Name</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>gl_FragCoord.xy</code></td><td><code>vec2</code></td><td>This pixel's position in pixels. The origin is the <em>bottom</em> left, and y goes up.</td></tr>
+    <tr><td><code>u_res</code></td><td><code>vec2</code></td><td>The canvas size in pixels</td></tr>
+    <tr><td><code>u_time</code></td><td><code>float</code></td><td>Seconds since the example started</td></tr>
+    <tr><td><code>u_mouse</code></td><td><code>vec2</code></td><td>The pointer's position in pixels, in the same bottom-left coordinates</td></tr>
+    <tr><td><code>u_down</code></td><td><code>float</code></td><td>1.0 while the mouse button is held, otherwise 0.0</td></tr>
+    <tr><td><code>gl_FragColor</code></td><td><code>vec4</code></td><td>What you must set: red, green, blue and alpha, each from 0 to 1</td></tr>
+  </tbody>
+</table>
+<p>The names beginning <code>u_</code> are <strong>uniforms</strong>: values handed in from JavaScript that are the same for every pixel in a frame. The first line of nearly every shader turns the pixel position into coordinates that are easier to think in. There are two common choices.</p>
+<pre><code>vec2 uv = gl_FragCoord.xy / u_res;                       // 0 to 1 across and up the canvas
+vec2 p  = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;     // centred: y runs from -1 to 1, and circles stay round</code></pre>
+<p>A shader has no <code>console.log</code>. The only output is the colour, so the first skill is to look at numbers as colours.</p>
+
+<div class="example" data-mode="shader" data-title="SH1.1 Coordinates, seen as colour">
+<script type="text/plain">
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;              // 0 to 1
+  vec2 mouse = u_mouse / u_res;                   // the pointer, in the same units
+
+  vec3 col = vec3(uv.x, uv.y, 0.0);               // red is x, green is y
+
+  float d = distance(uv, mouse);
+  col += 0.4 * smoothstep(0.12, 0.0, d);          // a soft light under the pointer
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<p>Black at the bottom left, red at the bottom right, green at the top left, yellow where both are 1. Replace the first colour line with <code>vec3(fract(uv * 5.0), 0.0)</code> and you can see cells.</p>
+
+<h2>The language in brief</h2>
+<p>GLSL looks like JavaScript with types. The differences that catch everyone:</p>
+<table>
+  <thead><tr><th>Rule</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>Every variable has a declared type</td><td><code>float d = 0.5;</code> <code>vec3 col = vec3(1.0, 0.5, 0.0);</code></td></tr>
+    <tr><td>Whole numbers and decimals do not mix. Write the decimal point.</td><td><code>x * 2.0</code>, never <code>x * 2</code></td></tr>
+    <tr><td>Vectors do arithmetic on all their parts at once</td><td><code>col * 0.5</code>, <code>a + b</code>, <code>sin(p)</code></td></tr>
+    <tr><td>Parts of a vector can be picked and reordered by name</td><td><code>p.x</code>, <code>p.yx</code>, <code>col.rgb</code>, <code>col.bgr</code></td></tr>
+    <tr><td>One number can fill a whole vector</td><td><code>vec3(0.2)</code> is <code>vec3(0.2, 0.2, 0.2)</code></td></tr>
+    <tr><td>Vectors can be built from smaller ones</td><td><code>vec4(col, 1.0)</code>, <code>vec3(uv, 0.0)</code></td></tr>
+    <tr><td>Loops must have a fixed number of turns</td><td><code>for (int i = 0; i &lt; 5; i++)</code></td></tr>
+    <tr><td>A function must be written above the place it is used</td><td>Helpers first, <code>main</code> last</td></tr>
+  </tbody>
+</table>
+<p>Compile errors appear under the example. Their wording varies between browsers, but most are one of these:</p>
+<table>
+  <thead><tr><th>The message mentions</th><th>The usual cause</th></tr></thead>
+  <tbody>
+    <tr><td>cannot convert from 'int' to 'float'</td><td>A number without a decimal point</td></tr>
+    <tr><td>no matching overloaded function found</td><td>A built-in function was given the wrong types, such as a <code>vec2</code> where it wanted a <code>float</code></td></tr>
+    <tr><td>undeclared identifier</td><td>A misspelt name, or a function used above where it is written</td></tr>
+    <tr><td>wrong operand types</td><td>Two different sizes of vector in one calculation, such as <code>vec2 + vec3</code></td></tr>
+    <tr><td>syntax error</td><td>Usually a missing semicolon on the line above</td></tr>
+  </tbody>
+</table>
+
+<h2>The shaping functions</h2>
+<p>Shaders are built from a very small vocabulary, used again and again. Maths 1 covered these as curves. Here they are as tools.</p>
+<table>
+  <thead><tr><th>Function</th><th>What it is for</th></tr></thead>
+  <tbody>
+    <tr><td><code>step(edge, x)</code></td><td>A hard threshold: 0 below the edge, 1 above. The shader's <code>if</code>.</td></tr>
+    <tr><td><code>smoothstep(a, b, x)</code></td><td>A soft threshold, rising from 0 to 1 between <code>a</code> and <code>b</code></td></tr>
+    <tr><td><code>mix(a, b, t)</code></td><td>Blend from <code>a</code> to <code>b</code>. Works on colours. The shader's way of putting one thing on top of another.</td></tr>
+    <tr><td><code>fract(x)</code></td><td>Repeat: the position within a cell. <code>floor(x)</code> is which cell.</td></tr>
+    <tr><td><code>abs(x)</code></td><td>Mirror. <code>abs(fract(x) - 0.5)</code> is a triangle wave.</td></tr>
+    <tr><td><code>clamp(x, lo, hi)</code>, <code>min</code>, <code>max</code></td><td>Limit a value. <code>min</code> and <code>max</code> also combine shapes (Lesson 9).</td></tr>
+    <tr><td><code>length(v)</code>, <code>distance(a, b)</code></td><td>Distance, and so circles</td></tr>
+    <tr><td><code>dot(a, b)</code></td><td>How far two directions agree. Lighting, and projections.</td></tr>
+    <tr><td><code>sin</code>, <code>cos</code>, <code>atan(y, x)</code></td><td>Waves, rotation, and the angle of a point</td></tr>
+    <tr><td><code>pow(x, n)</code>, <code>exp(x)</code></td><td>Sharpen a falloff. Glows and highlights.</td></tr>
+  </tbody>
+</table>
+<p>The plotter below draws any function of one variable as a curve. It is itself a shader, and its one trick is worth learning now. <code>fwidth(v)</code> tells you how much the value <code>v</code> changes between this pixel and the next. Dividing any value by its <code>fwidth</code> therefore converts it into pixels. So <code>abs(v) / fwidth(v)</code> is "how many pixels am I from the place where <code>v</code> is zero", for any <code>v</code> at all, and that is a line exactly as wide as you ask for.</p>
+
+<div class="example" data-mode="shader" data-h="420" data-title="SH1.2 A function plotter (move the pointer to read a value)">
+<script type="text/plain">
+// The function on show. Swap in the others one at a time.
+float f(float x) {
+  return smoothstep(-0.5, 0.5, x);
+  // return step(0.0, x);
+  // return abs(x);
+  // return fract(x * 2.0);
+  // return abs(fract(x * 2.0) - 0.5) * 2.0;
+  // return 0.5 + 0.5 * sin(x * 6.2832);
+  // return pow(abs(x), 3.0);
+  // return clamp(x * 2.0, 0.0, 1.0);
+}
+
+// 1.0 where v is within about a pixel of zero, fading out.
+// The min() stops a sudden jump in v from being mistaken for a very steep line.
+float line(float v) {
+  return 1.0 - smoothstep(0.0, 1.5, abs(v) / min(fwidth(v), 0.05));
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  p = p * 1.2 + vec2(0.0, 0.5);                           // show x from about -1.7 to 1.7 and y from -0.7 to 1.7
+
+  vec3 col = vec3(0.07, 0.09, 0.12);
+  vec2 cell = abs(fract(p * 4.0 + 0.5) - 0.5) / 4.0;      // distance to the nearest grid line, every 0.25
+  col += 0.05 * (line(cell.x) + line(cell.y));
+  col += 0.25 * (line(p.x) + line(p.y));                  // the axes
+  col = mix(col, vec3(0.4, 0.75, 1.0), 0.6 * line(p.y - 1.0));     // the level y = 1
+
+  col = mix(col, vec3(1.0, 0.82, 0.4), line(p.y - f(p.x)));        // the curve: where y - f(x) is zero
+
+  float mx = (u_mouse.x * 2.0 - u_res.x) / u_res.y * 1.2;          // the pointer's x, in plot units
+  col += 0.2 * line(p.x - mx);
+  float dotSize = length(p - vec2(mx, f(mx)));
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.02, 0.028, dotSize));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Clean edges</h2>
+<p>A hard <code>step</code> gives stair-stepped edges, and where a pattern becomes finer than the pixels it gives the false patterns described in Textures 1. The cure is the same <code>fwidth</code> idea. Instead of asking "is the value above zero?", ask "how many pixels above zero is it?" and ramp from 0 to 1 over one pixel.</p>
+<pre><code>float hard = step(0.0, v);
+float soft = smoothstep(-1.0, 1.0, v / fwidth(v));</code></pre>
+<p>The second line has a useful side effect. Where the pattern is much finer than a pixel, <code>fwidth(v)</code> is large, the ramp never gets far from the middle, and the result settles to an even grey, which is the correct average. The pattern below gets finer toward the centre. Move the pointer across to compare.</p>
+
+<div class="example" data-mode="shader" data-title="SH1.3 Hard edges left of the pointer, soft edges right">
+<script type="text/plain">
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  float split = (u_mouse.x * 2.0 - u_res.x) / u_res.y;
+
+  // a chequer pattern in rings and spokes, slowly turning: its edges are where v is zero
+  float rings = log(length(p) + 0.0001) * 6.0;
+  float spokes = atan(p.y, p.x) / 6.2832 * 28.0 + u_time * 0.3;
+  float v = sin(rings * 3.1416) * sin(spokes * 6.2832);
+
+  float hard = step(0.0, v);
+  float soft = smoothstep(-1.0, 1.0, v / fwidth(v));
+
+  float shade = p.x < split ? hard : soft;
+  vec3 col = mix(vec3(0.10, 0.12, 0.18), vec3(0.95, 0.93, 0.86), shade);
+  col = mix(col, vec3(1.0, 0.55, 0.3), 1.0 - smoothstep(0.0, 0.006, abs(p.x - split)));   // the dividing line
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Polar coordinates</h2>
+<p>A point can be described by its distance from the centre and its angle, instead of by x and y (Lesson 4). In a shader that is two built-in functions: <code>length(p)</code> and <code>atan(p.y, p.x)</code>. Every tool that worked on x and y now works on distance and angle.</p>
+<ul>
+  <li>A radius that <strong>depends on the angle</strong> makes flowers, gears and stars.</li>
+  <li><code>fract</code> of the angle makes <strong>cells around a circle</strong>: rays, tick marks, slices.</li>
+  <li>Angle <strong>plus</strong> distance makes spirals.</li>
+</ul>
+<p>The angle jumps from π to −π on the left-hand side. Patterns stay seamless there as long as they repeat a whole number of times round the circle.</p>
+
+<div class="example" data-mode="shader" data-title="SH1.4 A flower, rays and a spiral">
+<script type="text/plain">
+const float TAU = 6.28318;
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  float r = length(p);                               // distance from the centre
+  float a = atan(p.y, p.x);                          // angle, from -π to π
+
+  // rays: 24 cells around the circle; `ray` is the distance from the middle of a cell
+  float ray = abs(fract(a / TAU * 24.0) - 0.5);
+  vec3 col = mix(vec3(0.07, 0.09, 0.15), vec3(0.13, 0.16, 0.26), step(0.25, ray));
+
+  // a flower: the edge's distance from the centre depends on the angle
+  float edge = 0.55 + 0.18 * cos(a * 7.0 + u_time);
+  float d = r - edge;                                // negative inside the flower
+  float inside = 1.0 - smoothstep(-1.0, 1.0, d / fwidth(d));
+
+  // a spiral: three arms, wound tighter by distance
+  float spiral = fract(a / TAU * 3.0 + r * 4.0 - u_time * 0.3);
+  vec3 petal = mix(vec3(0.95, 0.42, 0.35), vec3(1.0, 0.82, 0.42), spiral);
+
+  col = mix(col, petal, inside);
+  col = mix(col, vec3(0.22, 0.12, 0.10), 1.0 - smoothstep(0.10, 0.11, r));    // the middle
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Layers without drawing order</h2>
+<p>On a canvas you paint the sky, then the hills, then the tree. A shader cannot. Each pixel has to reach the same result alone, and the idiom for it is a chain of <code>mix</code> calls. Start with the colour of the furthest thing. For each nearer thing, work out a <strong>mask</strong>, a number from 0 to 1 saying how much of it covers this pixel, and mix its colour over what you have so far.</p>
+<pre><code>vec3 col = background;
+col = mix(col, colourOfThing1, maskOfThing1);
+col = mix(col, colourOfThing2, maskOfThing2);     // nearer, so later</code></pre>
+<p>Light that glows is the exception. It is added to the colour instead of mixed over it, because a glow does not hide what is behind it.</p>
+
+<div class="example" data-mode="shader" data-h="400" data-title="SH1.5 A landscape in five layers">
+<script type="text/plain">
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 p = vec2(uv.x * u_res.x / u_res.y, uv.y);       // the same, but with round circles
+
+  // layer 0: the sky, a vertical blend
+  vec3 col = mix(vec3(0.98, 0.62, 0.42), vec3(0.16, 0.20, 0.42), smoothstep(0.2, 1.0, uv.y));
+
+  // layer 1: the sun. Its glow is added; its disc is mixed over.
+  vec2 sun = vec2(0.5 * u_res.x / u_res.y, 0.44 + 0.05 * sin(u_time * 0.3));
+  float d = length(p - sun);
+  col += vec3(1.0, 0.6, 0.3) * 0.35 * exp(-6.0 * d);
+  col = mix(col, vec3(1.0, 0.93, 0.75), 1.0 - smoothstep(0.10, 0.105, d));
+
+  // layers 2 to 4: three ranges of hills, the furthest first
+  for (int i = 0; i < 3; i++) {
+    float k = float(i);
+    float top = 0.36 - k * 0.1                                         // each range is lower on the screen
+              + 0.05 * sin(p.x * (3.0 + k * 2.0) + k * 2.1 + u_time * 0.1 * (k + 1.0))
+              + 0.02 * sin(p.x * 11.0 + k * 5.0);
+    float mask = 1.0 - smoothstep(0.0, 0.004, uv.y - top);             // 1 below the skyline
+    vec3 hill = mix(vec3(0.45, 0.30, 0.45), vec3(0.08, 0.07, 0.16), k / 2.0);   // nearer hills are darker
+    col = mix(col, hill, mask);
+  }
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Debugging by colour</h2>
+<p>When a shader shows something unexpected, the fault is nearly always a number that is not what you believed: negative when you assumed positive, in the hundreds when you assumed 0 to 1. The screen clips everything to 0 to 1, so those all look black or white. A small function that draws a number honestly saves hours.</p>
+<p>The <code>inspect</code> function below shows values from 0 to 1 as grey, negative values as blue, values above 1 as red, and adds a contour line every quarter. The value being inspected is a distance field that has been multiplied by 3. Displayed directly, it would be a black disc on a white square with no hint of the scale.</p>
+
+<div class="example" data-mode="shader" data-title="SH1.6 Reading a number off the screen">
+<script type="text/plain">
+vec3 inspect(float v) {
+  vec3 col = vec3(clamp(v, 0.0, 1.0));                         // 0 to 1: black to white
+  if (v < 0.0) col = vec3(0.05, 0.1, 0.25 + 0.75 * min(1.0, -v));        // negative: blue, brighter the further below zero
+  if (v > 1.0) col = vec3(0.25 + 0.75 * min(1.0, v - 1.0), 0.1, 0.05);   // above one: red
+  float contour = abs(fract(v * 4.0 + 0.5) - 0.5) / fwidth(v * 4.0);     // pixels from the nearest multiple of 0.25
+  col = mix(col, vec3(1.0, 0.85, 0.3), 0.7 * (1.0 - smoothstep(0.0, 1.5, contour)));
+  return col;
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  float d = (length(p - vec2(0.3 * sin(u_time), 0.0)) - 0.4) * 3.0;      // the value under suspicion
+  gl_FragColor = vec4(inspect(d), 1.0);
+}
+</script>
+</div>
+
+<p>Keep <code>inspect</code> in a file of your own and paste it into any shader that misbehaves. Other quick checks: output <code>vec4(fract(uv * 10.0), 0.0, 1.0)</code> to see whether your coordinates are what you think, and output a direction as <code>v * 0.5 + 0.5</code> to see it as a colour, which is how a normal map works (Textures 4).</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A fragment shader runs once per pixel, in parallel, with no memory, no neighbours and no drawing order.</li>
+  <li>Turn <code>gl_FragCoord</code> into convenient coordinates on the first line.</li>
+  <li>A dozen built-in functions do nearly everything: <code>step</code>, <code>smoothstep</code>, <code>mix</code>, <code>fract</code>, <code>abs</code>, <code>length</code>, <code>dot</code> and a few more.</li>
+  <li><code>fwidth(v)</code> is how much <code>v</code> changes per pixel. Dividing by it turns any value into pixels, which gives lines of a fixed width and edges exactly one pixel soft.</li>
+  <li><code>length</code> and <code>atan</code> give polar coordinates. Everything that works on x and y works on distance and angle.</li>
+  <li>Layers are a chain of <code>mix</code> calls, from the furthest thing to the nearest.</li>
+  <li>To debug, show the number as a colour that cannot hide its range.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Forgetting that y points up. A shader ported from canvas code comes out upside down.</li>
+  <li>Dividing by <code>u_res</code> when you wanted round circles. Divide both coordinates by <code>u_res.y</code>.</li>
+  <li>Using <code>if</code> for shapes. It works, but it gives hard edges. A mask and a <code>mix</code> give soft ones.</li>
+  <li>Calling <code>fwidth</code> on something that jumps, such as <code>fract(x)</code> itself. Apply it to a value that is continuous, such as the triangle wave <code>abs(fract(x) - 0.5)</code>.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Shaders challenge 1</p>
+  <h2>A Stopwatch</h2>
+  <p>Draw a stopwatch face, with a hand that sweeps once a minute driven by <code>u_time</code>, entirely in one fragment shader. It is a small object, but it uses everything in this lesson and leaves nowhere for a rough edge to hide.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A round face with a <strong>rim</strong>, sixty <strong>tick marks</strong> with every fifth one longer, and a <strong>seconds hand</strong>. A second, slower hand or a small inner dial counts minutes.</li>
+    <li>The tick marks come from <strong><code>fract</code> of the angle</strong>, not from sixty separate shapes.</li>
+    <li>Everything is assembled as <strong>layers with <code>mix</code></strong>, in a clear order from back to front.</li>
+    <li><strong>Every edge is one pixel soft</strong>, using <code>fwidth</code> or a <code>smoothstep</code> of known width. Check it at two canvas sizes.</li>
+    <li>The hand's angle is exact: at 15 seconds it points to the right, at 30 straight down.</li>
+    <li>A comment at the top lists the layers in order.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Rotate the point instead of the hand. Turn <code>p</code> by the hand's angle, then draw a hand that always points straight up.</li>
+    <li>A straight hand is a rectangle: the distance to a line segment, or simply two <code>smoothstep</code> masks multiplied together.</li>
+    <li>When something looks wrong, show the angle with <code>inspect(a / 6.2832)</code> and read it.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Make the hand tick: move in sixty steps with a small overshoot at each, using <code>floor</code>, <code>fract</code> and an easing curve (Lesson 15).</li>
+    <li>Add numerals at 15, 30, 45 and 60 built from segments.</li>
+    <li>Give the glass a soft highlight that is added, not mixed.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>The face looks equally clean at 300 and at 1000 pixels.</li>
+    <li>You can change the number of ticks by editing one number.</li>
+  </ul>
+  <a class="start" href="../challenges/sh1-stopwatch.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Patricio Gonzalez Vivo and Jen Lowe, <a href="https://thebookofshaders.com/"><cite>The Book of Shaders</cite></a>. <span class="why">The best first source. Its early chapters match this lesson.</span></li>
+    <li>Robert Cook, “Shade Trees”, SIGGRAPH 1984. <span class="why">Shading described as a tree of operations.</span></li>
+    <li>Ken Perlin, “An Image Synthesizer”, SIGGRAPH 1985. <span class="why">A programming language that runs at every pixel.</span></li>
+    <li>MDN Web Docs, <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API"><cite>WebGL API</cite></a>. <span class="why">The browser interface that runs these shaders.</span></li>
+    <li>Gregg Tavares, <a href="https://webglfundamentals.org/"><cite>WebGL Fundamentals</cite></a>. <span class="why">How the pipeline works, from the first triangle.</span></li>
+    <li>Khronos Group, <a href="https://registry.khronos.org/OpenGL/specs/es/2.0/GLSL_ES_Specification_1.00.pdf"><cite>The OpenGL ES Shading Language, version 1.00</cite></a>. <span class="why">The definition of the language used here.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/distfunctions2d/"><cite>2D Distance Functions</cite></a>. <span class="why">Shapes to draw with these tools.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-patterns-and-noise.html">Shaders 2: Patterns and Noise on the Graphics Card →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

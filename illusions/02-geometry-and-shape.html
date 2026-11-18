@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Illusions 2 · Geometry and Shape</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="01-brightness-and-colour.html">← Illusions 1</a><span>Illusions 2 of 4</span><a href="03-motion-that-is-not-there.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Illusions 2</p>
+  <h1>Geometry and Shape</h1>
+  <p class="lede">Straight lines that look bent, equal lengths that look unequal, and shapes with no outline that are plainly there. The geometric illusions are the oldest in the scientific literature and the easiest to generate. This lesson builds six of them with sliders for the variables the research identified, and introduces the method by which an illusion is measured.</p>
+</header>
+
+<h2>Tilt: the café wall</h2>
+<p>Rows of black and white tiles are laid with every other row shifted sideways, with a thin line of mortar between rows. The mortar lines are parallel. They look like long wedges, alternately converging and diverging. Richard Gregory and Priscilla Heard studied the figure in "Border Locking and the Café Wall Illusion" (Perception, 1979), named after the tiled front of a café in Bristol, and established the conditions that this example lets you test:</p>
+<ul>
+  <li><strong>The offset matters.</strong> With no shift the tiles form a plain chequerboard of columns and nothing tilts.</li>
+  <li><strong>The mortar must be between the tiles in brightness.</strong> With mid-grey mortar the effect is strong. With mortar as dark as the dark tiles or as light as the light tiles it almost disappears.</li>
+  <li><strong>The mortar must be thin.</strong></li>
+</ul>
+<p>The reason offered is local. At each place where a dark tile sits diagonally across the mortar from another dark tile, the grey mortar between them joins the two into a tiny slanted step. A whole row of small tilts, all the same way, is read as one long tilted line.</p>
+
+<div class="example" data-h="380" data-title="IL2.1 Parallel lines between shifted tiles">
+<script type="text/plain">
+const shift = ui.slider('shift of alternate rows (in tiles)', 0, 0.5, 0.5, 0.01);
+const mortar = ui.slider('mortar brightness', 0, 1, 0.5, 0.01);
+const guides = ui.slider('show the true lines', 0, 1, 0, 1);
+const TILE = 44, GAP = 3;
+
+function draw() {
+  ctx.fillStyle = PA.hsl(0, 0, mortar() * 100);        // the mortar is the background showing between rows
+  ctx.fillRect(0, 0, W, H);
+  for (let row = 0; row * (TILE + GAP) < H; row++) {
+    const y = row * (TILE + GAP) + GAP;
+    const offset = (row % 2) * shift() * TILE;         // every other row slides along
+    for (let col = -1; col * TILE < W; col++) {
+      ctx.fillStyle = col % 2 === 0 ? '#000' : '#fff';
+      ctx.fillRect(col * TILE + offset, y, TILE, TILE);
+    }
+  }
+  if (!guides()) return;
+  ctx.fillStyle = '#ff4d4d';
+  for (let row = 0; row * (TILE + GAP) < H; row++) ctx.fillRect(0, row * (TILE + GAP) + 1, W, 1);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Bending: lines over a fan</h2>
+<p>Many nineteenth-century illusions share one structure: a straight line crossed by many other lines at an angle appears displaced or bent, as if the acute angles were being seen as larger than they are. In Ewald Hering's figure of 1861, two parallel lines over a fan of rays appear to bow outward. The Zöllner, Wundt and Poggendorff figures are relatives.</p>
+<p>Fade the fan with the slider. The two red lines are drawn by the same two commands throughout.</p>
+
+<div class="example" data-h="380" data-title="IL2.2 Two straight lines">
+<script type="text/plain">
+const fan = ui.slider('strength of the fan', 0, 1, 1, 0.01);
+const rays = ui.slider('number of rays', 8, 72, 40, 2);
+
+function draw() {
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(20, 30, 60, ' + fan() + ')';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < rays(); i++) {                   // rays through the centre
+    const a = i / rays() * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - Math.cos(a) * 500, H / 2 - Math.sin(a) * 500);
+    ctx.lineTo(W / 2 + Math.cos(a) * 500, H / 2 + Math.sin(a) * 500);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#d7263d';
+  ctx.lineWidth = 4;
+  for (const x of [W / 2 - 55, W / 2 + 55]) {          // two vertical lines, perfectly straight
+    ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x, H - 20); ctx.stroke();
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Length, and how an illusion is measured</h2>
+<p>In the Müller-Lyer figure, published in 1889, a line that ends in outward-pointing fins looks longer than an equal line that ends in arrowheads. It is the most studied illusion there is. One influential account is Richard Gregory's, from "Distortion of Visual Space as Inappropriate Constancy Scaling" (Nature, 1963): the fins resemble the edges of a corner seen in perspective, the visual system treats one line as further away than the other, and it scales their apparent sizes accordingly. The account is still disputed, which is normal in this field.</p>
+<p>How strong is the illusion? A demonstration that says "these are equal, believe it or not" cannot answer that. The standard technique can, and it is a small piece of interaction design called the <strong>method of adjustment</strong>:</p>
+<ol>
+  <li>Show a fixed standard and an adjustable comparison.</li>
+  <li>Ask the person to adjust the comparison until the two look equal.</li>
+  <li>The size of their error is the size of the illusion, in real units.</li>
+</ol>
+<p>Do it now. Drag the first slider until the lower line looks the same length as the upper one. Then reveal the answer. Most people set the lower line noticeably too short.</p>
+
+<div class="example" data-h="340" data-title="IL2.3 Match the lower line to the upper one">
+<script type="text/plain">
+const length = ui.slider('length of the lower line', 150, 330, 190, 1);
+const angle = ui.slider('fin angle (degrees)', 15, 80, 40, 1);
+const answer = ui.slider('show the answer', 0, 1, 0, 1);
+const STANDARD = 250;
+
+// A horizontal line with a fin at each end. direction +1: fins point outward (tails). -1: inward (arrowheads).
+function figure(y, len, direction) {
+  const x1 = W / 2 - len / 2, x2 = W / 2 + len / 2, a = angle() * Math.PI / 180, fin = 34;
+  ctx.beginPath();
+  ctx.moveTo(x1, y); ctx.lineTo(x2, y);
+  for (const [x, side] of [[x1, -1], [x2, 1]]) {
+    for (const up of [-1, 1]) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * direction * Math.cos(a) * fin, y + up * Math.sin(a) * fin);
+    }
+  }
+  ctx.stroke();
+}
+
+function draw() {
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#1c2541'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  figure(110, STANDARD, -1);                           // the standard: arrowheads, which make it look shorter
+  figure(230, length(), 1);                            // yours: tails, which make it look longer
+
+  if (!answer()) return;
+  ctx.strokeStyle = '#d7263d'; ctx.lineWidth = 1;
+  for (const x of [W / 2 - STANDARD / 2, W / 2 + STANDARD / 2]) {
+    ctx.beginPath(); ctx.moveTo(x, 60); ctx.lineTo(x, 280); ctx.stroke();
+  }
+  const error = (length() / STANDARD - 1) * 100;
+  ctx.fillStyle = '#1c2541'; ctx.font = '15px sans-serif';
+  ctx.fillText('Your line is ' + Math.abs(error).toFixed(1) + '% ' + (error < 0 ? 'shorter' : 'longer') + ' than the upper one.', 20, 318);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Now change the fin angle and repeat. Sharper fins give a larger error. A set of such measurements at several angles is a small scientific result, obtained with a slider and a ruler made of pixels. This lesson's challenge is to collect one properly.</p>
+
+<h2>Size: the company a shape keeps</h2>
+<p>In the Ebbinghaus figure a disc surrounded by large discs looks smaller than the same disc surrounded by small ones. Size, like brightness, is judged against the neighbours. The animated version is more convincing than the static one, because the eye is very sensitive to change: the orange disc below appears to swell and shrink as its companions do the opposite. Its radius is a constant in the code. Fade the companions to check.</p>
+
+<div class="example" data-h="380" data-title="IL2.4 The orange disc never changes">
+<script type="text/plain">
+const company = ui.slider('visibility of the surrounding discs', 0, 1, 1, 0.01);
+const RADIUS = 34;                                     // the orange disc: never changes
+
+loop((t) => {
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, W, H);
+  const beat = 0.5 + 0.5 * Math.sin(t * 1.2);          // 0 to 1 and back
+  const r = PA.lerp(10, 50, beat);                     // the companions' radius
+  const ring = RADIUS + r + PA.lerp(10, 22, beat);     // and their distance, so that they never touch the centre
+  ctx.fillStyle = 'rgba(60, 90, 150, ' + company() + ')';
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * PA.TAU;
+    ctx.beginPath(); ctx.arc(W / 2 + Math.cos(a) * ring, H / 2 + Math.sin(a) * ring, r, 0, PA.TAU); ctx.fill();
+  }
+  ctx.fillStyle = '#f08a24';
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, RADIUS, 0, PA.TAU); ctx.fill();
+});
+</script>
+</div>
+
+<h2>Shapes with no edges</h2>
+<p>In 1955 Gaetano Kanizsa published figures in which a bright triangle is seen lying over three black discs, although the triangle has no outline and is exactly the colour of the paper. The discs each have a wedge missing, the missing wedges line up, and the visual system prefers the explanation "a shape is covering three discs" to "three odd discs happen to be aimed at each other". It then supplies the shape, complete with edges that seem faintly visible across the empty gaps, and often makes it look brighter than its surroundings.</p>
+<p>This is a generator. Any polygon can be suggested by cutting its corners out of discs. The control is alignment: turn the discs and the shape is gone, though nothing has been erased.</p>
+
+<div class="example" data-h="420" data-title="IL2.5 A polygon made of nothing">
+<script type="text/plain">
+const sides = ui.slider('corners', 3, 7, 3, 1);
+const turn = ui.slider('turn the discs (degrees)', 0, 90, 0, 1);
+const PAPER = '#f4f1ea';
+
+function draw() {
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, W, H);
+  const n = sides(), spin = turn() * Math.PI / 180;
+  const corner = (i) => {
+    const a = -Math.PI / 2 + i / n * PA.TAU;
+    return [W / 2 + Math.cos(a) * 150, H / 2 + 10 + Math.sin(a) * 150];
+  };
+  for (let i = 0; i < n; i++) {
+    const [x, y] = corner(i), next = corner((i + 1) % n), prev = corner((i + n - 1) % n);
+    ctx.fillStyle = '#16181d';
+    ctx.beginPath(); ctx.arc(x, y, 46, 0, PA.TAU); ctx.fill();          // a whole disc...
+
+    // ...with a wedge painted out in the paper colour. The wedge's two edges point at the neighbouring corners.
+    const a1 = Math.atan2(next[1] - y, next[0] - x) + spin, a2 = Math.atan2(prev[1] - y, prev[0] - x) + spin;
+    const sweep = ((a2 - a1) % PA.TAU + PA.TAU) % PA.TAU;
+    ctx.fillStyle = PAPER;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, 48, a1, a2, sweep > Math.PI);        // go round the short way, which is the inside of the polygon
+    ctx.closePath(); ctx.fill();
+  }
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Illusory contours are useful well beyond the demonstration. A logo, a poster or a pattern can imply a form by what it leaves out, and the viewer's own completion of it is more engaging than an outline would be. The limits are worth knowing: the inducing shapes must be clearly "incomplete" versions of something simple, and the gaps between them must not be too large compared with their size.</p>
+
+<h2>Direction: circles that look like a spiral</h2>
+<p>James Fraser's "A New Visual Illusion of Direction" (British Journal of Psychology, 1908) introduced what he called the twisted cord: a line made of short slanted strands, alternately dark and light, like a rope of two colours. Laid straight, such a cord appears tilted in the direction of its strands. Laid in concentric circles, each circle appears to run inward, and the whole reads as a spiral. People asked to trace one with a finger are surprised to arrive back where they started.</p>
+<p>The strands' slant is the cause, so it is the slider. At zero the circles are plain dashed circles. The last control draws over one of them to show that it closes.</p>
+
+<div class="example" data-title="IL2.6 Concentric circles of twisted cord">
+<script type="text/plain">
+const slant = ui.slider('slant of the strands', 0, 1, 0.8, 0.01);
+const ground = ui.slider('chequered ground', 0, 1, 1, 0.01);
+const trace = ui.slider('trace one circle', 0, 1, 0, 1);
+
+function draw() {
+  ctx.fillStyle = '#8a8a8a';
+  ctx.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+
+  // the ground: rings of alternating lighter and darker blocks, which strengthens the effect
+  for (let band = 9; band >= 0; band--) {
+    const r1 = 30 + band * 30;
+    for (let s = 0; s < 32; s++) {
+      const light = (s + band) % 2 === 0;
+      ctx.fillStyle = PA.hsl(0, 0, 54 + (light ? 9 : -9) * ground());
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r1, s / 32 * PA.TAU, (s + 1) / 32 * PA.TAU);
+      ctx.fill();
+    }
+  }
+
+  // the cords: each circle is a ring of short strands, alternately black and white.
+  // A strand starts a little inside the circle and ends a little outside it.
+  ctx.lineWidth = 6; ctx.lineCap = 'butt';
+  for (let ring = 1; ring <= 8; ring++) {
+    const r = 15 + ring * 30, strands = ring * 14, lean = 5 * slant();
+    for (let s = 0; s < strands; s++) {
+      const a1 = s / strands * PA.TAU, a2 = (s + 1) / strands * PA.TAU;
+      ctx.strokeStyle = s % 2 ? '#fff' : '#000';
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a1) * (r - lean), cy + Math.sin(a1) * (r - lean));
+      ctx.lineTo(cx + Math.cos(a2) * (r + lean), cy + Math.sin(a2) * (r + lean));
+      ctx.stroke();
+    }
+  }
+  if (!trace()) return;
+  ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, 15 + 5 * 30, 0, PA.TAU); ctx.stroke();
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>What these have in common</h2>
+<p>The café wall, the fan and the twisted cord are one idea at three scales. A long contour is assembled by the visual system from many small local measurements of direction. Bias every local measurement the same way, by a small slanted element or a crossing line, and the bias adds up along the whole contour. The same summing explains why the effects are stronger with many small elements than with a few large ones, and why they survive when you know the truth: the summing happens before anything you would call thinking.</p>
+<table>
+  <thead><tr><th>To make</th><th>Bias</th><th>By</th></tr></thead>
+  <tbody>
+    <tr><td>A straight line look tilted</td><td>Local direction</td><td>Slanted strands along it, or offset tiles either side of it</td></tr>
+    <tr><td>A straight line look curved</td><td>Local direction, by a different amount along its length</td><td>Crossing lines whose angle changes along the line</td></tr>
+    <tr><td>Equal things look unequal in size</td><td>The scale they are judged against</td><td>Neighbours of a different size, or cues to distance</td></tr>
+    <tr><td>A shape appear with no outline</td><td>The simplest explanation of the scene</td><td>Aligned gaps in other shapes</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>The café wall needs shifted rows and thin mortar of a brightness between the tiles.</li>
+  <li>Lines crossed at an angle appear displaced. A fan of rays bends straight lines.</li>
+  <li>The method of adjustment turns an illusion into a number: the error a person makes when asked to match.</li>
+  <li>Size is judged relative to neighbours.</li>
+  <li>Aligned gaps are completed into shapes, with edges and brightness supplied by the viewer.</li>
+  <li>Small local biases in direction add up along a contour, turning circles into an apparent spiral.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>Drawing the "straight" line as several segments. If it is not one <code>lineTo</code>, a sceptic can fairly ask whether it is really straight.</li>
+  <li>Thick mortar, large strands, few rays. These effects come from many small elements.</li>
+  <li>Testing only on yourself. You know the answer, and knowing weakens some of these. Ask someone who has not seen the code.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Illusions challenge 2</p>
+  <h2>Measure Your Own Eyes</h2>
+  <p>Turn one geometric illusion into a small experiment. Collect real measurements from yourself and one other person, and draw the result as a chart.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>One illusion from this lesson, with <strong>one variable</strong> that you set at <strong>five levels</strong>: fin angle, number of rays, row shift, companion size, or strand slant.</li>
+    <li>A <strong>matching task</strong> for the viewer by the method of adjustment: they adjust something until two things look equal, or until a line looks straight or level.</li>
+    <li><strong>Twenty trials</strong> for each person: four at each level, in a shuffled order from a seeded generator, each starting from a different random setting.</li>
+    <li>The viewer never sees the true values during a run.</li>
+    <li>At the end, a <strong>chart</strong> of the average error at each level, with every individual trial shown as a dot.</li>
+    <li>One level is a <strong>control</strong> at which the theory predicts no illusion. Report the error there too.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Use the arrow keys for adjustment and a key to confirm. A slider's own position gives the answer away.</li>
+    <li>Start each trial sometimes too large and sometimes too small, or people simply stop at the first plausible setting.</li>
+    <li>Record every trial as a line of text: person, level, starting value, final value. Lesson 10's habit of saving the recipe applies to data as well.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add a second illusion and test whether people who are strongly fooled by one are strongly fooled by the other.</li>
+    <li>Export the trials as a CSV file.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Your chart shows the error changing with your variable, and close to zero at the control level.</li>
+    <li>You can state the size of the illusion as a number with a unit.</li>
+  </ul>
+  <a class="start" href="../challenges/il2-measure-your-own-eyes.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Richard Gregory and Priscilla Heard, “<a href="https://www.richardgregory.org/papers/cafe_wall/cafe-wall_all.htm">Border Locking and the Café Wall Illusion</a>”, Perception, 1979. <span class="why">The café wall, and the conditions it needs.</span></li>
+    <li>Richard Gregory, “Distortion of Visual Space as Inappropriate Constancy Scaling”, Nature, 1963. <span class="why">The depth account of the Müller-Lyer figure.</span></li>
+    <li>Gaetano Kanizsa, “Margini quasi-percettivi in campi con stimolazione omogenea”, Rivista di Psicologia, 1955. <span class="why">The first illusory-contour figures.</span></li>
+    <li>Gaetano Kanizsa, <cite>Organization in Vision: Essays on Gestalt Perception</cite>, Praeger, 1979. <span class="why">The same work in English, with many more figures.</span></li>
+    <li>James Fraser, “A New Visual Illusion of Direction”, British Journal of Psychology, 1908. <span class="why">The twisted cord and the false spiral.</span></li>
+    <li>George Gescheider, <cite>Psychophysics: The Fundamentals</cite>, 3rd edition, Lawrence Erlbaum, 1997. <span class="why">The method of adjustment and the other ways of measuring perception.</span></li>
+    <li>Michael Bach, <a href="https://michaelbach.de/ot/"><cite>Optical Illusions and Visual Phenomena</cite></a>. <span class="why">Interactive versions of every figure in this lesson.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="01-brightness-and-colour.html">← Illusions 1</a><a href="03-motion-that-is-not-there.html">Illusions 3: Motion That Is Not There →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

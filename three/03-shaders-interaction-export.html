@@ -237,6 +237,7 @@ canvas.onclick = () => {
 <table>
   <thead><tr><th>Topic</th><th>What it adds</th></tr></thead>
   <tbody>
+    <tr><td>The Shaders and Textures sections of this course</td><td>Fragment shaders in depth, and the colour, normal and roughness maps that <code>MeshStandardMaterial</code> uses</td></tr>
     <tr><td>Post-processing (<code>EffectComposer</code>)</td><td>Bloom, depth of field, film grain, outlines: effects applied to the whole rendered image</td></tr>
     <tr><td>Shadows and environment maps</td><td>Realistic lighting</td></tr>
     <tr><td>GPU particle systems</td><td>Millions of particles simulated in shaders</td></tr>
@@ -287,6 +288,20 @@ canvas.onclick = () => {
   </ul>
   <a class="start" href="../challenges/t3-small-world.html">Open the starter file</a>
 </section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>three.js, <a href="https://threejs.org/docs/#api/en/materials/ShaderMaterial"><cite>ShaderMaterial</cite></a>. <span class="why">Using your own shaders in three.js.</span></li>
+    <li>Patricio Gonzalez Vivo and Jen Lowe, <a href="https://thebookofshaders.com/"><cite>The Book of Shaders</cite></a>. <span class="why">Fragment shaders from the beginning.</span></li>
+    <li>Gregg Tavares, <a href="https://webglfundamentals.org/"><cite>WebGL Fundamentals</cite></a>. <span class="why">What three.js is doing underneath.</span></li>
+    <li>three.js, <a href="https://threejs.org/docs/#api/en/core/Raycaster"><cite>Raycaster</cite></a>. <span class="why">Finding what the pointer is over.</span></li>
+    <li>three.js, <a href="https://threejs.org/manual/#en/post-processing"><cite>three.js Manual: Post Processing</cite></a>. <span class="why">Effects applied to the whole picture.</span></li>
+  </ul>
+</section>
+<!-- /references -->
 
 <footer class="next"><a href="02-geometry-from-code.html">← three.js 2</a><a href="../index.html">Back to the course →</a></footer>
 </main>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Textures challenge 4 · A Material You Could Hand Over</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1024" height="1024"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* TEXTURES CHALLENGE 4 — A MATERIAL YOU COULD HAND OVER
+   Full brief: ../textures/04-height-normals-and-light.html
+
+   One generator, four tileable maps, exported as files and proven on an object.
+
+   Checklist
+   [ ] Colour, height, normal and roughness maps, all derived from the same height
+   [ ] All four tile in both directions; a 2 x 2 lit preview proves it
+   [ ] Each map saves as a PNG of at least 1024 pixels, named after the material and the map
+   [ ] The colour map contains no lighting
+   [ ] A lit preview with a movable light: diffuse, a highlight driven by roughness, and occlusion
+   [ ] The maps have been used once outside this file, in three.js or Blender
+
+   Keys (wire these up):  1 colour   2 height   3 normal   4 roughness   5 lit preview   S save the map on show */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const T = canvas.width;                                 // the tile is T by T pixels
+const NAME = 'my-material';
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+const wrap = (i, m) => ((i % m) + m) % m;
+
+// The maps: one number per pixel for height and roughness, three for colour and normal.
+const height = new Float32Array(T * T);
+const roughness = new Float32Array(T * T);
+const colour = new Float32Array(T * T * 3);
+const normal = new Float32Array(T * T * 3);
+
+// ---- 1. the height, which must tile: wrap cell numbers before hashing them ----
+
+// ---- 2. colour and roughness, from the height ----
+
+// ---- 3. normals, from the slope of the height, measured across the tile's edges ----
+
+// ---- 4. the views, the lit preview with a light at the pointer, and the export ----
+
+</script>
+</body>
+</html>

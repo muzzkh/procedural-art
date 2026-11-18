@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Illusions challenge 2 · Measure Your Own Eyes</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1000" height="700"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* ILLUSIONS CHALLENGE 2 — MEASURE YOUR OWN EYES
+   Full brief: ../illusions/02-geometry-and-shape.html
+
+   One geometric illusion turned into an experiment, with real measurements and a chart.
+
+   The illusion:               ...
+   The variable and 5 levels:  ...   (one level is the control, where no illusion is predicted)
+   What the viewer adjusts:    ...
+
+   Checklist
+   [ ] One variable at five levels, one of them a control
+   [ ] A matching task by the method of adjustment
+   [ ] Twenty trials for each person: four per level, in a shuffled order, each from a random start
+   [ ] The viewer never sees the true values during a run
+   [ ] A chart of the average error at each level, with every trial shown as a dot
+   [ ] Results for yourself and one other person
+   [ ] The size of the illusion stated as a number with a unit
+
+   Keys (wire these up):  left and right arrows adjust   Enter confirms the trial */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const LEVELS = [/* five values of your variable */];
+const PERSON = 'me';                       // change for each person
+const R = PA.rng('experiment-' + PERSON);
+
+// The plan: every level four times, in a shuffled order.
+const plan = R.shuffle(LEVELS.flatMap((level) => [level, level, level, level]));
+const results = [];                        // one entry per finished trial: { person, level, start, final, truth }
+let trial = 0, setting = 0;
+
+// Draws the figure for one level of the variable, with the adjustable part at `setting`.
+function figure(level, setting) {
+
+}
+
+// The value of `setting` at which the two things really are equal (or the line really is straight).
+function truth(level) {
+  return 0;
+}
+
+function beginTrial() {
+  // ---- choose a random starting setting, sometimes too large and sometimes too small ----
+}
+
+function chart() {
+  // ---- when all trials are done: average error at each level, and every trial as a dot ----
+}
+
+// TODO: the keys, then beginTrial()
+</script>
+</body>
+</html>

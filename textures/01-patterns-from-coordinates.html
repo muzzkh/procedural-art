@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Textures 1 · Patterns from Coordinates</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="../index.html">← Course</a><span>Textures 1 of 4</span><a href="02-materials-from-noise.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Textures 1</p>
+  <h1>Patterns from Coordinates</h1>
+  <p class="lede">A texture is the surface detail of a thing: the bricks of a wall, the grain of a plank, the weave of a cloth. A procedural texture is a function that answers one question, "what is at this point?", for any point you ask about. This lesson builds regular patterns from nothing but the coordinates of the point.</p>
+</header>
+
+<h2>A texture is a function</h2>
+<p>An image texture stores an answer for every pixel. A procedural texture computes the answer when asked. You give it a position, by convention called <code>u</code> and <code>v</code> and running from 0 to 1 across the surface, and it returns a value. That value is usually a colour, but it can equally be a height, a roughness or a transparency (Textures 4).</p>
+<p>This has consequences you can use:</p>
+<ul>
+  <li><strong>No fixed resolution.</strong> Ask at more points and you get more detail, until the formula itself runs out.</li>
+  <li><strong>Parameters instead of repainting.</strong> Mortar width, brick size and colour variation are numbers.</li>
+  <li><strong>Every point is independent.</strong> The function may not look at its neighbours' answers, only at its own coordinates. This is the same constraint as a shader (Lesson 9), and every pattern here will run unchanged on a graphics card (the Shaders section).</li>
+</ul>
+<p>All the examples in this section use the same few lines of plumbing: loop over the pixels, turn the pixel position into <code>u</code> and <code>v</code>, call <code>texture(u, v)</code>, and store the result. Read the <code>texture</code> function and skip the rest.</p>
+
+<h2>Cells: floor and fract</h2>
+<p>Almost every regular pattern starts with the same two lines. Multiply the coordinate by the number of repeats you want. The whole-number part of the result, <code>Math.floor</code>, says <em>which cell</em> you are in. The fractional part, <code>PA.fract</code>, says <em>where inside that cell</em> you are, from 0 to 1.</p>
+<ul>
+  <li>The cell number is the same for every point in a cell, so it is used for decisions about the whole cell: which colour, which way up, present or missing.</li>
+  <li>The position inside the cell is used to draw the cell's contents. Whatever you draw there is repeated in every cell for free.</li>
+</ul>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX1.1 Which cell, and where in it">
+<script type="text/plain">
+const cells = ui.slider('cells', 2, 20, 8, 1);
+const kind = ui.slider('pattern', 0, 3, 0, 1);
+const img = ctx.createImageData(W, H);
+
+function texture(u, v) {
+  const n = cells();
+  const cu = Math.floor(u * n), cv = Math.floor(v * n);      // which cell: whole numbers
+  const fu = PA.fract(u * n), fv = PA.fract(v * n);          // where inside it: 0 to 1
+  switch (kind()) {
+    case 0: return cu % 2;                                   // stripes: odd columns are white
+    case 1: return (cu + cv) % 2;                            // checks: odd sums are white
+    case 2: return (fu < 0.08 || fv < 0.08) ? 1 : 0.15;      // lines along two edges of every cell
+    default: return Math.hypot(fu - 0.5, fv - 0.5) < 0.32 ? 1 : 0.15;   // a disc in the middle of every cell
+  }
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const g = texture(x / W, y / H) * 255, k = (y * W + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = g;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Patterns 0 and 1 use only the cell number. Patterns 2 and 3 use only the position inside the cell. Real textures use both.</p>
+
+<h2>Bricks: shifting rows and one random number per cell</h2>
+<p>A brick wall adds two ideas to the grid.</p>
+<ul>
+  <li><strong>Offset rows.</strong> Before splitting <code>u</code> into cells, add half a cell to it on every other row. The row number comes from <code>v</code>, so it is known first.</li>
+  <li><strong>Per-cell randomness.</strong> A <em>hash</em> turns the cell's two whole numbers into a repeatable random number. The same cell always gets the same number, so each brick has its own fixed shade, and the wall does not flicker when it is redrawn. You cannot use a stream of random numbers here (Lesson 2), because points are asked about in no particular order.</li>
+</ul>
+<p>The distance to the nearest edge of the cell does the rest. Close to the edge is mortar. A little further in, the brick is darkened to suggest a rounded corner.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX1.2 A brick wall">
+<script type="text/plain">
+const N = PA.noise('brick');
+const mortar = ui.slider('mortar width', 0.004, 0.03, 0.012, 0.001);
+const vary = ui.slider('variation', 0, 1, 0.6, 0.05);
+const img = ctx.createImageData(W, H);
+const BW = 1 / 5, BH = 1 / 12;                       // the size of one brick, as a fraction of the texture
+
+// A repeatable random number from 0 to 1 for the cell (i, j).
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+function texture(u, v) {
+  const row = Math.floor(v / BH);
+  const shift = (row % 2) * 0.5;                     // every other row slides half a brick
+  const col = Math.floor(u / BW + shift);
+  const fu = PA.fract(u / BW + shift), fv = PA.fract(v / BH);
+
+  // distance from this point to the nearest edge of its brick, in texture units
+  const edge = Math.min(Math.min(fu, 1 - fu) * BW, Math.min(fv, 1 - fv) * BH);
+  const m = mortar();
+  if (edge < m / 2) {                                // mortar: pale, slightly gritty
+    const g = 168 + N.get(u * 60, v * 60) * 40;
+    return [g, g - 4, g - 12];
+  }
+  const r = hash(col, row);                          // this brick's own random number
+  const shade = 1 + (r - 0.5) * vary();              // lighter or darker than average
+  const bevel = 0.75 + 0.25 * PA.smoothstep(m / 2, m / 2 + 0.012, edge);   // darker near the edge
+  const grit = 0.9 + N.fbm(u * 40, v * 40) * 0.2;    // fine speckle
+  const k = shade * bevel * grit;
+  return [168 * k, (72 + r * 30) * k, 52 * k];
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x / W, y / H), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Set the variation to 0 and the wall looks printed. Set it to 1 and it looks neglected. Somewhere between is a wall. That one slider is most of the difference between a pattern and a material, and Textures 2 is about where such variation comes from.</p>
+
+<h2>Other grids: hexagons</h2>
+<p>Square cells are not the only choice. A honeycomb can be found with a trick: lay down two rectangular grids, the second shifted by half a cell in both directions, and for each point keep whichever grid's cell centre is nearer. The cells of nearest-centre regions are hexagons, for the same reason that Voronoi cells of evenly spread seeds are (Lesson 7).</p>
+<p>As before you get two things for each point: an identity for the cell, hashed into a colour, and a position inside the cell, used to draw the border and a centre mark.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX1.3 A honeycomb">
+<script type="text/plain">
+const size = ui.slider('cells across', 3, 14, 7, 1);
+const gap = ui.slider('border', 0, 0.2, 0.06, 0.01);
+const img = ctx.createImageData(W, H);
+const SY = Math.sqrt(3);                               // a rectangle 1 wide and √3 tall holds the pattern
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+const colours = [[241, 196, 83], [233, 150, 62], [205, 109, 50], [250, 221, 140]];
+
+function texture(u, v) {
+  const x = u * size(), y = v * size();
+  // grid A, and grid B shifted half a cell. Each gives a position measured from its own cell centre.
+  const ax = PA.fract(x) - 0.5,       ay = PA.fract(y / SY) * SY - SY / 2;
+  const bx = PA.fract(x + 0.5) - 0.5, by = PA.fract(y / SY + 0.5) * SY - SY / 2;
+  const useA = ax * ax + ay * ay < bx * bx + by * by;  // keep the nearer centre
+  const lx = useA ? ax : bx, ly = useA ? ay : by;      // position inside the hexagon
+  const idx = Math.round((x - lx) * 2), idy = Math.round((y - ly) / SY * 2);   // the centre, as whole numbers
+
+  // distance from the centre measured so that it reaches 0.5 exactly on the hexagon's edge
+  const d = Math.max(Math.abs(lx), Math.abs(lx) * 0.5 + Math.abs(ly) * SY / 2);
+  if (d > 0.5 - gap() / 2) return [58, 36, 20];        // the wax between cells
+  const c = colours[Math.floor(hash(idx, idy) * colours.length)];
+  const k = 1.05 - d * 0.7;                            // darker toward the wall
+  return [c[0] * k, c[1] * k, c[2] * k];
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = texture(x / W, y / H), k = (y * W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Layering two directions: a woven cloth</h2>
+<p>A tartan is two sets of coloured stripes, one running each way, with a rule for which is on top at each crossing. The stripes are a list of colours and widths called the sett. The rule here is a twill: a thread goes over two and under two, and each row starts one thread later than the one above, which produces the diagonal ribs you can see in denim.</p>
+<p>Both ideas are small. The stripe colour is a lookup by position along one axis. The weave is a test on the sum of the two thread numbers. Change the seed for a new cloth.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX1.4 Tartan">
+<script type="text/plain">
+const seed = ui.text('seed', 'glen');
+const img = ctx.createImageData(W, H);
+
+function draw() {
+  const R = PA.rng(seed());
+  const dyes = R.shuffle([[28, 50, 92], [150, 30, 36], [24, 86, 60], [232, 222, 196], [226, 178, 60], [20, 20, 24]]);
+  // The sett: a few stripes, each a colour and a width in threads. It is mirrored so that it reads the same both ways.
+  const half = [];
+  for (let i = 0; i < R.int(3, 5); i++) half.push({ c: dyes[i % 4], w: R.pick([2, 4, 6, 10, 16]) });
+  const sett = half.concat(half.slice().reverse());
+  const threads = [];                                  // one colour per thread, for one repeat
+  for (const s of sett) for (let i = 0; i < s.w; i++) threads.push(s.c);
+  const n = threads.length;
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const warp = threads[x % n];                     // the thread running down the cloth at this x
+      const weft = threads[y % n];                     // the thread running across it at this y
+      const warpOnTop = (x + y) % 4 < 2;               // twill: over two, under two, stepping each row
+      const c = warpOnTop ? warp : weft;
+      const lit = warpOnTop ? 1.0 : 0.86;              // the lower thread sits in shadow
+      const k = (y * W + x) * 4;
+      img.data[k] = c[0] * lit; img.data[k + 1] = c[1] * lit; img.data[k + 2] = c[2] * lit; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Aliasing: when the pattern is finer than the pixels</h2>
+<p>A procedural texture has unlimited detail, and a screen does not. When a pattern changes faster than once every two pixels, sampling it at one point per pixel does not give a blurred version of the pattern. It gives a different, false pattern: coarse rings, crawling dots and moiré. This is <strong>aliasing</strong>, and the two-pixel limit is the Nyquist limit you met with sound in Special Topic 4.</p>
+<p>The test pattern below is a set of rings that become finer with distance from the corner. On the left it is sampled once per pixel, and rings appear in the far corner that are not in the formula at all. There are three cures.</p>
+<dl class="vocab">
+  <dt>Supersampling</dt><dd>Sample several points inside each pixel and average them. It always works and costs that many times more. The middle panel uses 16.</dd>
+  <dt>Fading by frequency</dt><dd>If you know how fast the pattern is changing at a point, fade it to its average colour as that rate approaches the limit. It costs almost nothing, but you need to know the formula. The right panel does this.</dd>
+  <dt>Prefiltering</dt><dd>For image textures, store the image at full, half, quarter size and so on, each one properly blurred, and read from the size that suits the pixel. These pyramids are called mipmaps, and were introduced by Lance Williams in "Pyramidal Parametrics" (SIGGRAPH 1983).</dd>
+</dl>
+
+<div class="example" data-pixel data-w="600" data-h="200" data-title="TX1.5 One pattern, three ways of sampling it">
+<script type="text/plain">
+const k = ui.slider('fineness', 20, 400, 170, 1);
+const img = ctx.createImageData(W, H);
+const S = H;                                           // each of the three panels is S by S pixels
+
+// Rings that get closer together the further you are from the corner.
+const plate = (u, v) => 0.5 + 0.5 * Math.cos((u * u + v * v) * k());
+
+function sample(u, v, mode) {
+  if (mode === 0) return plate(u, v);                  // one sample, at the middle of the pixel
+  if (mode === 1) {                                    // sixteen samples spread across the pixel
+    let sum = 0;
+    for (let j = 0; j < 4; j++) {
+      for (let i = 0; i < 4; i++) sum += plate(u + (i - 1.5) / 4 / S, v + (j - 1.5) / 4 / S);
+    }
+    return sum / 16;
+  }
+  // How many rings pass per pixel here? The pattern's phase is k·r², so it changes at a rate of 2·k·r.
+  const ringsPerPixel = 2 * Math.hypot(u, v) * k() / PA.TAU / S;
+  const fade = 1 - PA.smoothstep(0.25, 0.5, ringsPerPixel);        // gone by one ring per two pixels
+  return 0.5 + (plate(u, v) - 0.5) * fade;
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const mode = Math.floor(x / S);
+      const g = sample((x - mode * S + 0.5) / S, (y + 0.5) / S, mode) * 255, i = (y * W + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = g;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.font = '12px sans-serif';
+  ['one sample per pixel', 'sixteen samples per pixel', 'faded by frequency'].forEach((label, m) => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(m * S + 6, 6, ctx.measureText(label).width + 12, 20);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, m * S + 12, 20);
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>In the examples above, the hard edges of the bricks and hexagons are aliased too: they are stair-stepped. The cure for an edge is the second one. Replace the hard test <code>d &lt; r</code> with a <code>smoothstep</code> about one pixel wide (Maths 1, Lesson 9). Shaders 1 shows how the graphics card can tell you how wide one pixel is.</p>
+
+<h2>Tiling: a texture that joins itself</h2>
+<p>A texture is often repeated across a large surface, so its right edge must continue into its left edge and its bottom into its top. For patterns made of repeating parts the rule is simple: <strong>a whole number of repeats must fit across the tile</strong>. Two and a half waves cannot join. Two or three can.</p>
+<p>The canvas shows the same tile four times. Move the first slider and the seams appear as breaks through the middle. Turn on whole numbers and they vanish for every setting. Special Topic 2 used the same idea for a textile repeat, and Textures 4 makes noise tile.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX1.6 A tile shown four times">
+<script type="text/plain">
+const waves = ui.slider('waves across the tile', 1, 6, 2.6, 0.1);
+const whole = ui.slider('whole numbers only', 0, 1, 0, 1);
+const img = ctx.createImageData(W, H);
+const T = W / 2;                                       // the tile is half the canvas wide
+
+function texture(u, v) {
+  let a = waves(), b = waves() * 1.5;
+  if (whole()) { a = Math.round(a); b = Math.round(b); }
+  // Every term repeats when u or v goes up by 1, provided a and b are whole numbers.
+  const one = Math.sin(PA.TAU * a * u + 2 * Math.sin(PA.TAU * b * v));
+  const two = Math.sin(PA.TAU * a * v + 2 * Math.sin(PA.TAU * b * u));
+  return 0.5 + 0.25 * one + 0.25 * two;
+}
+
+function draw() {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const t = texture((x % T) / T, (y % T) / T), k = (y * W + x) * 4;
+      img.data[k] = 30 + t * 60; img.data[k + 1] = 70 + t * 150; img.data[k + 2] = 110 + t * 130; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = '#ffd166';                            // marks where the tiles meet
+  ctx.fillRect(T - 1, 0, 2, 8); ctx.fillRect(T - 1, H - 8, 2, 8);
+  ctx.fillRect(0, T - 1, 8, 2); ctx.fillRect(W - 8, T - 1, 8, 2);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A procedural texture is a function from a position to a value. It may use only the position, never its neighbours' results.</li>
+  <li><code>floor</code> of a scaled coordinate tells you which cell you are in. <code>fract</code> tells you where in the cell.</li>
+  <li>A hash of the cell number gives every cell its own repeatable random number.</li>
+  <li>The distance to the cell's edge gives borders, mortar and bevels.</li>
+  <li>Detail finer than two pixels aliases. Supersample it, fade it, or prefilter it.</li>
+  <li>A texture tiles when a whole number of repeats fits across it.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li><strong>Using a random stream for per-cell values.</strong> The result depends on the order pixels are visited in. Hash the cell number instead.</li>
+  <li><strong>Mortar that is thicker one way than the other.</strong> Positions inside a cell run from 0 to 1 in both directions even when the cell is not square. Convert back to texture units before comparing distances, as TX1.2 does.</li>
+  <li><strong>Negative coordinates.</strong> In JavaScript <code>-3 % 2</code> is <code>-1</code>. If a pattern must work for negative positions, use <code>((n % m) + m) % m</code>.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Textures challenge 1</p>
+  <h2>A Pattern Sampler</h2>
+  <p>Make a sheet of nine swatches, each a different regular pattern written as a function of <code>u</code> and <code>v</code>, in the manner of a book of fabric or tile samples.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Nine swatches in a 3 × 3 sheet, each drawn by its own <code>texture(u, v)</code> function through one shared loop.</li>
+    <li>At least one pattern on an <strong>offset grid</strong>, one on a <strong>non-square grid</strong>, and one that <strong>layers two directions</strong>.</li>
+    <li>At least three patterns use a <strong>hash of the cell number</strong>, each for a different purpose: colour, rotation, size, or leaving a cell out.</li>
+    <li>No stair-stepped edges: every edge is softened over about one pixel, or the swatch is supersampled.</li>
+    <li>Every swatch <strong>tiles</strong>. Prove it by drawing one swatch of your choice four times.</li>
+    <li>No noise. This sheet is about structure. Noise is the next lesson.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Herringbone, basket weave, fish scales, hexagonal tiles, triangles, a quilt of rotated squares and a chain-link fence are all cell patterns.</li>
+    <li>Scales and roof tiles are an offset grid of discs in which each row covers the one above.</li>
+    <li>Rotate a cell's contents by rotating the position inside the cell about (0.5, 0.5) before you draw.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Give the whole sheet one seed that changes all nine swatches while keeping them recognisable.</li>
+    <li>Add one swatch on a triangular grid.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone can name the material or object each swatch suggests.</li>
+    <li>Changing the number of cells in any swatch never breaks it.</li>
+  </ul>
+  <a class="start" href="../challenges/tx1-pattern-sampler.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>David Ebert, F. Kenton Musgrave, Darwyn Peachey, Ken Perlin and Steven Worley, <cite>Texturing and Modeling: A Procedural Approach</cite>, 3rd edition, Morgan Kaufmann, 2003. <span class="why">The standard book on procedural textures. Its early chapters cover the patterns of this lesson.</span></li>
+    <li>Lance Williams, “Pyramidal Parametrics”, SIGGRAPH 1983. <span class="why">The paper that introduced mipmaps.</span></li>
+    <li>Paul Heckbert, “Survey of Texture Mapping”, IEEE Computer Graphics and Applications, 1986. <span class="why">Texture coordinates, filtering and aliasing in one article.</span></li>
+    <li>Patricio Gonzalez Vivo and Jen Lowe, <a href="https://thebookofshaders.com/09/"><cite>The Book of Shaders: Patterns</cite></a>. <span class="why">Cells from floor and fract, live.</span></li>
+    <li>Amit Patel (Red Blob Games), <a href="https://www.redblobgames.com/grids/hexagons/"><cite>Hexagonal Grids</cite></a>. <span class="why">Everything about hexagonal coordinates.</span></li>
+    <li>Branko Grünbaum and G. C. Shephard, <cite>Tilings and Patterns</cite>, W. H. Freeman, 1987. <span class="why">The mathematical reference on which shapes tile the plane.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="../index.html">← Course</a><a href="02-materials-from-noise.html">Textures 2: Materials from Noise →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

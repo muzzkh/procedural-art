@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Textures challenge 3 · An Endless Surface</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1200" height="820"></canvas>
+<script src="../assets/pa.js"></script>
+<script>
+/* TEXTURES CHALLENGE 3 — AN ENDLESS SURFACE
+   Full brief: ../textures/03-grown-and-borrowed.html
+
+   One small sample of your own, extended over a large area by two different methods,
+   beside the sample simply tiled.
+
+   Checklist
+   [ ] A sample you made, no larger than 128 pixels square
+   [ ] Two of: Wang tiles, pixel-at-a-time synthesis, quilting, contrast-preserving blending
+   [ ] A third panel with the sample simply tiled, as the thing to beat
+   [ ] A fixed seed, so that the comparison is repeatable
+   [ ] A written verdict below: where each method fails on this sample, and what you would change
+   [ ] Someone shown only the large surface cannot point to a repeat
+
+   VERDICT (fill in when you have finished)
+     Method A:  ...
+     Method B:  ...  */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const R = PA.rng('surface-1');
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// ---- THE SAMPLE: S by S pixels, stored as red, green, blue for each pixel ----
+const S = 96;
+const sample = new Float32Array(S * S * 3);
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) {
+    const k = (y * S + x) * 3;
+    // ---- your sample here: a material from Textures 2, a simulation, or a photograph ----
+    sample[k] = sample[k + 1] = sample[k + 2] = 128;
+  }
+}
+
+// Draws an array of red, green, blue values (w by h pixels) at (x0, y0).
+function show(pixels, w, h, x0, y0) {
+  const img = ctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) {
+    img.data[i * 4] = pixels[i * 3]; img.data[i * 4 + 1] = pixels[i * 3 + 1]; img.data[i * 4 + 2] = pixels[i * 3 + 2];
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, x0, y0);
+}
+
+// Each of these returns a new array of w * h * 3 values.
+function tiled(w, h) {
+  const out = new Float32Array(w * h * 3);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      for (let c = 0; c < 3; c++) out[(y * w + x) * 3 + c] = sample[((y % S) * S + x % S) * 3 + c];
+    }
+  }
+  return out;
+}
+function methodA(w, h) {
+  // ---- your first method ----
+  return tiled(w, h);
+}
+function methodB(w, h) {
+  // ---- your second method ----
+  return tiled(w, h);
+}
+
+ctx.fillStyle = '#16171a';
+ctx.fillRect(0, 0, W, H);
+show(sample, S, S, 20, 20);
+show(tiled(580, 380), 580, 380, 600, 20);
+show(methodA(580, 380), 580, 380, 20, 420);
+show(methodB(580, 380), 580, 380, 600, 420);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shaders 3 · Raymarching and Light</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-patterns-and-noise.html">← Shaders 2</a><span>Shaders 3 of 4</span><a href="04-memory-and-post-processing.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Shaders 3</p>
+  <h1>Raymarching and Light</h1>
+  <p class="lede">Lesson 9 ended with a glimpse of a 3D scene drawn by a single fragment shader. This lesson builds that method properly: a camera, the march, surface normals, and then the lighting that makes a distance function look like a solid object. Light, shadow, occlusion and fog each turn out to be a few lines.</p>
+</header>
+
+<h2>The method</h2>
+<p>There are no triangles in these scenes. The whole scene is one function, <code>map(p)</code>, which takes a point in space and returns the distance from it to the nearest surface (Lesson 9). To find what a pixel sees:</p>
+<ol>
+  <li>Stand at the camera and face along the ray that passes through this pixel.</li>
+  <li>Ask <code>map</code> how far the nearest surface is. Nothing can be closer than that in any direction, so it is safe to move that far along the ray.</li>
+  <li>Repeat from the new position. The steps shrink as a surface approaches.</li>
+  <li>Stop when the distance is tiny (a hit), or when you have gone too far (a miss).</li>
+</ol>
+<p>John Hart described and analysed this in "Sphere Tracing: A Geometric Method for the Antialiased Ray Tracing of Implicit Surfaces" (The Visual Computer, 1996). The name comes from step 2: at each stop there is an empty sphere around you, and you walk to its edge. Printing 3 uses the same distance functions to make models for a printer.</p>
+
+<h2>A camera</h2>
+<p>A camera needs a position, called the eye, and a point to look at. From those two, three directions follow, each at right angles to the others, built with the cross product (Maths 2 and Maths 6):</p>
+<ul>
+  <li><strong>forward</strong>: from the eye toward the target;</li>
+  <li><strong>right</strong>: at right angles to forward and to the world's "up";</li>
+  <li><strong>up</strong>: at right angles to both of those.</li>
+</ul>
+<p>The ray for a pixel is forward, plus right times the pixel's x, plus up times the pixel's y. The number that multiplies forward sets the angle of view: larger is a longer lens.</p>
+
+<h2>Seeing the march</h2>
+<p>The first example is a ball on the ground with no lighting at all. Left of the pointer, the colour is the <strong>surface normal</strong> shown as a colour, as in a normal map (Textures 4). The normal of a distance function is its gradient, the direction in which the distance grows fastest, and it is measured by sampling <code>map</code> a tiny step either side along each axis (Maths 3).</p>
+<p>Right of the pointer, the colour is <strong>how many steps the march took</strong>: dark for few, bright for many. This is the cost of the picture. Rays that hit something head-on are cheap. Rays that skim past an edge, or run nearly level with the ground toward the horizon, take many small steps.</p>
+
+<div class="example" data-mode="shader" data-w="560" data-h="400" data-title="SH3.1 Normals left of the pointer, step count right">
+<script type="text/plain">
+float map(vec3 p) {
+  float ball = length(p - vec3(0.0, 1.0, 0.0)) - 1.0;
+  float ground = p.y;                               // the distance to a flat floor is just your height
+  return min(ball, ground);
+}
+
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy) - map(p - e.xyy),      // how the distance changes along x
+                        map(p + e.yxy) - map(p - e.yxy),      // along y
+                        map(p + e.yyx) - map(p - e.yyx)));    // along z
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  // the camera circles the ball
+  float a = u_time * 0.3;
+  vec3 eye = vec3(sin(a) * 5.0, 1.8, cos(a) * 5.0);
+  vec3 forward = normalize(vec3(0.0, 0.8, 0.0) - eye);
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  vec3 ray = normalize(forward * 1.6 + right * p.x + up * p.y);
+
+  // the march
+  float t = 0.0, steps = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 100; i++) {
+    float d = map(eye + ray * t);
+    if (d < 0.001) { hit = true; break; }
+    t += d;
+    steps += 1.0;
+    if (t > 40.0) break;
+  }
+
+  vec3 col;
+  if (gl_FragCoord.x < u_mouse.x) {
+    col = hit ? normalAt(eye + ray * t) * 0.5 + 0.5 : vec3(0.05);
+  } else {
+    col = mix(vec3(0.02, 0.02, 0.2), vec3(1.0, 0.85, 0.2), steps / 60.0);
+  }
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.0, 1.5, abs(gl_FragCoord.x - u_mouse.x)));
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Light</h2>
+<p>With a position and a normal for the visible point, shading is the arithmetic of Textures 4, now in three dimensions.</p>
+<dl class="vocab">
+  <dt>Diffuse</dt><dd>The dot product of the normal and the direction to the light, cut off at zero. The matt part.</dd>
+  <dt>Specular</dt><dd>The dot product of the normal and the direction halfway between the light and the eye, raised to a high power. The highlight.</dd>
+  <dt>Ambient</dt><dd>A small constant, standing in for light bouncing in from everywhere else, so that unlit sides are not pure black.</dd>
+</dl>
+<p>One more line matters. Light adds up in proportion to energy, but a screen's numbers are not proportional to energy: a stored value of 0.5 emits only about a fifth of the light of 1.0. So do the lighting sums as if the numbers were energy, then convert at the very end by raising the colour to the power 1/2.2. Without that step shadows are too dark and the lit side burns out. Lesson 11 covers the same curve from the side of colour.</p>
+<p>Move the pointer left and right to orbit, and up and down to raise the camera.</p>
+
+<div class="example" data-mode="shader" data-w="560" data-h="400" data-title="SH3.2 Three objects, one light (move the pointer to orbit)">
+<script type="text/plain">
+float sdBox(vec3 p, vec3 size) {
+  vec3 q = abs(p) - size;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float sdTorus(vec3 p, float ring, float tube) {
+  return length(vec2(length(p.xz) - ring, p.y)) - tube;
+}
+
+float map(vec3 p) {
+  float d = p.y;                                                       // the ground
+  d = min(d, length(p - vec3(-2.2, 1.0, 0.0)) - 1.0);                  // a ball
+  d = min(d, sdBox(p - vec3(0.4, 0.8, 0.3), vec3(0.75)) - 0.05);       // a box; subtracting 0.05 rounds its edges
+  d = min(d, sdTorus(p - vec3(2.8, 0.35, -0.2), 0.8, 0.35));           // a ring lying flat
+  return d;
+}
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy) - map(p - e.xyy), map(p + e.yxy) - map(p - e.yxy), map(p + e.yyx) - map(p - e.yyx)));
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  float a = (u_mouse.x / u_res.x - 0.5) * 6.2832 + 0.5;
+  vec3 eye = vec3(sin(a) * 7.5, 1.0 + 4.0 * u_mouse.y / u_res.y, cos(a) * 7.5);
+  vec3 forward = normalize(vec3(0.3, 0.6, 0.0) - eye);
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  vec3 ray = normalize(forward * 1.6 + right * p.x + up * p.y);
+
+  float t = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 100; i++) {
+    float d = map(eye + ray * t);
+    if (d < 0.001) { hit = true; break; }
+    t += d;
+    if (t > 40.0) break;
+  }
+
+  vec3 col = mix(vec3(0.55, 0.65, 0.8), vec3(0.15, 0.3, 0.6), ray.y * 0.5 + 0.5);    // the sky
+  if (hit) {
+    vec3 pos = eye + ray * t;
+    vec3 n = normalAt(pos);
+    vec3 toLight = normalize(vec3(cos(u_time * 0.5), 0.9, sin(u_time * 0.5)));      // the light circles overhead
+
+    vec3 base = vec3(0.85, 0.42, 0.30);
+    if (pos.y < 0.01) {                                                // the ground is chequered
+      float check = mod(floor(pos.x) + floor(pos.z), 2.0);
+      base = mix(vec3(0.25, 0.27, 0.32), vec3(0.6, 0.62, 0.66), check);
+    }
+    float diffuse = max(0.0, dot(n, toLight));
+    vec3 halfway = normalize(toLight - ray);                           // -ray points from the surface to the eye
+    float shine = pow(max(0.0, dot(n, halfway)), 60.0);
+    col = base * (0.15 + 0.95 * diffuse) + 0.5 * shine;
+  }
+  gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);                 // from light energy to screen values
+}
+</script>
+</div>
+
+<h2>Shadows</h2>
+<p>The scene above has light and dark sides but nothing casts a shadow, because each point was shaded as if it were alone. To find out whether a point is in shadow, march again: start at the point and walk <em>toward the light</em>. If the march hits something, the light is blocked.</p>
+<p>That gives a hard-edged shadow. Real shadows are soft-edged, because real lights have a size. The march already holds the information needed to fake this. A ray that reaches the light but passes very close to an object on the way would be partly blocked if the light were larger. So keep track of the nearest miss, relative to how far along the ray it happened, and darken in proportion. The cost is the same loop.</p>
+
+<div class="example" data-mode="shader" data-w="560" data-h="400" data-title="SH3.3 Hard shadows left of the pointer, soft shadows right">
+<script type="text/plain">
+float sdBox(vec3 p, vec3 size) {
+  vec3 q = abs(p) - size;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float map(vec3 p) {
+  float d = p.y;
+  d = min(d, length(p - vec3(-1.6, 1.0, 0.0)) - 1.0);
+  d = min(d, sdBox(p - vec3(1.3, 1.5, -0.3), vec3(0.35, 1.5, 0.35)));              // a tall post
+  d = min(d, length(vec2(length(p.xz - vec2(0.2, 2.0)) - 0.7, p.y - 0.25)) - 0.25); // a ring
+  return d;
+}
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy) - map(p - e.xyy), map(p + e.yxy) - map(p - e.yxy), map(p + e.yyx) - map(p - e.yyx)));
+}
+
+// How much light reaches p from the direction toLight? 0 is full shadow, 1 is fully lit.
+float shadow(vec3 p, vec3 toLight, float sharpness) {
+  float lit = 1.0, t = 0.03;
+  for (int i = 0; i < 60; i++) {
+    float d = map(p + toLight * t);
+    if (d < 0.001) return 0.0;                     // something is in the way
+    lit = min(lit, sharpness * d / t);             // a near miss, early on the way, darkens the most
+    t += d;
+    if (t > 20.0) break;
+  }
+  return clamp(lit, 0.0, 1.0);
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  vec3 eye = vec3(1.5, 4.5, 7.5);
+  vec3 forward = normalize(vec3(0.0, 0.5, 0.0) - eye);
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  vec3 ray = normalize(forward * 1.7 + right * p.x + up * p.y);
+
+  float t = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 100; i++) {
+    float d = map(eye + ray * t);
+    if (d < 0.001) { hit = true; break; }
+    t += d;
+    if (t > 40.0) break;
+  }
+
+  vec3 col = vec3(0.5, 0.6, 0.75);
+  if (hit) {
+    vec3 pos = eye + ray * t;
+    vec3 n = normalAt(pos);
+    vec3 toLight = normalize(vec3(cos(u_time * 0.4) * 0.8, 0.7, sin(u_time * 0.4) * 0.8));
+    vec3 base = pos.y < 0.01 ? vec3(0.62, 0.6, 0.56) : vec3(0.85, 0.45, 0.3);
+
+    bool soft = gl_FragCoord.x > u_mouse.x;
+    float lit = shadow(pos + n * 0.01, toLight, soft ? 8.0 : 1000.0);   // start just off the surface, or it shadows itself
+    float diffuse = max(0.0, dot(n, toLight)) * lit;
+    col = base * (0.18 + 0.95 * diffuse);
+  }
+  col = pow(col, vec3(1.0 / 2.2));
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.0, 1.5, abs(gl_FragCoord.x - u_mouse.x)));
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Occlusion, fog and sky</h2>
+<p>Three more short pieces finish a basic renderer.</p>
+<dl class="vocab">
+  <dt>Ambient occlusion</dt><dd>Textures 4 darkened hollows by comparing a height with its blurred surroundings. With a distance function the test is direct. Step a little way out from the surface along the normal and ask <code>map</code> for the distance. In open space the answer equals the distance you stepped. If it is less, something else is nearby, and less of the sky's light reaches the point. Five samples are enough.</dd>
+  <dt>Fog</dt><dd>Blend the surface colour toward the sky colour by an amount that grows with distance. It gives depth, and it hides the far cut-off of the march.</dd>
+  <dt>Sky</dt><dd>What a ray sees when it hits nothing: a colour that depends on the ray's direction.</dd>
+</dl>
+<p>The scene is lit only by ambient light, so that the occlusion is easy to see. Left of the pointer it is off.</p>
+
+<div class="example" data-mode="shader" data-w="560" data-h="400" data-title="SH3.4 Occlusion off left of the pointer, on right">
+<script type="text/plain">
+float sdBox(vec3 p, vec3 size) {
+  vec3 q = abs(p) - size;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float map(vec3 p) {
+  float d = p.y;
+  d = min(d, sdBox(p - vec3(0.0, 0.5, 0.0), vec3(1.6, 0.5, 1.0)) - 0.03);     // a slab
+  d = min(d, length(p - vec3(-0.8, 1.55, 0.0)) - 0.55);                       // balls resting on it and on each other
+  d = min(d, length(p - vec3(0.25, 1.5, 0.1)) - 0.5);
+  d = min(d, length(p - vec3(-0.25, 2.3, 0.05)) - 0.42);
+  d = min(d, sdBox(p - vec3(2.4, 0.9, -0.6), vec3(0.5, 0.9, 0.5)));           // a block beside it
+  return d;
+}
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy) - map(p - e.xyy), map(p + e.yxy) - map(p - e.yxy), map(p + e.yyx) - map(p - e.yyx)));
+}
+
+// 1 where the point is open to the sky, falling toward 0 where other surfaces crowd in.
+float openness(vec3 p, vec3 n) {
+  float blocked = 0.0, weight = 1.0;
+  for (int i = 1; i <= 5; i++) {
+    float h = 0.07 * float(i);                     // step this far out along the normal
+    blocked += (h - map(p + n * h)) * weight;      // in open space map() would return h exactly
+    weight *= 0.6;                                 // nearer samples count for more
+  }
+  return clamp(1.0 - 2.2 * blocked, 0.0, 1.0);
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  float a = 0.5 + 0.3 * sin(u_time * 0.25);
+  vec3 eye = vec3(sin(a) * 8.0, 3.2, cos(a) * 8.0);
+  vec3 forward = normalize(vec3(0.5, 1.0, 0.0) - eye);
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  vec3 ray = normalize(forward * 1.7 + right * p.x + up * p.y);
+
+  float t = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 100; i++) {
+    float d = map(eye + ray * t);
+    if (d < 0.001) { hit = true; break; }
+    t += d;
+    if (t > 60.0) break;
+  }
+
+  vec3 sky = mix(vec3(0.75, 0.8, 0.86), vec3(0.35, 0.5, 0.75), clamp(ray.y * 2.0, 0.0, 1.0));
+  vec3 col = sky;
+  if (hit) {
+    vec3 pos = eye + ray * t;
+    vec3 n = normalAt(pos);
+    float open = gl_FragCoord.x > u_mouse.x ? openness(pos, n) : 1.0;
+    float fromSky = 0.45 + 0.55 * n.y;             // surfaces that face up get more of the sky
+    col = vec3(0.62, 0.6, 0.56) * fromSky * open;
+    col = mix(col, sky, 1.0 - exp(-0.0015 * t * t));            // fog: more with distance
+  }
+  col = pow(col, vec3(1.0 / 2.2));
+  col = mix(col, vec3(1.0, 0.5, 0.3), 1.0 - smoothstep(0.0, 1.5, abs(gl_FragCoord.x - u_mouse.x)));
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Several materials</h2>
+<p>So far every object has been the same colour, apart from a test on height for the floor. For a scene with several materials, let <code>map</code> return two numbers: the distance, and a number identifying which object that distance belongs to. A small helper keeps the nearer of two such pairs. After the march, the identity picks the colour and the shininess.</p>
+<p>This example also uses the two combining operations from Lesson 9 in 3D. The bowl is a hollow sphere with its top <strong>cut away</strong>, using <code>max</code>. The pear is two balls <strong>melted together</strong> with a smooth minimum. Everything from this lesson is switched on: diffuse light, a highlight, soft shadows, occlusion, fog and the final conversion.</p>
+
+<div class="example" data-mode="shader" data-w="560" data-h="400" data-title="SH3.5 A still life (move the pointer to orbit)">
+<script type="text/plain">
+float smin(float a, float b, float k) {            // a minimum with a rounded join (Lesson 9)
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+vec2 closer(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
+
+// Returns (distance, which object).
+vec2 map(vec3 p) {
+  vec2 res = vec2(p.y, 0.0);                                           // 0: the table
+
+  vec3 q = p - vec3(0.0, 1.0, 0.0);                                    // 1: a bowl
+  float shell = abs(length(q) - 1.0) - 0.04;                           //    a hollow sphere, 0.08 thick
+  res = closer(res, vec2(max(shell, q.y - 0.15), 1.0));                //    with everything above the rim removed
+
+  vec3 f = p - vec3(-0.25, 0.58, 0.1);                                 // 2: a pear, two balls melted together
+  float pear = smin(length(f) - 0.38, length(f - vec3(0.04, 0.45, 0.0)) - 0.17, 0.25);
+  res = closer(res, vec2(pear, 2.0));
+
+  res = closer(res, vec2(length(p - vec3(0.4, 0.5, -0.12)) - 0.3, 3.0));   // 3: an orange
+
+  vec3 r = p - vec3(1.9, 0.12, 0.7);                                   // 4: a ring on the table
+  res = closer(res, vec2(length(vec2(length(r.xz) - 0.42, r.y)) - 0.12, 4.0));
+  return res;
+}
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy).x - map(p - e.xyy).x, map(p + e.yxy).x - map(p - e.yxy).x, map(p + e.yyx).x - map(p - e.yyx).x));
+}
+float shadow(vec3 p, vec3 toLight) {
+  float lit = 1.0, t = 0.03;
+  for (int i = 0; i < 50; i++) {
+    float d = map(p + toLight * t).x;
+    if (d < 0.001) return 0.0;
+    lit = min(lit, 10.0 * d / t);
+    t += d;
+    if (t > 12.0) break;
+  }
+  return clamp(lit, 0.0, 1.0);
+}
+float openness(vec3 p, vec3 n) {
+  float blocked = 0.0, weight = 1.0;
+  for (int i = 1; i <= 5; i++) {
+    float h = 0.06 * float(i);
+    blocked += (h - map(p + n * h).x) * weight;
+    weight *= 0.6;
+  }
+  return clamp(1.0 - 2.2 * blocked, 0.0, 1.0);
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  float a = (u_mouse.x / u_res.x - 0.5) * 6.2832 + 0.6;
+  vec3 eye = vec3(sin(a) * 5.0, 1.2 + 3.0 * u_mouse.y / u_res.y, cos(a) * 5.0);
+  vec3 forward = normalize(vec3(0.4, 0.6, 0.0) - eye);
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  vec3 ray = normalize(forward * 1.9 + right * p.x + up * p.y);
+
+  float t = 0.0, id = -1.0;
+  for (int i = 0; i < 110; i++) {
+    vec2 m = map(eye + ray * t);
+    if (m.x < 0.001) { id = m.y; break; }
+    t += m.x;
+    if (t > 30.0) break;
+  }
+
+  vec3 sky = vec3(0.10, 0.11, 0.14);
+  vec3 col = sky;
+  if (id > -0.5) {
+    vec3 pos = eye + ray * t;
+    vec3 n = normalAt(pos);
+    vec3 toLight = normalize(vec3(-0.6, 0.75, 0.45));
+
+    vec3 base = vec3(0.42, 0.30, 0.22);            // 0: wood
+    float gloss = 0.15;
+    if (id > 0.5) { base = vec3(0.86, 0.87, 0.90); gloss = 0.9; }      // 1: glazed bowl
+    if (id > 1.5) { base = vec3(0.62, 0.70, 0.25); gloss = 0.25; }     // 2: pear
+    if (id > 2.5) { base = vec3(0.95, 0.50, 0.10); gloss = 0.35; }     // 3: orange
+    if (id > 3.5) { base = vec3(0.90, 0.72, 0.30); gloss = 1.0; }      // 4: brass ring
+
+    float lit = shadow(pos + n * 0.01, toLight);
+    float diffuse = max(0.0, dot(n, toLight)) * lit;
+    float shine = pow(max(0.0, dot(n, normalize(toLight - ray))), 80.0) * lit * gloss;
+    float open = openness(pos, n);
+    col = base * (vec3(0.18, 0.2, 0.26) * open + vec3(1.0, 0.95, 0.85) * diffuse) + shine;
+    col = mix(col, sky, 1.0 - exp(-0.004 * t * t));
+  }
+  gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
+}
+</script>
+</div>
+
+<h2>Repeating space</h2>
+<p>Lesson 9 repeated a 2D shape across the plane by taking <code>fract</code> of the coordinates before drawing it. The same works in 3D and is the most surprising property of the method. Wrap two of the coordinates with <code>mod</code>, and one column becomes an endless hall of them at no extra cost: the march only ever measures the distance to the nearest copy.</p>
+<p>Because the hall repeats every four units, the camera's position can be wrapped every four units as well. The view after four units of travel is identical to the view at the start, so the flight loops perfectly (Lesson 15) and the numbers stay small.</p>
+
+<div class="example" data-mode="shader" data-w="560" data-h="400" data-title="SH3.6 One column, repeated for ever">
+<script type="text/plain">
+float sdBox(vec3 p, vec3 size) {
+  vec3 q = abs(p) - size;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float map(vec3 p) {
+  float d = min(p.y, 5.0 - p.y);                    // a floor, and a ceiling 5 units up
+  vec3 q = p;
+  q.xz = mod(q.xz + 2.0, 4.0) - 2.0;                // every 4 units, x and z start again from -2
+  float column = length(q.xz) - 0.45;                                             // a shaft
+  column = min(column, sdBox(q - vec3(0.0, 0.25, 0.0), vec3(0.65, 0.25, 0.65)));  // a base
+  column = min(column, sdBox(q - vec3(0.0, 4.75, 0.0), vec3(0.65, 0.25, 0.65)));  // a capital
+  return min(d, column);
+}
+vec3 normalAt(vec3 p) {
+  vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy) - map(p - e.xyy), map(p + e.yxy) - map(p - e.yxy), map(p + e.yyx) - map(p - e.yyx)));
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  // fly down the aisle between two rows of columns; the position wraps every 4 units
+  vec3 eye = vec3(2.0 + 0.6 * sin(u_time * 0.3), 1.7, -mod(u_time * 1.2, 4.0));
+  vec3 forward = normalize(vec3(0.8 * sin(u_time * 0.2), -0.05, -1.0));
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  vec3 ray = normalize(forward * 1.3 + right * p.x + up * p.y);
+
+  float t = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 120; i++) {
+    float d = map(eye + ray * t);
+    if (d < 0.002) { hit = true; break; }
+    t += d;
+    if (t > 70.0) break;
+  }
+
+  vec3 haze = vec3(0.86, 0.72, 0.55);
+  vec3 col = haze;
+  if (hit) {
+    vec3 pos = eye + ray * t;
+    vec3 n = normalAt(pos);
+    vec3 toLight = normalize(vec3(0.5, 0.6, -0.6));
+    float diffuse = max(0.0, dot(n, toLight));
+    float nearFloor = 0.6 + 0.4 * smoothstep(0.0, 1.5, pos.y);       // a cheap stand-in for occlusion at the column bases
+    vec3 stone = vec3(0.78, 0.74, 0.68);
+    if (pos.y < 0.01) stone *= 0.75 + 0.25 * mod(floor(pos.x * 0.5) + floor(pos.z * 0.5), 2.0);   // a paved floor
+    col = stone * (0.25 + 0.8 * diffuse) * nearFloor;
+    col = mix(col, haze, 1.0 - exp(-0.035 * t));                     // the hall fades into haze
+  }
+  gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
+}
+</script>
+</div>
+
+<h2>What it costs, and when not to use it</h2>
+<p>Every pixel runs the march, up to a hundred calls to <code>map</code>, then six more for the normal, then a shadow march of up to sixty, then five for occlusion. A <code>map</code> of ten objects makes that well over a thousand distance calculations per pixel. Three habits keep it usable:</p>
+<ul>
+  <li><strong>Keep <code>map</code> cheap.</strong> It is called more than anything else. Test a simple bounding shape first, and only evaluate the detail when the point is near it.</li>
+  <li><strong>Stop early.</strong> A far limit and a hit threshold that grows with distance both save steps where nobody can see the difference.</li>
+  <li><strong>Draw fewer pixels.</strong> These examples are 560 by 400 for that reason.</li>
+</ul>
+<p>Raymarching suits soft, blended, repeating and mathematical forms, and scenes that are a single idea. It is a poor fit for scenes made of many separate, detailed objects, for anything that needs to be exported as a model, and for anything that must run on a phone at full resolution. For those, build triangles (three.js 2) and use shaders to colour them (three.js 3).</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>A scene is a function that returns the distance to the nearest surface. The march steps along a ray by that distance until it arrives.</li>
+  <li>A camera is an eye, a target, and three directions at right angles built with cross products.</li>
+  <li>The normal is the gradient of the distance function, measured by small differences.</li>
+  <li>Light is diffuse plus specular plus a little ambient, converted for the screen at the end.</li>
+  <li>A shadow is a second march, toward the light. The nearest miss along the way gives a soft edge for free.</li>
+  <li>Occlusion compares a short step along the normal with the distance found there.</li>
+  <li><code>map</code> can return an identity as well as a distance, to choose materials.</li>
+  <li><code>mod</code> on the coordinates repeats an object for ever at no extra cost.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>A <code>map</code> that is not a true distance, because a shape was stretched or twisted. The march oversteps and surfaces show holes or banding. Multiply the result by a number below 1 to take smaller, safer steps.</li>
+  <li>Starting the shadow march exactly on the surface. It hits the surface it started from. Move the start a little way along the normal.</li>
+  <li>Black speckles on surfaces lit at a shallow angle. The hit threshold is too coarse for the normal's step, or the reverse. Keep them the same size.</li>
+  <li>Objects that cross the boundaries of a repeated cell. They are cut off. Keep each copy inside its cell.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Shaders challenge 3</p>
+  <h2>A Still Life in One Shader</h2>
+  <p>Compose and light a small scene of objects on a surface, as a painter would set up a still life, in one fragment shader.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>At least <strong>four objects</strong> of at least three different kinds, on a surface, arranged deliberately: something tall, something low, something overlapping something else.</li>
+    <li>At least one object made by <strong>cutting</strong> one shape from another, and one made by a <strong>smooth blend</strong>.</li>
+    <li>At least <strong>three materials</strong> that differ in more than colour: at least one matt and one glossy.</li>
+    <li><strong>Diffuse light, a highlight, soft shadows and occlusion</strong>, each in its own function, with the screen conversion at the end.</li>
+    <li>One of the surfaces carries a <strong>procedural texture</strong> from Shaders 2, such as wood grain on the table or speckle on a fruit.</li>
+    <li>A camera that the pointer moves, or a slow automatic move that loops.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Set up the composition with flat grey materials and one light first. Colour comes last.</li>
+    <li>A warm main light with cooler ambient light, or the reverse, makes forms read more clearly than a single white light.</li>
+    <li>When a shape looks wrong, show the step count, as in SH3.1. A bright patch means <code>map</code> is misbehaving there.</li>
+    <li>To texture an object, use its own coordinates: the hit position minus the object's centre.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>A second, weaker light of a different colour.</li>
+    <li>A mirror-like object: when the march hits it, reflect the ray about the normal and march once more.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Every object visibly rests on something: no floating, no gaps under bases.</li>
+    <li>A stranger can say what each object is made of.</li>
+  </ul>
+  <a class="start" href="../challenges/sh3-still-life.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>John C. Hart, “<a href="https://doi.org/10.1007/s003710050084">Sphere Tracing: A Geometric Method for the Antialiased Ray Tracing of Implicit Surfaces</a>”, The Visual Computer, 1996. <span class="why">The paper that defines sphere tracing.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/raymarchingdf/"><cite>Raymarching Distance Fields</cite></a>. <span class="why">The whole method in one article.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/distfunctions/"><cite>3D Distance Functions</cite></a>. <span class="why">Distance functions for solids, and the operations that combine them.</span></li>
+    <li>Inigo Quilez, <a href="https://iquilezles.org/articles/rmshadows/"><cite>Soft Shadows in Raymarched SDFs</cite></a>. <span class="why">The soft shadow of example SH3.3.</span></li>
+    <li>Jamie Wong, <a href="https://jamie-wong.com/2016/07/15/ray-marching-signed-distance-functions/"><cite>Ray Marching and Signed Distance Functions</cite></a>, 2016. <span class="why">A patient tutorial with live examples.</span></li>
+    <li>Bui Tuong Phong, “Illumination for Computer Generated Pictures”, Communications of the ACM, 1975. <span class="why">The classic lighting model.</span></li>
+    <li>James Blinn, “Models of Light Reflection for Computer Synthesized Pictures”, SIGGRAPH 1977. <span class="why">The halfway-vector highlight.</span></li>
+    <li>Matt Pharr, Wenzel Jakob and Greg Humphreys, <a href="https://pbr-book.org/"><cite>Physically Based Rendering: From Theory to Implementation</cite></a>, 4th edition, MIT Press, 2023. Free to read online. <span class="why">Lighting done properly, when the approximations here are not enough.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="02-patterns-and-noise.html">← Shaders 2</a><a href="04-memory-and-post-processing.html">Shaders 4: Memory and Post-processing →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

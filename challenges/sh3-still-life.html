@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shaders challenge 3 · A Still Life in One Shader</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: grid; place-items: center; }
+  canvas { max-width: 94vmin; max-height: 94vmin; }
+  pre { position: fixed; left: 0; bottom: 0; margin: 0; padding: 12px; color: #ff9d94; background: #2b1111; font: 13px/1.5 Consolas, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="900" height="640"></canvas>
+<pre id="errors" hidden></pre>
+<script>
+/* SHADERS CHALLENGE 3 — A STILL LIFE IN ONE SHADER
+   Full brief: ../shaders/03-raymarching-and-light.html
+
+   A small scene of objects on a surface, composed and lit, in one fragment shader.
+
+   Checklist
+   [ ] At least four objects of at least three kinds, arranged deliberately
+   [ ] One object made by cutting one shape from another, one made by a smooth blend
+   [ ] At least three materials, at least one matt and one glossy
+   [ ] Diffuse light, a highlight, soft shadows and occlusion, each in its own function
+   [ ] The screen conversion (power of 1 / 2.2) at the very end
+   [ ] One surface carries a procedural texture
+   [ ] A camera that the pointer moves, or a slow move that loops
+   [ ] Every object visibly rests on something
+
+   Your shader goes in the FRAGMENT string below. Available inputs:
+     u_res    canvas size in pixels (vec2)
+     u_time   seconds since the page loaded (float)
+     u_mouse  mouse position in pixels (vec2)
+     u_down   1.0 while the mouse button is held (float)
+   fwidth() is switched on by the first line of FRAGMENT. Leave that line first.
+   Compile errors appear at the bottom of the page. The line numbers count from the start of FRAGMENT. */
+
+const FRAGMENT = `
+#extension GL_OES_standard_derivatives : enable
+precision highp float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+uniform float u_down;
+
+// Returns (distance to the nearest surface, which object it is).
+vec2 map(vec3 p) {
+  vec2 res = vec2(p.y, 0.0);            // 0: the surface everything stands on
+
+  // ---- your objects here ----
+
+  return res;
+}
+
+// ---- normalAt, shadow and openness here ----
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  // ---- camera, march, materials and lighting here ----
+  vec3 col = vec3(0.10, 0.11, 0.14);
+
+  gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
+}
+`;
+
+/* ------------------------------------------------------------------------
+   Everything below is plumbing: it compiles the shader and draws it on a
+   full-canvas rectangle every frame. You do not need to change it.
+   ------------------------------------------------------------------------ */
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl');
+gl.getExtension('OES_standard_derivatives');
+const errors = document.getElementById('errors');
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    errors.textContent = gl.getShaderInfoLog(shader);
+    errors.hidden = false;
+    throw new Error(gl.getShaderInfoLog(shader));
+  }
+  return shader;
+}
+
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, 'attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }'));
+gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT.trim()));
+gl.linkProgram(program);
+gl.useProgram(program);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const position = gl.getAttribLocation(program, 'p');
+gl.enableVertexAttribArray(position);
+gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+const uRes = gl.getUniformLocation(program, 'u_res');
+const uTime = gl.getUniformLocation(program, 'u_time');
+const uMouse = gl.getUniformLocation(program, 'u_mouse');
+const uDown = gl.getUniformLocation(program, 'u_down');
+const mouse = { x: canvas.width / 2, y: canvas.height / 2, down: 0 };
+canvas.addEventListener('pointermove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * canvas.width;
+  mouse.y = (1 - (e.clientY - r.top) / r.height) * canvas.height;
+});
+canvas.addEventListener('pointerdown', () => { mouse.down = 1; });
+window.addEventListener('pointerup', () => { mouse.down = 0; });
+
+function frame(ms) {
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  gl.uniform1f(uTime, ms / 1000);
+  gl.uniform2f(uMouse, mouse.x, mouse.y);
+  gl.uniform1f(uDown, mouse.down);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Textures 3 · Grown and Borrowed Textures</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="02-materials-from-noise.html">← Textures 2</a><span>Textures 3 of 4</span><a href="04-height-normals-and-light.html">Next →</a></nav>
+<main>
+<header>
+  <p class="kicker">Textures 3</p>
+  <h1>Grown and Borrowed Textures</h1>
+  <p class="lede">Not every texture can be written as a formula of its coordinates. Some are easier to grow with a simulation, and some are easier to borrow from a small example and extend. This lesson covers both, and the problem they share: covering a large area without visible repetition.</p>
+</header>
+
+<h2>Three ways to get a texture</h2>
+<table>
+  <thead><tr><th>Method</th><th>You supply</th><th>Good for</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Formula</strong> (Textures 1 and 2)</td><td>A function of position</td><td>Anything you can describe: bricks, wood, marble</td><td>Cheap. Every point is independent.</td></tr>
+    <tr><td><strong>Simulation</strong></td><td>Rules and a starting state</td><td>Animal coats, corals, corrosion, anything that formed by a process</td><td>Many steps over a whole grid before you have a result</td></tr>
+    <tr><td><strong>Example</strong></td><td>A small sample image</td><td>Surfaces too irregular to describe: gravel, bark, fabric, a photograph</td><td>A search for every pixel or patch</td></tr>
+  </tbody>
+</table>
+<p>The last two give up the property that made formulas convenient. Their value at a point depends on other points, so they are computed once into an image and stored. What they give in return is detail you did not have to design.</p>
+
+<h2>Grown: reaction and diffusion</h2>
+<p>In 1952 Alan Turing proposed, in "The Chemical Basis of Morphogenesis", that the spots and stripes of animals could arise from two chemicals that react with each other while spreading at different speeds. You built such a system in Lesson 8. Two papers presented side by side at SIGGRAPH 1991 turned it into a texturing method: Greg Turk's "Generating Textures on Arbitrary Surfaces Using Reaction-Diffusion", and "Reaction-Diffusion Textures" by Andrew Witkin and Michael Kass. Between them they added the three ideas that make it useful as a design tool.</p>
+<ul>
+  <li><strong>Parameters that vary across the surface.</strong> If the feed rate changes from place to place, so does the pattern. Below it is low at the sides and high in the middle, so spots merge into a maze. This is how one animal has spots on its legs and stripes on its tail.</li>
+  <li><strong>Diffusion with a direction.</strong> If the chemicals spread faster one way than the other, the pattern stretches that way. Use the slider. Witkin and Kass called this anisotropy and used it to make stripes follow a chosen direction.</li>
+  <li><strong>A grid that wraps round.</strong> If the left edge's neighbours are the right edge, the finished texture tiles with no further work.</li>
+</ul>
+
+<div class="example" data-pixel data-w="200" data-h="200" data-title="TX3.1 A coat that changes across the body">
+<script type="text/plain">
+const n = W * H;
+let A = new Float32Array(n).fill(1), A2 = new Float32Array(n);
+let B = new Float32Array(n),         B2 = new Float32Array(n);
+const R = PA.rng('coat');
+for (let k = 0; k < 70; k++) {                         // seed patches of B all over
+  const cx = R.int(0, W - 1), cy = R.int(0, H - 1);
+  for (let y = -2; y <= 2; y++) {
+    for (let x = -2; x <= 2; x++) B[((cy + y + H) % H) * W + (cx + x + W) % W] = 1;
+  }
+}
+const stretch = ui.slider('stretch (sideways − + upright)', -0.7, 0.7, 0, 0.05);
+const kill = 0.062;
+
+function step() {
+  const s = stretch();
+  const wx = 0.2 * (1 + s), wy = 0.2 * (1 - s);        // how strongly a cell exchanges with its side and its upper neighbours
+  for (let y = 0; y < H; y++) {
+    const row = y * W, up = ((y + H - 1) % H) * W, down = ((y + 1) % H) * W;      // % makes the grid wrap round
+    for (let x = 0; x < W; x++) {
+      const l = (x + W - 1) % W, r = (x + 1) % W, i = row + x;
+      const a = A[i], b = B[i];
+      const lapA = (A[row + l] + A[row + r]) * wx + (A[up + x] + A[down + x]) * wy
+                 + (A[up + l] + A[up + r] + A[down + l] + A[down + r]) * 0.05 - a;
+      const lapB = (B[row + l] + B[row + r]) * wx + (B[up + x] + B[down + x]) * wy
+                 + (B[up + l] + B[up + r] + B[down + l] + B[down + r]) * 0.05 - b;
+      const feed = 0.030 + 0.025 * (1 - Math.abs(2 * x / W - 1));     // low at both sides, high in the middle
+      const reaction = a * b * b;
+      A2[i] = a + lapA - reaction + feed * (1 - a);
+      B2[i] = b + 0.5 * lapB + reaction - (kill + feed) * b;
+    }
+  }
+  let swap = A; A = A2; A2 = swap;
+  swap = B; B = B2; B2 = swap;
+}
+
+const img = ctx.createImageData(W, H);
+loop(() => {
+  for (let k = 0; k < 10; k++) step();
+  for (let i = 0; i < n; i++) {
+    const v = PA.smoothstep(0.12, 0.3, B[i]);          // a ramp from pale fur to dark markings
+    img.data[i * 4] = 232 - v * 180; img.data[i * 4 + 1] = 196 - v * 160; img.data[i * 4 + 2] = 140 - v * 118;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<p>Give it a minute, then move the slider and watch the markings realign. Press Run to start again. A grown texture is slow to make and cannot be resized by changing one number, so in practice it is run once, saved as an image, and used as the input to something else: a mask for Textures 2, or a height for Textures 4.</p>
+
+<h2>The repetition problem</h2>
+<p>Any stored texture, whether grown, painted or photographed, is a finite tile. Repeat it across a floor and the eye finds the repeat at once, because the same distinctive mark turns up at regular intervals. A seamless tile (Textures 1) hides the joins but not the rhythm. The rest of this lesson is three answers from the research literature, in order of age.</p>
+
+<h2>Wang tiles: a small set that never settles into a rhythm</h2>
+<p>Suppose you had several square tiles instead of one, with coloured edges, and the rule that two tiles may sit side by side only if the touching edges have the same colour. If every colour is designed to join seamlessly to itself, any legal arrangement is seamless. If there are at least two legal choices at every position and you pick at random, the arrangement never repeats. Michael Cohen, Jonathan Shade, Stefan Hiller and Oliver Deussen described this for graphics in "Wang Tiles for Image and Texture Generation" (ACM Transactions on Graphics, 2003). It is the same matching rule as Wave Function Collapse (Lesson 14), used here in its simplest form, where the left-to-right order makes contradictions impossible.</p>
+<p>How do you make tiles whose edges match? In the example the material is cobbles, and each tile is a four-by-four arrangement of stones. Where a stone sits is decided by what the tile's edges are:</p>
+<ul>
+  <li>The stones along an edge are placed by <strong>that edge's colour</strong> and nothing else. Two tiles that meet at an edge of the same colour therefore agree about every stone on both sides of the join.</li>
+  <li>The four corner stones are <strong>the same in every tile</strong>, because four tiles meet at a corner and all must agree.</li>
+  <li>The stones in the middle are placed by <strong>the tile's whole combination</strong> of edge colours, so each of the sixteen tiles has its own interior.</li>
+</ul>
+<p>The result is that every tile's picture depends only on its own four colours, so the sixteen tiles could be drawn once and stored as images.</p>
+
+<div class="example" data-pixel data-w="300" data-h="300" data-title="TX3.2 Sixteen tiles, no rhythm">
+<script type="text/plain">
+const method = ui.slider('0 = one tile repeated   1 = Wang tiles', 0, 1, 1, 1);
+const marks = ui.slider('show the edge colours', 0, 1, 0, 1);
+let seed = 1;
+ui.button('new arrangement', () => { seed++; draw(); });
+const img = ctx.createImageData(W, H);
+const T = 60, cols = W / T, rows = H / T;              // tile size in pixels
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+const C = 4;                                           // stones along one side of a tile
+let grid = [];
+
+// Where is the stone in stone-cell (gx, gy), and what is its tint? It depends on the tile the cell belongs to.
+function stone(gx, gy) {
+  const ti = Math.floor(gx / C), tj = Math.floor(gy / C);
+  const lx = gx - ti * C, ly = gy - tj * C;                           // which stone of the tile: 0 to C - 1 each way
+  const t = grid[((tj % rows) + rows) % rows * cols + ((ti % cols) + cols) % cols];
+  const onLeft = lx === 0, onRight = lx === C - 1, onTop = ly === 0, onBottom = ly === C - 1;
+  let a, b;                                            // two numbers that decide this stone's random position
+  if ((onLeft || onRight) && (onTop || onBottom)) { a = lx; b = 300 + ly; }           // corner: the same in every tile
+  else if (onLeft)   { a = t.w; b = 10 + ly; }         // an edge stone: decided by that edge's colour alone
+  else if (onRight)  { a = t.e; b = 30 + ly; }
+  else if (onTop)    { a = t.n; b = 50 + lx; }
+  else if (onBottom) { a = t.s; b = 70 + lx; }
+  else { a = 100 + t.n + 2 * t.e + 4 * t.s + 8 * t.w; b = lx + ly * C; }              // interior: decided by the whole tile
+  return [gx + 0.1 + 0.8 * hash(a, b), gy + 0.1 + 0.8 * hash(b + 50, a + 3), hash(a + 9, b + 9)];
+}
+
+// Cobbles, as in Textures 2, but asking stone() where each cell's point is.
+function material(x, y) {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  let f1 = 9, f2 = 9, id = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const p = stone(cx + i, cy + j), d = Math.hypot(x - p[0], y - p[1]);
+      if (d < f1) { f2 = f1; f1 = d; id = p[2]; } else if (d < f2) f2 = d;
+    }
+  }
+  return (0.25 + 0.75 * PA.smoothstep(0.03, 0.3, f2 - f1)) * (0.7 + id * 0.5);
+}
+
+function draw() {
+  const R = PA.rng('wang' + seed);
+  grid = [];
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const any = () => (method() ? R.int(0, 1) : 0);  // an edge colour: 0 or 1
+      grid.push({
+        w: i > 0 ? grid[j * cols + i - 1].e : any(),   // must match the tile to the left
+        n: j > 0 ? grid[(j - 1) * cols + i].s : any(), // must match the tile above
+        e: any(), s: any(),                            // free: this is where the randomness comes in
+      });
+    }
+  }
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const g = material(x / T * C, y / T * C), k = (y * W + x) * 4;
+      img.data[k] = 170 * g; img.data[k + 1] = 164 * g; img.data[k + 2] = 150 * g; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  if (!marks()) return;
+  const ink = ['#ff8552', '#5bc0be'];
+  grid.forEach((t, k) => {
+    const x = (k % cols) * T, y = Math.floor(k / cols) * T;
+    ctx.fillStyle = ink[t.n]; ctx.fillRect(x + T / 2 - 6, y + 1, 12, 3);
+    ctx.fillStyle = ink[t.s]; ctx.fillRect(x + T / 2 - 6, y + T - 4, 12, 3);
+    ctx.fillStyle = ink[t.w]; ctx.fillRect(x + 1, y + T / 2 - 6, 3, 12);
+    ctx.fillStyle = ink[t.e]; ctx.fillRect(x + T - 4, y + T / 2 - 6, 3, 12);
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Set the first slider to 0 and the grid of repeats is obvious. Set it to 1 and a small amount of stored material covers the area with no rhythm. Sixteen tiles can be stored once and laid out by a hash of the tile position (Textures 1), so the method works per pixel, on a graphics card, over any area.</p>
+<p>Turn on the edge colours and look at where four tiles meet. The stone there is in the same place every time. This is the known weakness of edge-coloured tiles: the corners are shared by everything. Later work uses tiles with coloured corners instead of coloured edges to avoid it.</p>
+
+<h2>Borrowed: growing a texture from an example</h2>
+<p>Alexei Efros and Thomas Leung's "Texture Synthesis by Non-parametric Sampling" (ICCV 1999) asked a different question. Given a small sample, can a program produce more of the same, with no model of what the texture is? Their answer is short enough to state in full.</p>
+<ol>
+  <li>To choose the colour of the next pixel, look at the pixels already made around it.</li>
+  <li>Find every place in the sample where the surroundings look similar.</li>
+  <li>Pick one of those places at random and copy the pixel found there.</li>
+</ol>
+<p>The version below fills the output in reading order, so the surroundings are the three rows above and the three pixels to the left. The sample is the small square on the left: an irregular brick pattern. Nothing in the code knows about bricks. The structure survives because every pixel is chosen to continue what is already there.</p>
+
+<div class="example" data-pixel data-w="176" data-h="100" data-title="TX3.3 More of the same, one pixel at a time">
+<script type="text/plain">
+const EX = 48, OUT = 100, reach = 3;                   // sample size, output size, and how far the neighbourhood extends
+const R = PA.rng('grow');
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// The sample: small bricks of uneven length and tone.
+const E = new Uint8ClampedArray(EX * EX * 3);
+for (let y = 0; y < EX; y++) {
+  for (let x = 0; x < EX; x++) {
+    const row = Math.floor(y / 6), sx = x + (row % 2) * 6 + hash(row, 3) * 4;
+    const col = Math.floor(sx / 12), r = hash(col, row);
+    const mortar = y % 6 === 0 || Math.floor(sx) % 12 === 0;
+    const k = (y * EX + x) * 3, tone = 0.75 + r * 0.5;
+    E[k] = mortar ? 190 : 170 * tone; E[k + 1] = mortar ? 184 : 80 * tone; E[k + 2] = mortar ? 170 : 56 * tone;
+  }
+}
+
+const out = new Uint8ClampedArray(OUT * OUT * 3);
+const dist = new Float32Array(EX * EX);
+let next = 0;                                          // how many output pixels have been made
+
+function grow(ox, oy) {
+  let best = Infinity;
+  for (let ey = reach; ey < EX; ey++) {
+    for (let ex = reach; ex < EX - reach; ex++) {      // every place in the sample
+      let d = 0, count = 0;
+      for (let dy = -reach; dy <= 0; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
+          if (dy === 0 && dx >= 0) break;              // only pixels that already exist: above, and to the left
+          const x = ox + dx, y = oy + dy;
+          if (x < 0 || y < 0 || x >= OUT) continue;
+          const a = (y * OUT + x) * 3, b = ((ey + dy) * EX + ex + dx) * 3;
+          d += (out[a] - E[b]) ** 2 + (out[a + 1] - E[b + 1]) ** 2 + (out[a + 2] - E[b + 2]) ** 2;
+          count++;
+        }
+      }
+      d = count ? d / count : 0;
+      dist[ey * EX + ex] = d;
+      if (d < best) best = d;
+    }
+  }
+  const good = [];                                     // everything nearly as good as the best match
+  for (let ey = reach; ey < EX; ey++) {
+    for (let ex = reach; ex < EX - reach; ex++) {
+      if (dist[ey * EX + ex] <= best * 1.1 + 20) good.push(ey * EX + ex);
+    }
+  }
+  const from = R.pick(good) * 3, to = (oy * OUT + ox) * 3;
+  out[to] = E[from]; out[to + 1] = E[from + 1]; out[to + 2] = E[from + 2];
+}
+
+const img = ctx.createImageData(W, H);
+for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+const put = (x, y, src, k) => {
+  const i = (y * W + x) * 4;
+  img.data[i] = src[k]; img.data[i + 1] = src[k + 1]; img.data[i + 2] = src[k + 2];
+};
+for (let y = 0; y < EX; y++) for (let x = 0; x < EX; x++) put(x + 12, y + 26, E, (y * EX + x) * 3);
+
+loop(() => {
+  for (let k = 0; k < 60 && next < OUT * OUT; k++, next++) {
+    const x = next % OUT, y = Math.floor(next / OUT);
+    grow(x, y);
+    put(x + 76, y, out, (y * OUT + x) * 3);
+  }
+  ctx.putImageData(img, 0, 0);
+});
+</script>
+</div>
+
+<p>Change <code>reach</code> to 1 and run it again. The neighbourhood is now too small to see a whole brick, and the result loses its structure. The size of the neighbourhood must match the size of the largest feature you want to keep. That is the method's one real parameter, and also its cost: it compares every output pixel with the entire sample.</p>
+
+<h2>Borrowed in patches: quilting</h2>
+<p>Two years later Efros and William Freeman replaced pixels with patches, in "Image Quilting for Texture Synthesis and Transfer" (SIGGRAPH 2001). Copying a whole block at a time keeps the structure inside the block for free, and is far faster. The difficulty moves to the joins. The paper presents the method in three stages, and the slider steps through them.</p>
+<dl class="vocab">
+  <dt>0. Random blocks</dt><dd>Take blocks from anywhere in the sample and lay them edge to edge. Every join shows.</dd>
+  <dt>1. Matched blocks</dt><dd>Let neighbouring blocks overlap by a narrow strip. For each position, try many candidate blocks and keep the one that agrees best with what is already there in the overlap. The joins are better, but still straight lines.</dd>
+  <dt>2. Matched and cut</dt><dd>Inside the overlap, do not switch from old to new along a straight line. Find the path along which the two differ least and switch there. The path is found by the same row-by-row search you would use for the cheapest route down a grid of costs. The join now runs between stones instead of through them.</dd>
+</dl>
+
+<div class="example" data-pixel data-w="420" data-h="300" data-title="TX3.4 Quilting a sample into a surface">
+<script type="text/plain">
+const mode = ui.slider('0 random   1 matched   2 matched and cut', 0, 2, 2, 1);
+const S = 100, OW = 300, OH = 300;                     // the sample is S by S pixels; the output is OW by OH
+const B = 40, O = 8;                                   // block size and overlap
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// The sample: coloured cobbles.
+const E = new Float32Array(S * S * 3);
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) {
+    const px = x / 14, py = y / 14, cx = Math.floor(px), cy = Math.floor(py);
+    let f1 = 9, f2 = 9, id = 0;
+    for (let j = -1; j <= 1; j++) {
+      for (let i = -1; i <= 1; i++) {
+        const gx = cx + i, gy = cy + j;
+        const d = Math.hypot(px - gx - hash(gx, gy), py - gy - hash(gy + 57, gx + 13));
+        if (d < f1) { f2 = f1; f1 = d; id = hash(gx + 5, gy + 9); } else if (d < f2) f2 = d;
+      }
+    }
+    const top = PA.smoothstep(0.03, 0.25, f2 - f1), k = (y * S + x) * 3;
+    E[k] = (60 + top * (90 + id * 90)); E[k + 1] = (56 + top * (110 - id * 30)); E[k + 2] = (50 + top * (70 + id * 60));
+  }
+}
+
+let out;
+// The cheapest path through an overlap that is B long and O wide. seam[i] is where the path is at step i.
+function cut(seam, cost) {
+  const M = new Float32Array(B * O);
+  for (let i = 0; i < B; i++) {
+    for (let j = 0; j < O; j++) {
+      let prev = 0;
+      if (i > 0) {
+        prev = M[(i - 1) * O + j];
+        if (j > 0) prev = Math.min(prev, M[(i - 1) * O + j - 1]);
+        if (j < O - 1) prev = Math.min(prev, M[(i - 1) * O + j + 1]);
+      }
+      M[i * O + j] = cost(i, j) + prev;                // the cheapest total cost of reaching this cell
+    }
+  }
+  let j = 0;
+  for (let k = 1; k < O; k++) if (M[(B - 1) * O + k] < M[(B - 1) * O + j]) j = k;
+  for (let i = B - 1; i >= 0; i--) {                   // walk back from the cheapest end
+    seam[i] = j;
+    if (i === 0) break;
+    let b = j;
+    if (j > 0 && M[(i - 1) * O + j - 1] < M[(i - 1) * O + b]) b = j - 1;
+    if (j < O - 1 && M[(i - 1) * O + j + 1] < M[(i - 1) * O + b]) b = j + 1;
+    j = b;
+  }
+}
+
+function place(px, py, R) {
+  // How different is a candidate block from what is already there, at one pixel of the block?
+  const diff = (sx, sy, x, y) => {
+    if (px + x >= OW || py + y >= OH) return 0;
+    const a = ((py + y) * OW + px + x) * 3, b = ((sy + y) * S + sx + x) * 3;
+    return (out[a] - E[b]) ** 2 + (out[a + 1] - E[b + 1]) ** 2 + (out[a + 2] - E[b + 2]) ** 2;
+  };
+  const mismatch = (sx, sy) => {
+    let e = 0;
+    if (px > 0) for (let y = 0; y < B; y++) for (let x = 0; x < O; x++) e += diff(sx, sy, x, y);    // the strip on the left
+    if (py > 0) for (let x = 0; x < B; x++) for (let y = 0; y < O; y++) e += diff(sx, sy, x, y);    // the strip on top
+    return e;
+  };
+  let sx = R.int(0, S - B), sy = R.int(0, S - B);
+  if (mode() > 0 && (px > 0 || py > 0)) {
+    let best = mismatch(sx, sy);
+    for (let k = 0; k < 150; k++) {                    // try 150 candidates and keep the best
+      const cx = R.int(0, S - B), cy = R.int(0, S - B), e = mismatch(cx, cy);
+      if (e < best) { best = e; sx = cx; sy = cy; }
+    }
+  }
+  const seamV = new Int32Array(B), seamH = new Int32Array(B);          // all zeros: take the whole block
+  if (mode() === 2 && px > 0) cut(seamV, (i, j) => diff(sx, sy, j, i));
+  if (mode() === 2 && py > 0) cut(seamH, (i, j) => diff(sx, sy, i, j));
+  for (let y = 0; y < B && py + y < OH; y++) {
+    for (let x = 0; x < B && px + x < OW; x++) {
+      if (x < seamV[y] || y < seamH[x]) continue;      // on the old side of the path: keep what is there
+      const a = ((py + y) * OW + px + x) * 3, b = ((sy + y) * S + sx + x) * 3;
+      out[a] = E[b]; out[a + 1] = E[b + 1]; out[a + 2] = E[b + 2];
+    }
+  }
+}
+
+function draw() {
+  const R = PA.rng('quilt');
+  out = new Float32Array(OW * OH * 3);
+  for (let py = 0; py < OH; py += B - O) for (let px = 0; px < OW; px += B - O) place(px, py, R);
+  const img = ctx.createImageData(W, H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const k = (y * W + x) * 4;
+      let c = [20, 20, 22];
+      if (x >= 120) { const a = (y * OW + x - 120) * 3; c = [out[a], out[a + 1], out[a + 2]]; }
+      else if (x >= 10 && x < 10 + S && y >= 30 && y < 30 + S) { const b = ((y - 30) * S + x - 10) * 3; c = [E[b], E[b + 1], E[b + 2]]; }
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = '#ddd';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('the sample', 10, 22);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<h2>Blending without washing out</h2>
+<p>A third route is the cheapest of all: lay copies of the sample over the surface at random offsets and blend between them. No search and no stored output. The catch is that averaging two unrelated pieces of a texture gives something greyer than either. Contrast drops wherever copies are being mixed, and the surface shows soft blotches on the same grid as the blend.</p>
+<p>Eric Heitz and Fabrice Neyret explained and fixed this in "High-Performance By-Example Noise using a Histogram-Preserving Blending Operator" (2018). Averaging values with weights that add up to 1 shrinks their spread by a predictable amount. So measure each value as a difference from the sample's average colour, blend the differences, divide by the square root of the sum of the squared weights, which is exactly the amount of shrinkage, and add the average back. The third panel does that.</p>
+
+<div class="example" data-pixel data-w="600" data-h="200" data-title="TX3.5 Tiled, blended, and blended with the contrast kept">
+<script type="text/plain">
+const S = 64, G = 28;                                  // sample size, and the spacing of the blending grid
+const hash = (i, j) => PA.fract(Math.sin(i * 127.1 + j * 311.7) * 43758.5453);
+
+// Value noise that repeats every `period` cells, so that the sample itself tiles.
+function wrapped(x, y, period) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = PA.smoothstep(0, 1, x - ix), fy = PA.smoothstep(0, 1, y - iy);
+  const at = (i, j) => hash(((i % period) + period) % period, ((j % period) + period) % period + period * 7);
+  return PA.lerp(PA.lerp(at(ix, iy), at(ix + 1, iy), fx), PA.lerp(at(ix, iy + 1), at(ix + 1, iy + 1), fx), fy);
+}
+
+// The sample: a speckled stone with strong contrast.
+const E = new Float32Array(S * S * 3), mean = [0, 0, 0];
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) {
+    const n = wrapped(x / 8, y / 8, 8) * 0.55 + wrapped(x / 4, y / 4, 16) * 0.3 + wrapped(x / 2, y / 2, 32) * 0.15;
+    const t = PA.smoothstep(0.38, 0.62, n), k = (y * S + x) * 3;
+    E[k] = 40 + t * 190; E[k + 1] = 44 + t * 170; E[k + 2] = 60 + t * 130;
+    for (let c = 0; c < 3; c++) mean[c] += E[k + c] / (S * S);
+  }
+}
+
+function blended(x, y, keepContrast) {
+  const gx = x / G, gy = y / G, ix = Math.floor(gx), iy = Math.floor(gy);
+  const fx = PA.smoothstep(0, 1, gx - ix), fy = PA.smoothstep(0, 1, gy - iy);
+  const sum = [0, 0, 0];
+  let squares = 0;
+  for (let j = 0; j < 2; j++) {
+    for (let i = 0; i < 2; i++) {                      // the four grid corners around this pixel
+      const w = (i ? fx : 1 - fx) * (j ? fy : 1 - fy);
+      const ox = Math.floor(hash(ix + i, iy + j) * S), oy = Math.floor(hash(iy + j + 91, ix + i + 17) * S);   // that corner's own offset
+      const k = (((y + oy) % S) * S + (x + ox) % S) * 3;
+      for (let c = 0; c < 3; c++) sum[c] += w * (E[k + c] - mean[c]);
+      squares += w * w;
+    }
+  }
+  const gain = keepContrast ? 1 / Math.sqrt(squares) : 1;
+  return [mean[0] + sum[0] * gain, mean[1] + sum[1] * gain, mean[2] + sum[2] * gain];
+}
+
+const img = ctx.createImageData(W, H);
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const panel = Math.floor(x / 200), k = (y * W + x) * 4;
+    const c = panel === 0 ? [0, 1, 2].map((ch) => E[((y % S) * S + x % S) * 3 + ch]) : blended(x, y, panel === 2);
+    img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+ctx.font = '12px sans-serif';
+['the sample, tiled', 'random offsets, averaged', 'averaged, contrast restored'].forEach((label, m) => {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(m * 200 + 6, 6, ctx.measureText(label).width + 12, 20);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(label, m * 200 + 12, 20);
+});
+</script>
+</div>
+
+<div class="note"><p><strong>What this example leaves out.</strong> The paper does two more things. It blends three copies on a triangular grid instead of four on a square one, and before blending it reshapes the sample's values so that they follow a bell curve, undoing that reshaping afterwards. The second step is what makes the result match the sample's full range of values and not only its contrast. The example keeps only the contrast correction, which is the core of the idea. The method suits textures without large structures: stone, sand, rust, grass. It would shred the bricks of TX3.3.</p></div>
+
+<h2>Choosing between them</h2>
+<table>
+  <thead><tr><th>If the surface has</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>A structure you can describe</td><td>A formula (Textures 1 and 2)</td></tr>
+    <tr><td>A pattern that formed by a process</td><td>A simulation, run once and stored</td></tr>
+    <tr><td>Fine, even grain with no large features</td><td>Random offsets with contrast-preserving blending</td></tr>
+    <tr><td>Medium features: stones, leaves, weave</td><td>Quilting, or Wang tiles built from quilted pieces</td></tr>
+    <tr><td>Strict structure from a sample: text, brickwork</td><td>Pixel-at-a-time synthesis with a large neighbourhood, or better, a formula</td></tr>
+  </tbody>
+</table>
+<p>Today, methods based on neural networks do the job of the last two rows with better results on difficult samples, at far greater cost. They are described in Special Topic 6. The methods on this page still matter because they run in a few lines, need no training, and you can see why they produce what they produce.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Textures can be written as formulas, grown by simulation, or extended from an example.</li>
+  <li>Reaction–diffusion becomes a design tool when its parameters vary across the surface and its diffusion has a direction.</li>
+  <li>A single tile repeats visibly even when its edges join. A small set of edge-matched tiles laid at random does not.</li>
+  <li>Pixel-at-a-time synthesis copies the pixel whose surroundings in the sample best match what has been made so far.</li>
+  <li>Quilting copies blocks, chooses them by their overlap, and joins them along the path of least difference.</li>
+  <li>Averaging textures lowers contrast by a known amount, which can be put back.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>A neighbourhood or block smaller than the texture's largest feature. The feature will not survive.</li>
+  <li>A sample that is too small. If it holds only two of something, the output will show those two over and over.</li>
+  <li>Using a photograph with uneven lighting as a sample. The bright corner is copied along with the texture and reappears as blotches. Even out the lighting first.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Textures challenge 3</p>
+  <h2>An Endless Surface</h2>
+  <p>Start from one small sample of your own, no larger than 128 pixels square, and cover a canvas at least six times as wide with it, twice, by two different methods. Put the two results side by side and say which is better for your sample, and why.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>sample</strong> you made: generated by one of your Textures 2 materials, grown by a simulation, or a photograph you took.</li>
+    <li>Two of these methods, written by you: <strong>Wang tiles</strong>, <strong>pixel-at-a-time synthesis</strong>, <strong>quilting</strong>, or <strong>contrast-preserving blending</strong>.</li>
+    <li>A third panel showing the sample simply tiled, as the thing to beat.</li>
+    <li>A fixed seed, so that the comparison is repeatable.</li>
+    <li>A short written verdict in a comment: where each method fails on this sample, and what you would change.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>To use a photograph, draw it to a canvas and read it with <code>getImageData</code>, as in Lesson 13.</li>
+    <li>For quilting, a block about twice the size of the largest feature and an overlap of a sixth of the block is a reasonable start.</li>
+    <li>Squint, or step back from the screen. Repetition that is invisible close up is obvious from across the room.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Build the sixteen Wang tiles by quilting, so that each tile's interior comes from the sample and only its edges are constrained.</li>
+    <li>Make the output itself tile, so that it can be repeated as well.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>Someone shown only the large surface cannot point to a repeat.</li>
+    <li>Someone shown the sample agrees that the surface is the same material.</li>
+  </ul>
+  <a class="start" href="../challenges/tx3-endless-surface.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Alan Turing, “The Chemical Basis of Morphogenesis”, Philosophical Transactions of the Royal Society B, 1952. <span class="why">The proposal that patterns arise from reaction and diffusion.</span></li>
+    <li>Greg Turk, “Generating Textures on Arbitrary Surfaces Using Reaction-Diffusion”, SIGGRAPH 1991. <span class="why">Reaction–diffusion as a texturing method.</span></li>
+    <li>Andrew Witkin and Michael Kass, “Reaction-Diffusion Textures”, SIGGRAPH 1991. <span class="why">Diffusion with a direction.</span></li>
+    <li>Michael Cohen, Jonathan Shade, Stefan Hiller and Oliver Deussen, “<a href="https://doi.org/10.1145/882262.882265">Wang Tiles for Image and Texture Generation</a>”, ACM Transactions on Graphics, 2003. <span class="why">Wang tiles.</span></li>
+    <li>Alexei Efros and Thomas Leung, “<a href="https://people.eecs.berkeley.edu/~efros/research/EfrosLeung.html">Texture Synthesis by Non-parametric Sampling</a>”, ICCV 1999. <span class="why">Synthesis one pixel at a time.</span></li>
+    <li>Alexei Efros and William Freeman, “<a href="https://people.eecs.berkeley.edu/~efros/research/quilting.html">Image Quilting for Texture Synthesis and Transfer</a>”, SIGGRAPH 2001. <span class="why">Synthesis by patches.</span></li>
+    <li>Eric Heitz and Fabrice Neyret, “<a href="https://doi.org/10.1145/3233304">High-Performance By-Example Noise using a Histogram-Preserving Blending Operator</a>”, Proceedings of the ACM on Computer Graphics and Interactive Techniques, 2018. <span class="why">Blending without loss of contrast.</span></li>
+    <li>Li-Yi Wei, Sylvain Lefebvre, Vivek Kwatra and Greg Turk, “State of the Art in Example-based Texture Synthesis”, Eurographics State of the Art Report, 2009. <span class="why">A survey of the whole field.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="02-materials-from-noise.html">← Textures 2</a><a href="04-height-normals-and-light.html">Textures 4: Height, Normals and Light →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

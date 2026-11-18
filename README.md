@@ -10,7 +10,10 @@ A self-teaching course in procedural and generative art. Every example on every 
 |---|---|---|
 | The lessons, from a first rectangle to finished generative work | `lessons/` | 19 |
 | The maths underneath | `math/` | 6 |
-| Special topics: interaction, practical uses, fabrication, sound, hardware, AI, critique, publishing, workflow | `special/` | 9 |
+| Textures: patterns, materials from noise, synthesis, maps for 3D | `textures/` | 4 |
+| Shaders: GLSL, noise, raymarching, feedback | `shaders/` | 4 |
+| Illusions, built from the research on perception | `illusions/` | 4 |
+| Special topics: interaction, practical uses, fabrication, sound, hardware, AI, critique, publishing, workflow, research | `special/` | 10 |
 | 3D printing and G-code | `printing/` | 5 |
 | three.js | `three/` | 3 |
 | Blender scripting, geometry nodes and add-ons | `blender/` | 4 |
@@ -26,7 +29,7 @@ There is nothing to install and no build step. Download or clone the repository 
 
 To do the challenges, open a file from `challenges/` in a code editor, write your sketch, and refresh the browser.
 
-The three.js pages load three.js from a CDN, so they need an internet connection. Everything else works offline.
+The three.js pages, and one example in Textures 4, load three.js from a CDN, so they need an internet connection. Everything else works offline.
 
 ## How it is made
 

@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special Topic 10 · Practical Uses: What the Research Adds</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="09-project-workflow.html">← Special 9</a><span>Special topic 10 of 10</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Special Topic 10</p>
+  <h1>Practical Uses: What the Research Adds</h1>
+  <p class="lede">Special Topic 2 surveyed where procedural methods are used and showed what the generators look like. This page goes back over the same ground with the academic literature open. The papers add something the first survey lacked: tested answers to the questions that come <em>after</em> a generator works. How do you know what it produces? How do you ask it for something specific? How do you make it obey physics, or a client?</p>
+</header>
+
+<h2>What the literature covers</h2>
+<p>Procedural generation is studied in several research communities that seldom cite each other. Each has its own name for it. Putting them side by side shows which problems are shared.</p>
+<table>
+  <thead><tr><th>Community</th><th>What they call it</th><th>What they have worked out</th><th>On this page</th></tr></thead>
+  <tbody>
+    <tr><td>Game research</td><td>Procedural content generation</td><td>Measuring generators, generating by search, tools in which a designer and a generator share the work</td><td>S10.1 to S10.4</td></tr>
+    <tr><td>Computer graphics</td><td>Procedural modelling</td><td>Cities, buildings, terrain, plants and textures by grammar and simulation</td><td>S10.5 to S10.7, and the Textures section</td></tr>
+    <tr><td>Engineering</td><td>Topology optimisation, generative design</td><td>Shapes computed from loads and a material budget</td><td>S10.8</td></tr>
+    <tr><td>Cartography and visualisation</td><td>Automated layout</td><td>Placement of labels and marks as an optimisation problem</td><td>S10.9</td></tr>
+    <tr><td>Machine learning</td><td>Synthetic data, procedural environments</td><td>Generators as a source of training and test material</td><td>The last section</td></tr>
+  </tbody>
+</table>
+<p>The examples below are small working versions of the central idea in one paper each. They are simplified, and each one says how. Full references, with links, are in the reading list at the end of the page.</p>
+
+<h2>Measuring a generator: expressive range</h2>
+<p>Lesson 10's contact sheet lets you look at forty outputs. It cannot tell you what the other ten thousand are like, or whether a change to the code made the outputs more varied or less. Gillian Smith and Jim Whitehead proposed a way to see the whole of a generator at once in "Analyzing the Expressive Range of a Level Generator" (2010).</p>
+<ol>
+  <li>Choose two <strong>measurements</strong> that can be computed from an output, and that matter to its user. They must describe the result, not the parameters that produced it.</li>
+  <li>Run the generator thousands of times and measure every output.</li>
+  <li>Plot how many outputs fall at each combination of the two measurements.</li>
+</ol>
+<p>The picture is the generator's <strong>expressive range</strong>. A tight blob means that for all its random numbers the generator makes one kind of thing. Empty regions are kinds of output it cannot make. A second plot after a code change shows what the change really did.</p>
+<p>The paper studied a generator of levels for a platform game, and used two measurements which this example imitates: <strong>linearity</strong>, how nearly the ground follows a straight line, and <strong>leniency</strong>, how forgiving the level is to the player. Move the sliders and watch the cloud move. The three levels on the right are taken from the extremes and the middle of the cloud.</p>
+
+<div class="example" data-h="420" data-title="S10.1 Two thousand levels in one picture">
+<script type="text/plain">
+const gapChance = ui.slider('gap chance', 0, 0.3, 0.1, 0.01);
+const rough = ui.slider('roughness', 0, 1, 0.5, 0.05);
+const LEN = 40, BINS = 24;
+
+// The generator: the height of the ground in each of 40 columns, or -1 for a pit.
+function generate(R) {
+  const cols = [];
+  let h = 3;
+  while (cols.length < LEN) {
+    if (cols.length > 2 && cols[cols.length - 1] >= 0 && R.chance(gapChance())) {
+      const wide = R.int(1, 3);
+      for (let k = 0; k < wide && cols.length < LEN - 1; k++) cols.push(-1);
+    }
+    if (R.chance(rough())) h = PA.clamp(h + R.pick([-2, -1, 1, 2]), 1, 7);
+    cols.push(h);
+  }
+  return cols;
+}
+
+// Measurement 1. 1 = the ground lies along a straight line; 0 = it is all over the place.
+function linearity(cols) {
+  let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+  cols.forEach((h, x) => { if (h >= 0) { n++; sx += x; sy += h; sxx += x * x; sxy += x * h; } });
+  const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx), base = (sy - slope * sx) / n;   // the best straight line (Maths 5)
+  let miss = 0;
+  cols.forEach((h, x) => { if (h >= 0) miss += Math.abs(h - (base + slope * x)); });
+  return PA.clamp(1 - miss / n / 2);                   // an average miss of two blocks counts as 0
+}
+// Measurement 2. 1 = nothing here can hurt the player; 0 = very punishing.
+function leniency(cols) {
+  let hard = 0;
+  for (let x = 1; x < cols.length; x++) {
+    if (cols[x] < 0) hard += 1;                                               // a column of pit
+    else if (cols[x - 1] >= 0 && cols[x] - cols[x - 1] >= 2) hard += 0.5;     // a high step up
+  }
+  return PA.clamp(1 - hard / 14);
+}
+
+function drawLevel(level, x0, y0, label) {
+  ctx.fillStyle = '#1b1f27';
+  ctx.fillRect(x0, y0, 180, 92);
+  level.cols.forEach((h, x) => {
+    if (h < 0) return;
+    ctx.fillStyle = '#7fb069';
+    ctx.fillRect(x0 + x * 4.5, y0 + 92 - h * 10, 4.5, h * 10);
+  });
+  ctx.fillStyle = '#cfd6e4';
+  ctx.font = '11px sans-serif';
+  ctx.fillText(label + '   linearity ' + level.lin.toFixed(2) + '   leniency ' + level.len.toFixed(2), x0, y0 - 6);
+}
+
+function draw() {
+  const R = PA.rng('range');
+  const counts = new Float32Array(BINS * BINS), levels = [];
+  let meanLin = 0, meanLen = 0;
+  for (let i = 0; i < 2000; i++) {
+    const cols = generate(R), lin = linearity(cols), len = leniency(cols);
+    const bx = Math.min(BINS - 1, Math.floor(lin * BINS)), by = Math.min(BINS - 1, Math.floor(len * BINS));
+    counts[by * BINS + bx]++;
+    levels.push({ cols, lin, len });
+    meanLin += lin / 2000; meanLen += len / 2000;
+  }
+
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  const X0 = 52, Y0 = 34, S = 13;
+  let most = 0;
+  for (const c of counts) most = Math.max(most, c);
+  for (let by = 0; by < BINS; by++) {
+    for (let bx = 0; bx < BINS; bx++) {
+      const c = counts[by * BINS + bx], t = Math.sqrt(c / most);
+      ctx.fillStyle = c ? PA.hsl(230 - t * 190, 80, 22 + t * 42) : '#171a21';
+      ctx.fillRect(X0 + bx * S, Y0 + (BINS - 1 - by) * S, S - 1, S - 1);
+    }
+  }
+  ctx.fillStyle = '#cfd6e4';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('linearity  →', X0 + 120, Y0 + BINS * S + 22);
+  ctx.fillText('0', X0, Y0 + BINS * S + 14); ctx.fillText('1', X0 + BINS * S - 8, Y0 + BINS * S + 14);
+  ctx.save(); ctx.translate(X0 - 14, Y0 + 190); ctx.rotate(-Math.PI / 2); ctx.fillText('leniency  →', 0, 0); ctx.restore();
+  ctx.fillText('each square: how many of 2000 levels landed here', X0, Y0 - 12);
+
+  // three levels: the least straight, the most punishing, and the one nearest the average
+  const pick = (score) => levels.reduce((a, b) => (score(b) < score(a) ? b : a));
+  const shown = [
+    [pick((l) => l.lin), '1'], [pick((l) => l.len), '2'],
+    [pick((l) => Math.hypot(l.lin - meanLin, l.len - meanLen)), '3'],
+  ];
+  shown.forEach(([level, label], k) => {
+    drawLevel(level, 400, 48 + k * 124, label);
+    const px = X0 + level.lin * BINS * S, py = Y0 + (1 - level.len) * BINS * S;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(px, py, 7, 0, PA.TAU); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.fillText(label, px + 10, py + 4);
+  });
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>With the default settings the cloud sits in one part of the square. No setting of these two sliders produces a level that is both very uneven and very safe, or perfectly straight and very dangerous. If a designer needs those, the generator has to change. That is the kind of statement expressive range analysis lets you make, and without it you would be guessing from a contact sheet.</p>
+<div class="note"><p><strong>Choosing measurements.</strong> The method is only as good as the two numbers. Good ones are things the user would notice: for a level, difficulty and shape; for a pattern, density and symmetry; for a palette, contrast and warmth. Measuring the generator's own parameters tells you nothing, because you chose those.</p></div>
+
+<h2>Generating by search</h2>
+<p>Every generator in this course so far has been <em>constructive</em>: it builds an output step by step and stops. If you want outputs with a particular property, you must design the steps to produce it, as Special Topic 2 did for a dungeon that is always connected. Often you cannot. You know how to <em>recognise</em> a good output, but not how to construct one.</p>
+<p>The alternative is to search. Julian Togelius, Georgios Yannakakis, Kenneth Stanley and Cameron Browne laid out the approach in "Search-Based Procedural Content Generation: A Taxonomy and Survey" (2011). It has three parts.</p>
+<dl class="vocab">
+  <dt>A representation</dt><dd>The output written as a list of numbers that can be altered slightly. Here it is a grid in which each cell is wall or floor.</dd>
+  <dt>An evaluation</dt><dd>A function that scores an output. Here it is the length of the shortest route from the top-left corner to the bottom-right. A map with no route scores worst of all.</dd>
+  <dt>A search</dt><dd>Start with something. Make a few slightly altered copies. Keep the best. Repeat. This is the simplest evolutionary algorithm.</dd>
+</dl>
+<p>Nobody told the program how to build a maze. It was told only how to measure one, and the winding corridor appears by itself. The score is plotted on the right.</p>
+
+<div class="example" data-h="400" data-title="S10.2 A maze that was searched for, not built">
+<script type="text/plain">
+const N = 15, CELL = 24, X0 = 20, Y0 = 20;
+let R, best, bestScore, history, generation;
+ui.button('start again', reset);
+
+// The evaluation: distance of every floor cell from the start, by breadth-first search (Lesson 18).
+function distances(walls) {
+  const dist = new Int16Array(N * N).fill(-1), queue = [0];
+  dist[0] = 0;
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q], x = c % N, y = (c - x) / N;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, k = ny * N + nx;
+      if (nx < 0 || ny < 0 || nx >= N || ny >= N || walls[k] || dist[k] >= 0) continue;
+      dist[k] = dist[c] + 1;
+      queue.push(k);
+    }
+  }
+  return dist;
+}
+const score = (walls) => distances(walls)[N * N - 1];    // length of the shortest route, or -1 if there is none
+
+function reset() {
+  R = PA.rng();
+  best = new Uint8Array(N * N);                          // start with an empty room
+  bestScore = score(best);
+  history = [];
+  generation = 0;
+}
+reset();
+
+loop(() => {
+  for (let k = 0; k < 8; k++) {                          // eight altered copies each frame
+    const child = best.slice();
+    for (let flips = R.int(1, 3); flips > 0; flips--) {
+      const cell = R.int(1, N * N - 2);                  // never the start or the goal
+      child[cell] = 1 - child[cell];
+    }
+    const s = score(child);
+    if (s >= bestScore) { best = child; bestScore = s; } // "or equal" lets the search wander sideways, which it needs
+    generation++;
+  }
+  history.push(bestScore);
+  if (history.length > 190) history.shift();
+
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  const dist = distances(best);
+  for (let i = 0; i < N * N; i++) {
+    ctx.fillStyle = best[i] ? '#39424f' : '#1b1f27';
+    ctx.fillRect(X0 + (i % N) * CELL, Y0 + Math.floor(i / N) * CELL, CELL - 1, CELL - 1);
+  }
+  // walk back from the goal along falling distances to draw the route
+  ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  let c = N * N - 1;
+  ctx.moveTo(X0 + (c % N + 0.5) * CELL, Y0 + (Math.floor(c / N) + 0.5) * CELL);
+  while (dist[c] > 0) {
+    const x = c % N, y = Math.floor(c / N);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, k = ny * N + nx;
+      if (nx >= 0 && ny >= 0 && nx < N && ny < N && dist[k] === dist[c] - 1) { c = k; break; }
+    }
+    ctx.lineTo(X0 + (c % N + 0.5) * CELL, Y0 + (Math.floor(c / N) + 0.5) * CELL);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#cfd6e4'; ctx.font = '13px sans-serif';
+  ctx.fillText('copies tried: ' + generation, 400, 40);
+  ctx.fillText('route length: ' + bestScore, 400, 62);
+  ctx.strokeStyle = '#5bc0be'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  history.forEach((s, i) => { const x = 400 + i, y = 370 - s * 2.2; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+  ctx.stroke();
+  ctx.fillStyle = '#7d8799'; ctx.fillText('route length over time', 400, 388);
+});
+</script>
+</div>
+
+<p>Search costs far more computing than construction, since it throws away almost everything it makes. It is the right tool when the property you want is easy to test and hard to guarantee. The evaluation is where the design effort goes, and it is where things go wrong: a search maximises exactly what you scored, not what you meant. This one was asked for a long route, and it has no opinion about whether the maze is pleasant.</p>
+
+<h2>Many good answers, deliberately different</h2>
+<p>A search finds one best output. Practical work nearly always wants a <em>range</em>: sixty labels, a family of vases, levels from easy to hard. Running the search sixty times gives sixty near-copies of the same optimum. Jean-Baptiste Mouret and Jeff Clune's "Illuminating Search Spaces by Mapping Elites" (2015) reverses the aim. Its algorithm, MAP-Elites, combines the two previous examples.</p>
+<ol>
+  <li>Choose two measurements, as for expressive range, and divide their square into cells.</li>
+  <li>Each cell keeps the <strong>single best output found so far that lands in it</strong>.</li>
+  <li>Repeatedly: copy the occupant of a random cell, alter the copy slightly, measure it, and offer it to whichever cell it now falls in. It replaces the occupant only if it scores higher.</li>
+</ol>
+<p>The result is a map with a good answer in every reachable cell. Below, an output is a vase profile of seven radii. The score is smoothness. The measurements are how wide the widest point is and how high up it comes. Watch the grid fill, and watch individual cells improve.</p>
+
+<div class="example" data-h="440" data-title="S10.3 A product range found by MAP-Elites">
+<script type="text/plain">
+const COLS = 8, ROWS = 7, CW = 72, CH = 58, X0 = 14, Y0 = 26;
+let R, archive, tried;
+ui.button('start again', reset);
+
+const smoothness = (r) => {                              // the score: penalise kinks, and a base too small to stand on
+  let kinks = 0;
+  for (let i = 1; i < r.length - 1; i++) kinks += Math.abs(r[i - 1] - 2 * r[i] + r[i + 1]);
+  return -kinks - 2 * Math.max(0, 0.25 - r[0]);
+};
+function cellOf(r) {                                     // the two measurements, as a column and a row
+  let widest = 0;
+  for (let i = 1; i < r.length; i++) if (r[i] > r[widest]) widest = i;
+  const col = Math.floor(PA.clamp((r[widest] - 0.2) / 0.8, 0, 0.999) * COLS);
+  return widest * COLS + col;                            // row = where the widest point is, column = how wide
+}
+function offer(r) {
+  const cell = cellOf(r), s = smoothness(r);
+  if (!archive[cell] || s > archive[cell].s) archive[cell] = { r, s };
+  tried++;
+}
+function reset() {
+  R = PA.rng();
+  archive = new Array(COLS * ROWS).fill(null);
+  tried = 0;
+  for (let i = 0; i < 40; i++) offer(Array.from({ length: 7 }, () => R.range(0.1, 1)));   // random starting vases
+}
+reset();
+
+loop(() => {
+  const filled = archive.filter(Boolean);
+  for (let k = 0; k < 40; k++) {
+    const child = R.pick(filled).r.slice();              // copy a random occupant...
+    for (let n = R.int(1, 2); n > 0; n--) {
+      const i = R.int(0, 6);
+      child[i] = PA.clamp(child[i] + R.gauss(0, 0.1), 0.08, 1);     // ...alter it a little...
+    }
+    offer(child);                                        // ...and offer it to the cell it lands in
+  }
+
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  archive.forEach((e, cell) => {
+    const x = X0 + (cell % COLS) * CW, y = Y0 + (ROWS - 1 - Math.floor(cell / COLS)) * CH;
+    ctx.fillStyle = '#181b22';
+    ctx.fillRect(x, y, CW - 3, CH - 3);
+    if (!e) return;
+    const quality = PA.clamp(1 + e.s / 1.5);             // 1 is perfectly smooth
+    ctx.fillStyle = PA.hsl(30 + quality * 140, 55, 62);
+    ctx.beginPath();
+    for (let side = -1; side <= 1; side += 2) {          // the profile, mirrored into a silhouette
+      for (let i = 0; i < 7; i++) {
+        const j = side < 0 ? i : 6 - i;
+        ctx.lineTo(x + CW / 2 - 1 + side * e.r[j] * 30, y + CH - 8 - j * 7.2);
+      }
+    }
+    ctx.fill();
+  });
+  ctx.fillStyle = '#cfd6e4'; ctx.font = '12px sans-serif';
+  ctx.fillText('narrow  →  wide', X0, Y0 - 8);
+  ctx.fillText('(rows: widest point low at the bottom, high at the top)', X0 + 100, Y0 - 8);
+  ctx.textAlign = 'right';
+  ctx.fillText('tried ' + tried + '   filled ' + filled.length + ' of ' + COLS * ROWS, W - 14, Y0 - 8);
+  ctx.textAlign = 'left';
+});
+</script>
+</div>
+
+<p>Compare this with the product range of Special Topic 2, where variety came from a seed and nothing guaranteed that the range was covered or that every member was good. Here coverage is the structure of the algorithm and quality is its objective. Greener vases are smoother, and some corners stay rough or empty: a wide vase whose widest point is at the very top is hard to make smooth. The map tells you that as well. This family of methods is called quality-diversity search.</p>
+
+<h2>Showing people the range: design galleries</h2>
+<p>A generator with ten sliders is a poor tool for a client. They do not know what the sliders mean, most positions look alike, and the interesting results are in places nobody would think to look. "Design Galleries: A General Approach to Setting Parameters for Computer Graphics and Animation", by Joe Marks and many co-authors (SIGGRAPH 1997), proposed replacing the sliders with a page of pictures. The computer chooses the settings, and the person chooses among the results.</p>
+<p>The paper's key idea is called <strong>dispersion</strong>. The pictures on the page should differ as much as possible <em>in how they look</em>, which is not the same as being far apart in their settings. So:</p>
+<ol>
+  <li>Generate many candidates at random settings.</li>
+  <li>Describe each <em>output</em> by a short list of numbers. Here each shape is drawn onto a coarse ten-by-ten grid, and the description is which squares it covers.</li>
+  <li>Choose a first candidate. Then repeatedly add the candidate whose description is furthest from everything chosen so far.</li>
+</ol>
+
+<div class="example" data-h="330" data-title="S10.4 Nine random settings, and nine chosen to differ">
+<script type="text/plain">
+let seed = 1;
+ui.button('new candidates', () => { seed++; draw(); });
+const G = 10;                                            // the description is a G by G grid of coverage
+
+// The generator: a closed curve with four parameters.
+function shape(p) {
+  const pts = [];
+  for (let i = 0; i < 240; i++) {
+    const a = i / 240 * PA.TAU;
+    const r = 0.5 + p.m * Math.cos(p.k * a) + p.n * Math.cos(p.j * a + 1);
+    pts.push([Math.cos(a) * r, Math.sin(a) * r]);        // within about -1.1 to 1.1
+  }
+  return pts;
+}
+// What the output looks like, as numbers: how much of the curve falls in each square of a coarse grid.
+function describe(pts) {
+  const d = new Float32Array(G * G);
+  for (const [x, y] of pts) {
+    const gx = Math.floor(PA.clamp((x + 1.1) / 2.2, 0, 0.999) * G), gy = Math.floor(PA.clamp((y + 1.1) / 2.2, 0, 0.999) * G);
+    d[gy * G + gx] += 1 / pts.length;
+  }
+  return d;
+}
+const gap = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); };
+
+function sheet(items, x0, title) {
+  ctx.fillStyle = '#cfd6e4'; ctx.font = '13px sans-serif';
+  ctx.fillText(title, x0, 22);
+  items.forEach((c, k) => {
+    const cx = x0 + 45 + (k % 3) * 92, cy = 78 + Math.floor(k / 3) * 92;
+    ctx.fillStyle = '#181b22';
+    ctx.fillRect(cx - 43, cy - 43, 86, 86);
+    ctx.strokeStyle = PA.hsl(c.hue, 70, 68); ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    c.pts.forEach(([x, y]) => ctx.lineTo(cx + x * 36, cy + y * 36));
+    ctx.closePath(); ctx.stroke();
+  });
+}
+
+function draw() {
+  const R = PA.rng('gallery' + seed);
+  const all = [];
+  for (let i = 0; i < 200; i++) {
+    const p = { k: R.int(1, 6), j: R.int(2, 12), m: R.range(0, 0.35), n: R.range(0, 0.25) };
+    const pts = shape(p);
+    all.push({ pts, d: describe(pts), hue: 20 + i * 1.6 });
+  }
+  const random = all.slice(0, 9);                        // the first nine are as random as any
+
+  const chosen = [all[0]];                               // dispersion: always add the candidate least like those chosen
+  while (chosen.length < 9) {
+    let far = null, farGap = -1;
+    for (const c of all) {
+      let nearest = Infinity;
+      for (const d of chosen) nearest = Math.min(nearest, gap(c.d, d.d));
+      if (nearest > farGap) { farGap = nearest; far = c; }
+    }
+    chosen.push(far);
+  }
+
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  sheet(random, 12, 'nine random settings');
+  sheet(chosen, 312, 'nine chosen to look different');
+}
+draw();
+</script>
+</div>
+
+<p>Press the button a few times. The random sheet usually contains near-duplicates and misses whole kinds of shape that the dispersed sheet finds. The description used here is crude, and choosing a description that matches what people actually see as different is the hard part of the method. A related idea is older: in "Artificial Evolution for Computer Graphics" (SIGGRAPH 1991), Karl Sims showed a person a page of variations, let them pick one, and bred the next page from it. That is search in which a person is the evaluation, and Special Topic 1 lists it as an interaction pattern.</p>
+
+<h3>Sharing the work with a designer</h3>
+<p>Between "the designer draws everything" and "the generator makes everything" lies the arrangement that the survey by Smelik and colleagues, cited below, identifies as what professionals actually want: control. Research calls it <strong>mixed-initiative</strong> design. In Tanagra, by Gillian Smith, Jim Whitehead and Michael Mateas (2011), a designer places a few key platforms of a level, the generator fills in the rest, and a constraint solver guarantees that the result can always be played, re-solving as the designer drags things about. In Sentient Sketchbook, by Antonios Liapis, Georgios Yannakakis and Julian Togelius (2013), the designer sketches a map while the tool shows live measurements and offers alternatives produced by search. Three ideas carry over to any generator you build for someone else:</p>
+<ul>
+  <li><strong>Hard constraints are the tool's job.</strong> The person should be unable to make something broken.</li>
+  <li><strong>Measurements are shown live</strong> as the person works, as in the expressive range example.</li>
+  <li><strong>Suggestions are offered, never imposed.</strong> The person stays the author.</li>
+</ul>
+
+<h2>Cities: growth with global goals and local constraints</h2>
+<p>Yoav Parish and Pascal Müller's "Procedural Modeling of Cities" (SIGGRAPH 2001) is the source of most road generators in games. It extends the L-systems of Lesson 6, and its lasting contribution is a division of labour between two kinds of rule.</p>
+<dl class="vocab">
+  <dt>Global goals</dt><dd>What a road wants. A main road wants to head for where people live. A side street wants to leave its parent road at a right angle. These rules <em>propose</em> the next piece of road.</dd>
+  <dt>Local constraints</dt><dd>What the surroundings allow. A proposed piece that crosses an existing road is cut short to form a junction. One that ends near an existing junction is bent to meet it. One that would leave the map is refused. These rules <em>adjust or reject</em> the proposal.</dd>
+</dl>
+<p>Without the local constraints a branching system produces a tree: roads that cross without meeting, and no loops. With them it produces a network. Below, the background shading is a population map made of noise. Main roads steer toward dense areas and spawn side streets there.</p>
+
+<div class="example" data-h="400" data-title="S10.5 A road network that grows">
+<script type="text/plain">
+const N = PA.noise(), R = PA.rng();
+const people = (x, y) => N.fbm(x * 0.004, y * 0.004, { octaves: 3 });
+const roads = [];                                        // each is { x1, y1, x2, y2, main }
+const proposals = [                                      // each is { x, y, a (heading), main, t (when to try it) }
+  { x: W / 2, y: H / 2, a: 0.3, main: true, t: 0 },
+  { x: W / 2, y: H / 2, a: 0.3 + Math.PI, main: true, t: 0 },
+];
+
+// the population map, drawn once
+for (let y = 0; y < H; y += 10) {
+  for (let x = 0; x < W; x += 10) {
+    const p = PA.smoothstep(0.35, 0.65, people(x + 5, y + 5));
+    ctx.fillStyle = PA.hsl(215, 25, 9 + p * 16);
+    ctx.fillRect(x, y, 10, 10);
+  }
+}
+
+// Where along the line from (x1, y1) to (x2, y2) does it cross road r? Returns 0 to 1, or null.
+function crossing(x1, y1, x2, y2, r) {
+  const dx = x2 - x1, dy = y2 - y1, ex = r.x2 - r.x1, ey = r.y2 - r.y1;
+  const det = dx * ey - dy * ex;                         // a 2 x 2 determinant (Maths 6)
+  if (Math.abs(det) < 1e-9) return null;                 // parallel
+  const t = ((r.x1 - x1) * ey - (r.y1 - y1) * ex) / det, u = ((r.x1 - x1) * dy - (r.y1 - y1) * dx) / det;
+  return t > 0.001 && t <= 1 && u >= 0 && u <= 1 ? t : null;
+}
+
+function grow(p) {
+  const len = p.main ? 26 : 15;
+  let a = p.a;
+  if (p.main) {                                          // GLOBAL GOAL: of three headings, take the one leading to most people
+    let most = -1;
+    for (const turn of [-0.3, 0, 0.3]) {
+      const d = people(p.x + Math.cos(p.a + turn) * len * 3, p.y + Math.sin(p.a + turn) * len * 3);
+      if (d > most) { most = d; a = p.a + turn; }
+    }
+  }
+  let x2 = p.x + Math.cos(a) * len, y2 = p.y + Math.sin(a) * len, ended = false;
+  if (x2 < 5 || y2 < 5 || x2 > W - 5 || y2 > H - 5) return;          // LOCAL CONSTRAINT: stay on the map
+
+  let first = 1;                                         // LOCAL CONSTRAINT: stop at the first road crossed
+  for (const r of roads) {
+    const t = crossing(p.x, p.y, x2, y2, r);
+    if (t !== null && t < first) first = t;
+  }
+  if (first < 1) { x2 = p.x + (x2 - p.x) * first; y2 = p.y + (y2 - p.y) * first; ended = true; }
+  else {
+    for (const r of roads) {                             // LOCAL CONSTRAINT: join a junction that is close by
+      for (const [jx, jy] of [[r.x1, r.y1], [r.x2, r.y2]]) {
+        if (!ended && Math.hypot(jx - x2, jy - y2) < 9 && Math.hypot(jx - p.x, jy - p.y) > 2) { x2 = jx; y2 = jy; ended = true; }
+      }
+    }
+  }
+  if (Math.hypot(x2 - p.x, y2 - p.y) < 4) return;        // too short to be worth building
+  roads.push({ x1: p.x, y1: p.y, x2, y2, main: p.main });
+  ctx.strokeStyle = p.main ? '#ffd166' : '#9fb4cc';
+  ctx.lineWidth = p.main ? 2.6 : 1.1;
+  ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x2, y2); ctx.stroke();
+  if (ended) return;                                     // a road that met another does not carry on
+
+  const here = people(x2, y2);
+  if (p.main || here > 0.4) proposals.push({ x: x2, y: y2, a, main: p.main, t: p.t + 1 });        // GLOBAL GOAL: carry on
+  if (p.main && R.chance(0.1)) proposals.push({ x: x2, y: y2, a: a + R.sign() * Math.PI / 2, main: true, t: p.t + 3 });
+  const keen = p.main ? 0.8 : 0.3;                      // GLOBAL GOAL: side streets, at right angles, where people live
+  if (here > 0.43 && R.chance(keen)) proposals.push({ x: x2, y: y2, a: a + R.sign() * Math.PI / 2, main: false, t: p.t + (p.main ? 5 : 2) });
+}
+
+loop(() => {
+  for (let k = 0; k < 6 && proposals.length && roads.length < 1400; k++) {
+    let soonest = 0;                                     // always try the earliest proposal first
+    for (let i = 1; i < proposals.length; i++) if (proposals[i].t < proposals[soonest].t) soonest = i;
+    grow(proposals.splice(soonest, 1)[0]);
+  }
+});
+</script>
+</div>
+
+<p>Press Run for another city. The paper drives the same machinery with maps of terrain height, water and population, and with a choice of street patterns: grid, radial, or following the contours. The proposal's delay, <code>t</code>, matters more than it looks. Because side streets wait longer than main roads, the main roads claim the map first and the streets fill in behind them, which is the order in which real cities grow.</p>
+
+<h2>Buildings: splitting a shape by rule</h2>
+<p>The same group followed the city paper with "Procedural Modeling of Buildings", by Pascal Müller, Peter Wonka, Simon Haegler, Andreas Ulmer and Luc Van Gool (SIGGRAPH 2006), the basis of the commercial tool CityEngine. Its grammar works the opposite way to an L-system. An L-system grows outward. A <strong>split grammar</strong> starts with the whole volume and cuts it into smaller labelled pieces, then cuts those.</p>
+<pre><code>Facade  →  split upward into Floors, as many as fit
+Floor   →  split sideways into Bays, as many as fit
+Bay     →  Wall with a Window in it        (or a Door, on the ground floor, once)
+Window  →  Frame + Glass + perhaps a Sill, Shutters or an Arch</code></pre>
+<p>The phrase "as many as fit" is the important one. The rule states the size a floor <em>ought</em> to be. The number of floors is the facade's height divided by that, rounded, and the floors are then stretched slightly to fill the space exactly. So one rule set dresses a building of any size, and a wider building gets more windows, not wider windows. The three buildings below share one grammar and one style.</p>
+
+<div class="example" data-h="380" data-title="S10.6 One grammar, three buildings">
+<script type="text/plain">
+const seed = ui.text('style', 'rue-7');
+const tall = ui.slider('height', 0.5, 1, 0.8, 0.01);
+
+function window_(x, y, w, h, style, top) {               // Window -> Frame + Glass + extras
+  const ww = w * 0.5, wh = h * (top ? 0.5 : 0.62), wx = x + (w - ww) / 2, wy = y + (h - wh) * 0.45;
+  ctx.fillStyle = style.trim;
+  ctx.fillRect(wx - 3, wy - 3, ww + 6, wh + 6);
+  if (style.arch) { ctx.beginPath(); ctx.arc(wx + ww / 2, wy, ww / 2 + 3, Math.PI, 0); ctx.fill(); }
+  ctx.fillStyle = style.glass;
+  ctx.fillRect(wx, wy, ww, wh);
+  if (style.arch) { ctx.beginPath(); ctx.arc(wx + ww / 2, wy, ww / 2, Math.PI, 0); ctx.fill(); }
+  ctx.fillStyle = style.trim;
+  ctx.fillRect(wx + ww / 2 - 1, wy, 2, wh);              // the bar down the middle
+  if (style.sill) ctx.fillRect(wx - 6, wy + wh + 3, ww + 12, 3);
+  if (style.shutters) {
+    ctx.fillStyle = style.shutter;
+    ctx.fillRect(wx - 3 - ww * 0.42, wy, ww * 0.42, wh);
+    ctx.fillRect(wx + ww + 3, wy, ww * 0.42, wh);
+  }
+}
+function door(x, y, w, h, style) {
+  const dw = w * 0.56, dh = h * 0.8;
+  ctx.fillStyle = style.trim;
+  ctx.fillRect(x + (w - dw) / 2 - 3, y + h - dh - 3, dw + 6, dh + 3);
+  ctx.fillStyle = style.shutter;
+  ctx.fillRect(x + (w - dw) / 2, y + h - dh, dw, dh);
+}
+
+function facade(x, y, w, h, style) {                     // Facade -> Floors -> Bays
+  ctx.fillStyle = style.wall;
+  ctx.fillRect(x, y, w, h);
+  const floors = Math.max(2, Math.round(h / style.floor)), fh = h / floors;    // as many as fit, then stretched to fill
+  const bays = Math.max(2, Math.round(w / style.bay)), bw = w / bays;
+  const doorBay = Math.floor(bays / 2);
+  for (let f = 0; f < floors; f++) {
+    const fy = y + h - (f + 1) * fh;                     // floor 0 is at the bottom
+    for (let b = 0; b < bays; b++) {
+      if (f === 0 && b === doorBay) door(x + b * bw, fy, bw, fh, style);
+      else window_(x + b * bw, fy, bw, fh, style, f === floors - 1);
+    }
+    ctx.fillStyle = style.trim;
+    if (f > 0) ctx.fillRect(x, fy + fh - 2, w, 2);       // a ledge between floors
+  }
+  ctx.fillStyle = style.trim;
+  ctx.fillRect(x - 4, y - 7, w + 8, 9);                  // the cornice
+}
+
+function draw() {
+  const R = PA.rng(seed());
+  const hue = R.range(15, 50);
+  const style = {
+    floor: R.range(44, 58), bay: R.range(34, 46),        // the sizes a floor and a bay ought to be
+    arch: R.chance(0.4), sill: R.chance(0.7), shutters: R.chance(0.45),
+    wall: PA.hsl(hue, R.range(25, 50), R.range(58, 74)), trim: PA.hsl(hue, 20, 90),
+    glass: PA.hsl(210, 30, 28), shutter: PA.hsl(R.pick([150, 200, 350, 30]), 35, 36),
+  };
+  ctx.fillStyle = '#1b2433';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#2a2f38';
+  ctx.fillRect(0, H - 24, W, 24);
+  const ground = H - 24, k = tall();
+  facade(18, ground - 330 * k, 150, 330 * k, style);
+  facade(190, ground - 240 * k, 250, 240 * k, style);
+  facade(462, ground - 300 * k, 120, 300 * k, style);
+}
+draw();
+ui.onChange(draw);
+</script>
+</div>
+
+<p>Drag the height slider slowly. Windows do not stretch like rubber. They keep their proportions until there is room for another floor, and then one appears. A full system adds splits in the third dimension, roofs, rules chosen at random with given probabilities, and tests that remove a window where another part of the building blocks it. For the wider field, "A Survey on Procedural Modelling for Virtual Worlds" by Ruben Smelik, Tim Tutenel, Rafael Bidarra and Bedrich Benes (Computer Graphics Forum, 2014) covers terrain, vegetation, rivers, roads, buildings and whole cities. Its recurring finding is that these methods are under-used by artists because they are hard to control, which is the argument for the previous section.</p>
+
+<h2>Terrain: adding the weather</h2>
+<p>Noise terrain (Lesson 3) has the right roughness but the wrong shape. Real land is carved by water: it has valleys that join into larger valleys, and sediment spread out at their feet. F. Kenton Musgrave, Craig Kolb and Robert Mace addressed this in "The Synthesis and Rendering of Eroded Fractal Terrains" (SIGGRAPH 1989) by generating a fractal surface and then simulating erosion on it. Thirty years of later work is summarised in "A Review of Digital Terrain Modeling" by Eric Galin and colleagues (Computer Graphics Forum, 2019), which sorts methods into the same three families as Textures 3: procedural, simulated and example-based.</p>
+<p>The version here is the simplest that shows the effect, and it is a particle system (Lesson 5). A raindrop lands at a random place and runs downhill. It can carry an amount of soil that depends on how fast and how steeply it is moving. When it could carry more, it digs. When it is carrying too much, because the slope has eased, it drops some. Thousands of drops later the channels have found each other.</p>
+
+<div class="example" data-pixel data-w="600" data-h="300" data-title="S10.7 The same terrain before and after rain">
+<script type="text/plain">
+const S = 150, N = PA.noise(), R = PA.rng();
+const Ht = new Float32Array(S * S);
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) {
+    const d = Math.hypot(x - S / 2, y - S / 2) / (S / 2);                      // lower toward the edges: an island
+    Ht[y * S + x] = N.fbm(x * 0.02, y * 0.02, { octaves: 6 }) * (1.15 - d * 0.6);
+  }
+}
+const before = Ht.slice();
+let drops = 0;
+
+function rain() {
+  let x = R.range(2, S - 3), y = R.range(2, S - 3), dx = 0, dy = 0, speed = 1, water = 1, load = 0;
+  for (let life = 0; life < 60; life++) {
+    const k = Math.floor(y) * S + Math.floor(x);
+    const gx = (Ht[k + 1] - Ht[k - 1]) * 0.5, gy = (Ht[k + S] - Ht[k - S]) * 0.5;   // the slope here
+    dx = dx * 0.6 - gx * 0.4; dy = dy * 0.6 - gy * 0.4;      // turn downhill, with some inertia
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-7) break;
+    dx /= len; dy /= len;
+    const nx = x + dx, ny = y + dy;
+    if (nx < 2 || ny < 2 || nx > S - 3 || ny > S - 3) break;
+    const k2 = Math.floor(ny) * S + Math.floor(nx);
+    const fall = Ht[k] - Ht[k2];                             // positive when the drop has gone downhill
+    const capacity = Math.max(fall, 0.0008) * speed * water * 1.6;
+    if (fall < 0 || load > capacity) {                       // going uphill, or overloaded: put soil down
+      const give = fall < 0 ? Math.min(-fall, load) : (load - capacity) * 0.2;
+      Ht[k] += give; load -= give;
+    } else {                                                 // room to carry more: dig, but never deeper than the step down
+      const take = Math.min((capacity - load) * 0.2, fall);
+      Ht[k] -= take * 0.6;
+      Ht[k - 1] -= take * 0.1; Ht[k + 1] -= take * 0.1; Ht[k - S] -= take * 0.1; Ht[k + S] -= take * 0.1;
+      load += take;
+    }
+    speed = Math.sqrt(Math.max(0.01, speed * speed + fall * 30));
+    water *= 0.985;                                          // the drop slowly evaporates
+    x = nx; y = ny;
+  }
+  drops++;
+}
+
+// Draw a height map with relief shading into one half of the canvas.
+const img = ctx.createImageData(W, H);
+function show(map, x0) {
+  for (let py = 0; py < 300; py++) {
+    for (let px = 0; px < 300; px++) {
+      const x = Math.min(S - 2, Math.max(1, px >> 1)), y = Math.min(S - 2, Math.max(1, py >> 1)), k = y * S + x;
+      const h = map[k], sx = map[k + 1] - map[k - 1], sy = map[k + S] - map[k - S];
+      const light = PA.clamp(0.6 - (sx + sy) * 9);           // lit from the upper left
+      let c = h < 0.2 ? [40, 80, 120] : h < 0.34 ? [96, 130, 78] : h < 0.5 ? [128, 116, 86] : [200, 200, 205];
+      const i = (py * W + px + x0) * 4;
+      img.data[i] = c[0] * (0.45 + light); img.data[i + 1] = c[1] * (0.45 + light); img.data[i + 2] = c[2] * (0.45 + light);
+      img.data[i + 3] = 255;
+    }
+  }
+}
+show(before, 0);
+
+loop(() => {
+  if (drops < 60000) for (let k = 0; k < 400; k++) rain();
+  show(Ht, 300);
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('before', 8, 16);
+  ctx.fillText('after ' + drops + ' drops', 308, 16);
+});
+</script>
+</div>
+
+<p>This is the general pattern for realism in procedural work: a cheap formula for the first draft, then a simulation of the process that shaped the real thing. The simulation's result is stored and used as an ordinary height map. Project 1 is a natural place to try it.</p>
+
+<h2>Engineering: a shape computed from its loads</h2>
+<p>The methods so far produce things that look right. Engineering asks for things that <em>are</em> right: a bracket that carries its load with the least material. In 1988 Martin Bendsøe and Noboru Kikuchi published "Generating Optimal Topologies in Structural Design Using a Homogenization Method", which recast the design of a part as a question about where to put material inside a fixed block. The field that followed is topology optimisation, and it is what commercial software now sells as generative design. Ole Sigmund's "A 99 Line Topology Optimization Code Written in Matlab" (2001) made the method small enough to teach, and the example below follows it.</p>
+<p>The loop has four steps. They are worth reading as an instance of everything in this course:</p>
+<ol>
+  <li><strong>A grid of densities.</strong> Every cell holds a number from nearly 0 (empty) to 1 (solid). All cells start equal.</li>
+  <li><strong>Simulate.</strong> Work out how the part deforms under the load, treating denser cells as stiffer. This is the expensive step: thousands of simultaneous equations (Maths 6), solved here by repeated improvement.</li>
+  <li><strong>Measure sensitivity.</strong> For each cell, ask how much stiffer the whole part would become if that cell were denser. Cells in the path of the force matter a lot. Cells in a dead corner do not matter at all.</li>
+  <li><strong>Redistribute.</strong> Move material from the cells that matter least to the cells that matter most, keeping the total fixed. Repeat from step 2.</li>
+</ol>
+<p>The problem is a beam resting on a support at each end, pushed down in the middle. Only the right half is computed and the left is its mirror image. The result is not designed by anyone. It is the arch and ties of a bridge, found from the physics.</p>
+
+<div class="example" data-w="600" data-h="230" data-title="S10.8 A beam that designs itself">
+<script type="text/plain">
+const share = ui.slider('material allowed (share of the block)', 0.3, 0.6, 0.45, 0.01);
+const NX = 48, NY = 16, NE = NX * NY, ND = 2 * (NX + 1) * (NY + 1);   // cells across and down, cells, unknowns
+const POWER = 3, FLOOR = 0.001;                         // stiffness = density cubed, with a small floor so nothing is quite empty
+
+// The stiffness of one solid square cell: 8 x 8 numbers, from the theory of elasticity.
+const nu = 0.3;
+const kk = [1 / 2 - nu / 6, 1 / 8 + nu / 8, -1 / 4 - nu / 12, -1 / 8 + 3 * nu / 8, -1 / 4 + nu / 12, -1 / 8 - nu / 8, nu / 6, 1 / 8 - 3 * nu / 8];
+const order = [[0, 1, 2, 3, 4, 5, 6, 7], [1, 0, 7, 6, 5, 4, 3, 2], [2, 7, 0, 5, 6, 3, 4, 1], [3, 6, 5, 0, 7, 2, 1, 4],
+               [4, 5, 6, 7, 0, 1, 2, 3], [5, 4, 3, 2, 1, 0, 7, 6], [6, 3, 4, 1, 2, 7, 0, 5], [7, 2, 1, 4, 3, 6, 5, 0]];
+const KE = order.map((row) => row.map((i) => kk[i] / (1 - nu * nu)));
+
+// The 8 unknowns (x and y movement of 4 corners) belonging to each cell.
+const corners = new Int32Array(NE * 8);
+for (let ex = 0; ex < NX; ex++) {
+  for (let ey = 0; ey < NY; ey++) {
+    const n1 = (NY + 1) * ex + ey, n2 = (NY + 1) * (ex + 1) + ey;
+    corners.set([2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n2 + 2, 2 * n2 + 3, 2 * n1 + 2, 2 * n1 + 3], (ex * NY + ey) * 8);
+  }
+}
+// Held still: sideways movement along the left edge (the mirror line), and up-down movement at the bottom-right corner (the support).
+const held = new Uint8Array(ND);
+for (let i = 0; i <= NY; i++) held[2 * i] = 1;
+held[ND - 1] = 1;
+const force = new Float64Array(ND);
+force[1] = -1;                                           // the load: on the top-left corner, which is the middle of the whole beam
+
+let dens, move, step, change;
+const stiff = new Float64Array(NE), ue = new Float64Array(8);
+function reset() {
+  dens = new Float64Array(NE).fill(share());
+  move = new Float64Array(ND);
+  step = 0; change = 1;
+}
+reset();
+ui.onChange(reset);
+
+// out = (stiffness of the whole part) x v, built cell by cell without ever storing the big matrix.
+function apply(v, out) {
+  out.fill(0);
+  for (let e = 0; e < NE; e++) {
+    const s = stiff[e], c = e * 8;
+    for (let i = 0; i < 8; i++) ue[i] = v[corners[c + i]];
+    for (let i = 0; i < 8; i++) {
+      let sum = 0;
+      for (let j = 0; j < 8; j++) sum += KE[i][j] * ue[j];
+      out[corners[c + i]] += s * sum;
+    }
+  }
+  for (let d = 0; d < ND; d++) if (held[d]) out[d] = v[d];
+}
+
+// Step 2: solve (stiffness) x (movement) = (force) by the conjugate gradient method, starting from the last answer.
+const res = new Float64Array(ND), dir = new Float64Array(ND), Ad = new Float64Array(ND), pre = new Float64Array(ND), z = new Float64Array(ND);
+function solve() {
+  pre.fill(0);
+  for (let e = 0; e < NE; e++) for (let i = 0; i < 8; i++) pre[corners[e * 8 + i]] += stiff[e] * KE[i][i];
+  apply(move, Ad);
+  let rz = 0, target = 0;
+  for (let d = 0; d < ND; d++) {
+    res[d] = held[d] ? 0 : force[d] - Ad[d];
+    z[d] = held[d] ? 0 : res[d] / pre[d];
+    dir[d] = z[d];
+    rz += res[d] * z[d];
+    target += force[d] * force[d];
+  }
+  for (let it = 0; it < 300; it++) {
+    apply(dir, Ad);
+    let dAd = 0;
+    for (let d = 0; d < ND; d++) dAd += dir[d] * Ad[d];
+    const alpha = rz / dAd;
+    let rz2 = 0, size = 0;
+    for (let d = 0; d < ND; d++) {
+      move[d] += alpha * dir[d];
+      res[d] -= alpha * Ad[d];
+      if (held[d]) res[d] = 0;
+      z[d] = held[d] ? 0 : res[d] / pre[d];
+      rz2 += res[d] * z[d];
+      size += res[d] * res[d];
+    }
+    if (size < target * 1e-8) break;
+    const beta = rz2 / rz;
+    rz = rz2;
+    for (let d = 0; d < ND; d++) dir[d] = z[d] + beta * dir[d];
+  }
+}
+
+function improve() {
+  for (let e = 0; e < NE; e++) stiff[e] = FLOOR + (1 - FLOOR) * dens[e] ** POWER;
+  solve();
+
+  // Step 3: how much would each cell help if it were denser? (More negative = more help.)
+  const help = new Float64Array(NE);
+  for (let e = 0; e < NE; e++) {
+    for (let i = 0; i < 8; i++) ue[i] = move[corners[e * 8 + i]];
+    let energy = 0;
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) energy += ue[i] * KE[i][j] * ue[j];
+    help[e] = -POWER * (1 - FLOOR) * dens[e] ** (POWER - 1) * energy;
+  }
+  // Blend each cell's answer with its neighbours', or the result breaks up into a chequerboard.
+  const smooth = new Float64Array(NE);
+  for (let ex = 0; ex < NX; ex++) {
+    for (let ey = 0; ey < NY; ey++) {
+      let sum = 0, total = 0;
+      for (let i = Math.max(0, ex - 1); i <= Math.min(NX - 1, ex + 1); i++) {
+        for (let j = Math.max(0, ey - 1); j <= Math.min(NY - 1, ey + 1); j++) {
+          const w = 1.5 - Math.hypot(ex - i, ey - j);
+          if (w > 0) { sum += w * dens[i * NY + j] * help[i * NY + j]; total += w; }
+        }
+      }
+      smooth[ex * NY + ey] = sum / (dens[ex * NY + ey] * total);
+    }
+  }
+  // Step 4: move material toward the cells that help most. `price` is found by halving a range until the total is right.
+  let lo = 0, hi = 1e5, next = dens;
+  while (hi - lo > 1e-4 * (hi + lo) && hi > 1e-12) {
+    const price = (lo + hi) / 2;
+    next = new Float64Array(NE);
+    let total = 0;
+    for (let e = 0; e < NE; e++) {
+      const want = dens[e] * Math.sqrt(-smooth[e] / price);
+      next[e] = Math.max(0.001, Math.max(dens[e] - 0.2, Math.min(1, Math.min(dens[e] + 0.2, want))));   // at most 0.2 per step
+      total += next[e];
+    }
+    if (total > share() * NE) lo = price; else hi = price;
+  }
+  change = 0;
+  for (let e = 0; e < NE; e++) change = Math.max(change, Math.abs(next[e] - dens[e]));
+  dens = next;
+  step++;
+}
+
+loop(() => {
+  if (step < 70 && change > 0.01) improve();
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  const C = 6, X0 = 12, Y0 = 40;
+  for (let ex = 0; ex < NX; ex++) {
+    for (let ey = 0; ey < NY; ey++) {
+      const g = Math.round(24 + dens[ex * NY + ey] * 215);
+      ctx.fillStyle = 'rgb(' + g + ',' + g + ',' + Math.round(g * 0.93) + ')';
+      ctx.fillRect(X0 + (NX + ex) * C, Y0 + ey * C, C, C);            // the computed half
+      ctx.fillRect(X0 + (NX - 1 - ex) * C, Y0 + ey * C, C, C);        // its mirror image
+    }
+  }
+  ctx.fillStyle = '#ffd166';                               // the load, and the two supports
+  ctx.beginPath(); ctx.moveTo(X0 + NX * C, Y0 - 2); ctx.lineTo(X0 + NX * C - 7, Y0 - 16); ctx.lineTo(X0 + NX * C + 7, Y0 - 16); ctx.fill();
+  for (const x of [X0, X0 + 2 * NX * C]) {
+    ctx.beginPath(); ctx.moveTo(x, Y0 + NY * C + 2); ctx.lineTo(x - 8, Y0 + NY * C + 16); ctx.lineTo(x + 8, Y0 + NY * C + 16); ctx.fill();
+  }
+  ctx.fillStyle = '#cfd6e4'; ctx.font = '12px sans-serif';
+  ctx.fillText('load', X0 + NX * C + 12, Y0 - 8);
+  ctx.fillText('round ' + step + (step >= 70 || change <= 0.01 ? '   (settled)' : ''), X0, Y0 + NY * C + 46);
+});
+</script>
+</div>
+
+<p>Change the amount of material and it starts again. With less, the structure thins to a few struts. With more, the members thicken before new ones appear. The connection to fabrication is direct: the result is a density field, exactly what Printing 3 turns into a mesh. Three cautions from the literature belong with any use of this outside a classroom. The answer depends on the loads you described, and a real part sees others. Thin members may be impossible to make or may buckle, which this simple model does not check. And a computed shape is a proposal for an engineer to verify, not a certificate.</p>
+
+<h2>Information: placing labels by cooling</h2>
+<p>Special Topic 2 drew a map with names on it and placed each name by a fixed rule. On a crowded map, fixed rules collide. Placing labels so that none overlaps is a classic hard problem: the choices interact, and the number of combinations is astronomical. Jon Christensen, Joe Marks and Stuart Shieber compared the known methods in "An Empirical Study of Algorithms for Point-Feature Label Placement" (ACM Transactions on Graphics, 1995), and found that <strong>simulated annealing</strong> gave the best results of those they tested.</p>
+<p>Each point's label may sit in one of four positions around it. The score to minimise is the number of clashes: labels on labels, and labels on points.</p>
+<ol>
+  <li>Pick one label at random and move it to a different position.</li>
+  <li>If the score improved or stayed the same, keep the move.</li>
+  <li>If it got worse, keep the move <em>anyway</em> with a probability that depends on a number called the temperature.</li>
+  <li>Lower the temperature slowly.</li>
+</ol>
+<p>Step 3 is the whole idea. A search that only accepts improvements gets stuck in the first arrangement that no single move can improve. Accepting some bad moves early lets it climb out. As the temperature falls it accepts fewer, and finally none. The name comes from metalworking, where slow cooling lets atoms settle into a more orderly arrangement than sudden cooling.</p>
+
+<div class="example" data-h="400" data-title="S10.9 Fifty labels finding room">
+<script type="text/plain">
+let R, labels, heat, start;
+ui.button('new map', reset);
+ctx.font = '12px sans-serif';
+const syllables = ['ka', 'lo', 'mi', 'ren', 'ta', 'vel', 'or', 'ish', 'bu', 'dan', 'el', 'fa', 'gos', 'hu', 'nor', 'pe'];
+
+// The four places a label may sit: upper right, upper left, lower right, lower left of its point.
+function box(l, pos) {
+  const right = pos % 2 === 0, up = pos < 2;
+  return { x: right ? l.x + 5 : l.x - 5 - l.w, y: up ? l.y - 17 : l.y + 4, w: l.w, h: 13 };
+}
+const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+// How many clashes involve label i when it sits at `pos`?
+function clashes(i, pos) {
+  const b = box(labels[i], pos);
+  let n = b.x < 0 || b.y < 0 || b.x + b.w > W || b.y + b.h > H ? 2 : 0;       // off the map counts double
+  labels.forEach((o, j) => {
+    if (j === i) return;
+    if (overlap(b, box(o, o.pos))) n++;                                      // on another label
+    if (o.x > b.x - 3 && o.x < b.x + b.w + 3 && o.y > b.y - 3 && o.y < b.y + b.h + 3) n++;   // on another point
+  });
+  return n;
+}
+const total = () => labels.reduce((sum, l, i) => sum + clashes(i, l.pos), 0) / 2;
+
+function reset() {
+  R = PA.rng();
+  labels = [];
+  for (let k = 0; k < 50; k++) {
+    const name = R.pick(syllables) + R.pick(syllables) + (R.chance(0.4) ? R.pick(syllables) : '');
+    const text = name[0].toUpperCase() + name.slice(1);
+    labels.push({ x: R.range(40, W - 40), y: R.range(40, H - 50), text, w: ctx.measureText(text).width + 4, pos: 0 });
+  }
+  heat = 1.5;
+  start = Math.round(total());
+}
+reset();
+
+loop(() => {
+  for (let k = 0; k < 40 && heat > 0.02; k++) {
+    const i = R.int(0, labels.length - 1), old = labels[i].pos, pos = (old + R.int(1, 3)) % 4;
+    const worse = clashes(i, pos) - clashes(i, old);
+    if (worse <= 0 || R() < Math.exp(-worse / heat)) labels[i].pos = pos;    // accept some bad moves while hot
+    heat *= 0.9996;                                                          // cool slowly
+  }
+
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, W, H);
+  ctx.font = '12px sans-serif';
+  labels.forEach((l, i) => {
+    const b = box(l, l.pos), bad = clashes(i, l.pos) > 0;
+    ctx.fillStyle = bad ? 'rgba(239, 71, 111, 0.35)' : 'rgba(91, 192, 190, 0.14)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = bad ? '#ff9d94' : '#e8edf5';
+    ctx.fillText(l.text, b.x + 2, b.y + 10.5);
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.arc(l.x, l.y, 2.6, 0, PA.TAU); ctx.fill();
+  });
+  ctx.fillStyle = '#cfd6e4';
+  ctx.fillText('clashes at the start: ' + start + '      now: ' + Math.round(total()) + '      temperature: ' + heat.toFixed(2) + (heat <= 0.02 ? '  (cold)' : ''), 10, H - 10);
+});
+</script>
+</div>
+
+<p>Watch the count. It does not fall steadily. It jitters while the temperature is high and settles as it cools, usually reaching zero or close to it. The same loop solves many layout problems that have nothing to do with maps: seating plans, the arrangement of thumbnails on a contact sheet, the order of colours in a palette, the route of a pen plotter (Lesson 18). Whenever you can score an arrangement and make a small change to it, annealing is available.</p>
+
+<h2>Generators as teachers of machines</h2>
+<p>Special Topic 2 ended with images that come with their own labels. The research behind that idea has grown into one of the largest practical uses of procedural generation, and three papers mark the stages.</p>
+<dl class="vocab">
+  <dt>Domain randomisation</dt><dd>Josh Tobin and colleagues, "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World" (2017). A model that locates objects for a robot arm was trained only on simulated images with deliberately unrealistic, randomised colours, textures, lights and camera positions. It then worked on real camera images. The argument is that if the simulation varies enough, the real world looks like one more variation.</dd>
+  <dt>Procedural benchmarks</dt><dd>Karl Cobbe and colleagues, "Leveraging Procedural Generation to Benchmark Reinforcement Learning" (2020). A learning program that practises on a fixed set of game levels can simply memorise them. Their set of sixteen game-like environments generates every level afresh, so that what is measured is whether the program has learned the game, not the levels.</dd>
+  <dt>Whole worlds</dt><dd>Alexander Raistrick and colleagues, "Infinite Photorealistic Worlds Using Procedural Generation" (2023). A generator of natural scenes, including terrain, plants, creatures and weather, in which every shape and texture comes from randomised mathematical rules and no outside images or models are used. It runs in Blender, with the tools of the Blender section.</dd>
+</dl>
+<p>What these share with art practice is the observation from Lesson 10 that a generator is a description of a whole space of outputs. For machine learning the space is the product. A fourth line of work turns the arrow round and uses learning to make generators from examples. It is surveyed by Adam Summerville and colleagues in "Procedural Content Generation via Machine Learning (PCGML)" (2018), and Special Topic 6 covers how such methods sit beside the ones in this course.</p>
+
+<h2>Reading a paper as a practitioner</h2>
+<ul>
+  <li><strong>Read the figures first</strong>, then the introduction, then the section that describes the method. Leave the comparison with earlier work until you know whether you care.</li>
+  <li><strong>Find the one idea.</strong> Most papers have a single transferable idea wrapped in a system. Dispersion, the split, "global goals and local constraints", "keep the best in each cell". Write it in a sentence.</li>
+  <li><strong>Build the smallest version</strong>, as this page does. Two dimensions instead of three, a grid instead of a mesh, fifty lines. If the idea survives that, you understand it.</li>
+  <li><strong>Note what the paper says it cannot do.</strong> The limitations section is the most honest and most useful page.</li>
+  <li><strong>Follow citations in both directions.</strong> A survey points backward to the sources. A search for who cites a paper points forward to what replaced it.</li>
+</ul>
+
+<h2>Reading list</h2>
+<p>Every paper named on this page. Where a free copy was found it is linked. The others can be found by searching for the title.</p>
+<table>
+  <thead><tr><th>Paper</th><th>Take from it</th></tr></thead>
+  <tbody>
+    <tr><td>G. Smith and J. Whitehead, <a href="https://www.pcgworkshop.com/archive/smith2010analyzing.pdf">"Analyzing the Expressive Range of a Level Generator"</a>, Workshop on Procedural Content Generation in Games, 2010</td><td>Measure outputs, not parameters, and plot thousands of them</td></tr>
+    <tr><td>J. Togelius, G. Yannakakis, K. Stanley and C. Browne, <a href="https://doi.org/10.1109/TCIAIG.2011.2148116">"Search-Based Procedural Content Generation: A Taxonomy and Survey"</a>, IEEE Transactions on Computational Intelligence and AI in Games, 2011</td><td>Representation, evaluation, search</td></tr>
+    <tr><td>J.-B. Mouret and J. Clune, <a href="https://arxiv.org/abs/1504.04909">"Illuminating Search Spaces by Mapping Elites"</a>, arXiv:1504.04909, 2015</td><td>Keep the best output in every cell of a map of measurements</td></tr>
+    <tr><td>J. Marks and others, "Design Galleries: A General Approach to Setting Parameters for Computer Graphics and Animation", SIGGRAPH 1997</td><td>Show people dispersed results instead of sliders</td></tr>
+    <tr><td>K. Sims, <a href="https://www.karlsims.com/papers/SimsSiggraph91.pdf">"Artificial Evolution for Computer Graphics"</a>, SIGGRAPH 1991</td><td>A person's choice as the evaluation</td></tr>
+    <tr><td>G. Smith, J. Whitehead and M. Mateas, "Tanagra: Reactive Planning and Constraint Solving for Mixed-Initiative Level Design", IEEE Transactions on Computational Intelligence and AI in Games, 2011</td><td>The tool guarantees the constraints while the designer edits</td></tr>
+    <tr><td>A. Liapis, G. Yannakakis and J. Togelius, "Sentient Sketchbook: Computer-Aided Game Level Authoring", 2013</td><td>Live measurements and suggested alternatives</td></tr>
+    <tr><td>Y. Parish and P. Müller, "Procedural Modeling of Cities", SIGGRAPH 2001</td><td>Global goals propose, local constraints adjust</td></tr>
+    <tr><td>P. Müller, P. Wonka, S. Haegler, A. Ulmer and L. Van Gool, "Procedural Modeling of Buildings", SIGGRAPH 2006</td><td>Split a shape by rule, repeating as many times as fit</td></tr>
+    <tr><td>R. Smelik, T. Tutenel, R. Bidarra and B. Benes, <a href="https://doi.org/10.1111/cgf.12276">"A Survey on Procedural Modelling for Virtual Worlds"</a>, Computer Graphics Forum, 2014</td><td>The map of the whole field, and its emphasis on control</td></tr>
+    <tr><td>F. K. Musgrave, C. Kolb and R. Mace, "The Synthesis and Rendering of Eroded Fractal Terrains", SIGGRAPH 1989</td><td>A fractal first draft, then simulated erosion</td></tr>
+    <tr><td>E. Galin and others, <a href="https://doi.org/10.1111/cgf.13657">"A Review of Digital Terrain Modeling"</a>, Computer Graphics Forum, 2019</td><td>Procedural, simulated and example-based terrain compared</td></tr>
+    <tr><td>M. Bendsøe and N. Kikuchi, <a href="https://doi.org/10.1016/0045-7825(88)90086-2">"Generating Optimal Topologies in Structural Design Using a Homogenization Method"</a>, Computer Methods in Applied Mechanics and Engineering, 1988</td><td>Design as the distribution of material in a block</td></tr>
+    <tr><td>O. Sigmund, <a href="https://doi.org/10.1007/s001580050176">"A 99 Line Topology Optimization Code Written in Matlab"</a>, Structural and Multidisciplinary Optimization, 2001</td><td>The whole method, small enough to read</td></tr>
+    <tr><td>J. Christensen, J. Marks and S. Shieber, <a href="https://doi.org/10.1145/212332.212334">"An Empirical Study of Algorithms for Point-Feature Label Placement"</a>, ACM Transactions on Graphics, 1995</td><td>Layout as optimisation, and annealing as the method</td></tr>
+    <tr><td>J. Tobin and others, <a href="https://arxiv.org/abs/1703.06907">"Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World"</a>, IROS 2017</td><td>Vary everything that should not matter</td></tr>
+    <tr><td>K. Cobbe and others, <a href="https://arxiv.org/abs/1912.01588">"Leveraging Procedural Generation to Benchmark Reinforcement Learning"</a>, ICML 2020</td><td>Fresh levels test learning, fixed levels test memory</td></tr>
+    <tr><td>A. Raistrick and others, <a href="https://arxiv.org/abs/2306.09310">"Infinite Photorealistic Worlds Using Procedural Generation"</a>, CVPR 2023</td><td>A natural world from rules alone</td></tr>
+    <tr><td>A. Summerville and others, <a href="https://arxiv.org/abs/1702.00539">"Procedural Content Generation via Machine Learning (PCGML)"</a>, IEEE Transactions on Games, 2018</td><td>Generators learned from examples</td></tr>
+  </tbody>
+</table>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Expressive range: measure thousands of outputs on two meaningful scales and look at the cloud.</li>
+  <li>Search-based generation needs a representation, an evaluation and a search. It finds what you can recognise but cannot construct, and it optimises exactly what you scored.</li>
+  <li>Quality-diversity search keeps the best output in each cell of a map, giving a range that is both varied and good.</li>
+  <li>A design gallery shows people results chosen to look different, in place of sliders.</li>
+  <li>Road networks grow from global goals that propose and local constraints that adjust.</li>
+  <li>Split grammars cut a shape into labelled parts, repeating a part as many times as fit.</li>
+  <li>Erosion turns noise terrain into land by simulating the process that shapes real land.</li>
+  <li>Topology optimisation computes a shape from loads and a material budget by repeated simulation and redistribution.</li>
+  <li>Simulated annealing solves layout problems by accepting some bad moves early and fewer as it cools.</li>
+</ul>
+</div>
+
+<section class="challenge">
+  <p class="kicker">Special challenge 10</p>
+  <h2>Measure, Then Improve</h2>
+  <p>Take a generator you have already built, such as your answer to Special challenge 2, and treat it as a researcher would: measure it, find what is wrong with it, and fix that with one method from this page.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li><strong>Two measurements</strong> of an output, computed by code, that a user of the generator would care about. Say in a comment why you chose them.</li>
+    <li>An <strong>expressive range plot</strong> of at least 1000 outputs.</li>
+    <li>A written <strong>diagnosis</strong>: one specific weakness the plot reveals. A region it never reaches, a cluster where everything looks alike, or outputs that land somewhere they should not.</li>
+    <li>One <strong>remedy</strong>, chosen from: a search that drives outputs toward a target, MAP-Elites to fill the map with good outputs, a dispersed gallery for choosing among them, or annealing to fix an arrangement inside each output.</li>
+    <li>A <strong>second plot</strong> beside the first, on the same axes, showing the difference.</li>
+    <li>Six outputs from before and six from after, drawn the same way.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Write the measurements first and plot them before changing anything. The first plot is often a surprise.</li>
+    <li>If every output scores the same on a measurement, it is measuring nothing. Choose another.</li>
+    <li>For a search, the representation can simply be the generator's own parameters, or its seed plus a few numbers.</li>
+    <li>Keep the evaluation fast. It will be called thousands of times.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Add a third measurement and show it as the colour of the cells.</li>
+    <li>Let a person steer: click a cell of the map to see its output and breed from it.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>You can point to the place on the two plots where the generator changed.</li>
+    <li>You can state one thing the generator still cannot do, with the plot as evidence.</li>
+  </ul>
+  <a class="start" href="../challenges/s10-measure-then-improve.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The reading list above gives every paper named on this page. These are the books and surveys to go to next.</p>
+  <ul>
+    <li>Noor Shaker, Julian Togelius and Mark J. Nelson, <a href="https://www.pcgbook.com/"><cite>Procedural Content Generation in Games</cite></a>, Springer, 2016. Free to read online. <span class="why">The textbook for the first half of this page. Each chapter has exercises.</span></li>
+    <li>Tanya X. Short and Tarn Adams (editors), <cite>Procedural Generation in Game Design</cite>, CRC Press, 2017. <span class="why">The same subjects from working developers.</span></li>
+    <li>Georgios Yannakakis and Julian Togelius, <a href="https://gameaibook.org/"><cite>Artificial Intelligence and Games</cite></a>, Springer, 2018. Free to read online. <span class="why">Search, generation and player modelling in one book.</span></li>
+    <li>Justin Pugh, Lisa Soros and Kenneth Stanley, “<a href="https://doi.org/10.3389/frobt.2016.00040">Quality Diversity: A New Frontier for Evolutionary Computation</a>”, Frontiers in Robotics and AI, 2016. <span class="why">The family of methods that MAP-Elites belongs to.</span></li>
+    <li>Martin Bendsøe and Ole Sigmund, <cite>Topology Optimization: Theory, Methods, and Applications</cite>, Springer, 2003. <span class="why">The textbook on topology optimisation.</span></li>
+    <li>Scott Kirkpatrick, C. Daniel Gelatt and Mario Vecchi, “Optimization by Simulated Annealing”, Science, 1983. <span class="why">The paper that introduced simulated annealing.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="09-project-workflow.html">← Special Topic 9</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>

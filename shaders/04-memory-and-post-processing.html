@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shaders 4 · Memory and Post-processing</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<nav class="top"><a href="03-raymarching-and-light.html">← Shaders 3</a><span>Shaders 4 of 4</span><a href="../index.html">Course →</a></nav>
+<main>
+<header>
+  <p class="kicker">Shaders 4</p>
+  <h1>Memory and Post-processing</h1>
+  <p class="lede">A shader forgets everything between frames. Give it one thing to remember, the picture it drew last time, and it can leave trails, grow patterns and run whole simulations on the graphics card. This lesson covers that one idea, and then the family of effects that treat a finished picture as raw material.</p>
+</header>
+
+<h2>One texture of memory</h2>
+<p>Shaders 1 listed a shader's restrictions: no memory, no neighbours. Both are lifted by a single arrangement. The shader draws into a hidden image instead of onto the screen. On the next frame that image is handed back to the shader as a <strong>texture</strong>, an image it can read at any position. So the shader can now ask "what was at this pixel last frame?", which is memory, and "what was at the pixel next to it?", which is neighbours.</p>
+<p>It cannot read and write the same image at once, so there are two, and they swap roles every frame. This is called ping-pong. It is exactly the pair of arrays, <code>A</code> and <code>A2</code>, that every simulation in Lesson 8 used.</p>
+<p>In these examples the previous frame is the uniform <code>u_prev</code>. You read it with <code>texture2D(u_prev, uv)</code>, where <code>uv</code> runs from 0 to 1 across the canvas, and get back the four numbers that were stored there. Two more uniforms help: <code>u_frame</code> counts the frames since the example started, so that the first one can set things up, and <code>u_down</code> is 1.0 while the mouse button is held.</p>
+
+<h2>Trails</h2>
+<p>The simplest use: read the old colour, fade it slightly, and draw today's content on top. Anything that moves leaves a trail whose length is set by the fade. Hold the mouse button and draw.</p>
+
+<div class="example" data-mode="shader" data-title="SH4.1 Trails (hold the mouse button to draw)">
+<script type="text/plain">
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  vec3 col = texture2D(u_prev, uv).rgb;                  // what this pixel was one frame ago
+  col = max(col * 0.97 - 0.004, 0.0);                    // fade: mostly by a factor, plus a small step so that it reaches black
+
+  for (int i = 0; i < 3; i++) {                          // three points on looping paths
+    float k = float(i);
+    vec2 c = 0.7 * vec2(cos(u_time * (0.9 + k * 0.4) + k * 2.0), sin(u_time * (1.3 + k * 0.3) + k));
+    float mask = 1.0 - smoothstep(0.03, 0.05, length(p - c));
+    vec3 tint = 0.5 + 0.5 * cos(6.2832 * (k * 0.33 + vec3(0.0, 0.33, 0.67)));
+    col = max(col, tint * mask);                         // max: new light never darkens old light
+  }
+
+  vec2 m = (u_mouse * 2.0 - u_res) / u_res.y;            // the pointer draws while the button is down
+  col = max(col, vec3(u_down * (1.0 - smoothstep(0.02, 0.04, length(p - m)))));
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>Reading from somewhere else</h2>
+<p>Nothing says a pixel must read its <em>own</em> old value. If every pixel reads from a position slightly nearer the centre, the old picture is copied outward a little each frame and appears to grow. Add a small rotation and it spirals. This is video feedback, the effect of pointing a camera at its own monitor, and it produces a great deal from very little: the only new content below is one small ring circling the pointer.</p>
+
+<div class="example" data-mode="shader" data-title="SH4.2 Feedback: the picture feeds on itself (move the pointer)">
+<script type="text/plain">
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+
+  // where to read the old picture: turned a little, and 1.5% nearer the centre
+  float turn = 0.02;
+  vec2 from = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * (uv - 0.5) * 0.985 + 0.5;
+  vec3 col = texture2D(u_prev, from).rgb;
+  col = max(col * 0.99 - 0.001, 0.0);
+  col = mix(col, col.brg, 0.015);                        // let the colours drift as they travel outward
+
+  // the only new thing: a small ring that circles the pointer, slowly changing colour
+  vec2 m = (u_mouse * 2.0 - u_res) / u_res.y + 0.3 * vec2(cos(u_time * 1.1), sin(u_time * 1.6));
+  float ring = 1.0 - smoothstep(0.004, 0.012, abs(length(p - m) - 0.05));
+  vec3 tint = 0.5 + 0.5 * cos(6.2832 * (u_time * 0.12 + vec3(0.0, 0.33, 0.67)));
+  col = max(col, tint * ring);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<h2>State is not a picture: update and display</h2>
+<p>In the last two examples the remembered image and the picture you saw were the same thing. For a simulation they should be separate. What must be remembered is the <strong>state</strong>, such as whether a cell is alive, or the amounts of two chemicals, stored as plain numbers in the red and green channels. What you want to see is a rendering of that state, with colour and lighting that must not leak back into it.</p>
+<p>So a simulation shader has two parts. In these examples they are two functions in the same listing, in place of <code>main</code>:</p>
+<ul>
+  <li><code>void update()</code> reads the old state from <code>u_prev</code> and writes the new state.</li>
+  <li><code>void display()</code> reads the state that was just written, also from <code>u_prev</code>, and writes the colour that appears on screen.</li>
+</ul>
+<p>The first simulation is Conway's Game of Life from Lesson 8. Each cell is drawn six pixels across, so the shader first works out which cell the pixel belongs to, and all the pixels of a cell reach the same answer. The red channel holds alive or dead. The green channel counts how long a cell has lived, purely so that <code>display</code> can colour by age.</p>
+
+<div class="example" data-mode="shader" data-title="SH4.3 The Game of Life on the graphics card (hold the mouse button to add cells)">
+<script type="text/plain">
+const float CELL = 6.0;                                  // pixels across one cell
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+vec4 cellAt(vec2 cell) {                                 // read one cell of the stored state; the grid wraps round
+  cell = mod(cell, floor(u_res / CELL));
+  return texture2D(u_prev, (cell + 0.5) * CELL / u_res);
+}
+float alive(vec2 cell) { return step(0.5, cellAt(cell).r); }
+
+void update() {
+  vec2 cell = floor(gl_FragCoord.xy / CELL);
+  vec4 old = cellAt(cell);
+  float self = step(0.5, old.r), next = self;
+
+  if (mod(u_frame, 5.0) < 0.5) {                         // one generation every five frames
+    float n = alive(cell + vec2(-1.0, -1.0)) + alive(cell + vec2(0.0, -1.0)) + alive(cell + vec2(1.0, -1.0))
+            + alive(cell + vec2(-1.0,  0.0))                                 + alive(cell + vec2(1.0,  0.0))
+            + alive(cell + vec2(-1.0,  1.0)) + alive(cell + vec2(0.0,  1.0)) + alive(cell + vec2(1.0,  1.0));
+    if (self > 0.5 && (n < 1.5 || n > 3.5)) next = 0.0;  // too few or too many neighbours: it dies
+    if (self < 0.5 && n > 2.5 && n < 3.5) next = 1.0;    // exactly three: a cell is born
+  }
+  if (u_frame < 1.0) next = step(0.6, hash(cell));       // the first frame: a random start
+  if (u_down > 0.5 && distance(cell, floor(u_mouse / CELL)) < 2.5) next = 1.0;
+
+  float age = next > 0.5 ? min(old.g + 0.004, 1.0) : 0.0;
+  gl_FragColor = vec4(next, age, 0.0, 1.0);              // the state: alive in red, age in green
+}
+
+void display() {
+  vec4 s = cellAt(floor(gl_FragCoord.xy / CELL));
+  float d = length(fract(gl_FragCoord.xy / CELL) - 0.5); // each cell is drawn as a disc
+  float mask = s.r * (1.0 - smoothstep(0.3, 0.42, d));
+  vec3 tint = mix(vec3(1.0, 0.92, 0.55), vec3(0.25, 0.75, 0.8), smoothstep(0.0, 0.6, s.g));   // young cells are yellow, old ones teal
+  gl_FragColor = vec4(mix(vec3(0.05, 0.06, 0.09), tint, mask), 1.0);
+}
+</script>
+</div>
+
+<h2>Reaction and diffusion at full speed</h2>
+<p>The Gray–Scott system of Lesson 8 and Textures 3 is an ideal fit. Its rule reads the cell and its eight neighbours and nothing else. In JavaScript a grid of 200 by 200 was the comfortable limit. Here every pixel of the canvas is a cell, and the simulation still runs eight steps every frame.</p>
+<p>Three details are worth noticing in the listing.</p>
+<ul>
+  <li>The feed rate rises from left to right and the kill rate from bottom to top, so the canvas is a <strong>map of every pattern</strong> the system can make. Find the regions of spots, stripes and mazes, and the region where nothing survives.</li>
+  <li>The state is two amounts that change by tiny fractions each step. Ordinary image memory holds only 256 levels per channel, which is too coarse, so the examples use decimal ("float") textures wherever the graphics card allows it.</li>
+  <li><code>display</code> treats the amount of the second chemical as a height and lights it, exactly as in Textures 4. The simulation knows nothing about that.</li>
+</ul>
+
+<div class="example" data-mode="shader" data-w="440" data-h="440" data-steps="8" data-title="SH4.4 A map of Gray–Scott patterns (hold the mouse button to seed)">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+vec2 at(vec2 offset) {                                   // the two chemicals at a neighbouring pixel
+  return texture2D(u_prev, (gl_FragCoord.xy + offset) / u_res).rg;
+}
+
+void update() {
+  vec2 s = at(vec2(0.0));
+  // how this pixel differs from the weighted average of its eight neighbours
+  vec2 lap = (at(vec2(-1.0, 0.0)) + at(vec2(1.0, 0.0)) + at(vec2(0.0, -1.0)) + at(vec2(0.0, 1.0))) * 0.2
+           + (at(vec2(-1.0, -1.0)) + at(vec2(1.0, -1.0)) + at(vec2(-1.0, 1.0)) + at(vec2(1.0, 1.0))) * 0.05 - s;
+
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float feed = mix(0.022, 0.060, uv.x);                  // rises from left to right
+  float kill = mix(0.056, 0.066, uv.y);                  // rises from bottom to top
+
+  float a = s.r, b = s.g, reaction = a * b * b;
+  a += 1.0 * lap.r - reaction + feed * (1.0 - a);
+  b += 0.5 * lap.g + reaction - (kill + feed) * b;
+
+  if (u_frame < 1.0) {                                   // the first frame: A everywhere, B in scattered patches
+    a = 1.0;
+    b = step(0.9, hash(floor(gl_FragCoord.xy / 8.0)));
+  }
+  if (u_down > 0.5 && distance(gl_FragCoord.xy, u_mouse) < 10.0) b = 0.9;
+  gl_FragColor = vec4(clamp(a, 0.0, 1.0), clamp(b, 0.0, 1.0), 0.0, 1.0);
+}
+
+void display() {
+  vec2 uv = gl_FragCoord.xy / u_res, px = 1.0 / u_res;
+  float b = texture2D(u_prev, uv).g;
+  // the slope of B, used as the slope of a surface
+  float bx = texture2D(u_prev, uv + vec2(px.x, 0.0)).g - texture2D(u_prev, uv - vec2(px.x, 0.0)).g;
+  float by = texture2D(u_prev, uv + vec2(0.0, px.y)).g - texture2D(u_prev, uv - vec2(0.0, px.y)).g;
+  vec3 n = normalize(vec3(-bx * 8.0, -by * 8.0, 1.0));
+  float light = max(0.0, dot(n, normalize(vec3(-0.5, 0.6, 0.6))));
+  vec3 col = mix(vec3(0.05, 0.10, 0.20), vec3(0.95, 0.75, 0.45), smoothstep(0.1, 0.35, b));
+  gl_FragColor = vec4(col * (0.35 + 0.9 * light), 1.0);
+}
+</script>
+</div>
+
+<p>The same structure runs fluids, sand, erosion, slime moulds and flocking fields. Lesson 19 pointed at the graphics card as the last step in making a simulation fast. This is that step.</p>
+
+<h2>Post-processing</h2>
+<p>A post-process is a shader whose input is a finished picture. It does not know or care how the picture was made. Film and games run a chain of them over every frame, and a small number of them account for most of the "look" of a piece. In the example the picture comes from a function, <code>scene(p)</code>, so that an effect which needs the picture at a different position can simply call it again. With a stored picture you would read a texture instead.</p>
+<dl class="vocab">
+  <dt>Chromatic aberration</dt><dd>A lens bends red and blue light by slightly different amounts. Read the red channel a little further from the centre and the blue a little nearer.</dd>
+  <dt>Vignette</dt><dd>Darken toward the corners. It holds the eye in the middle of the frame.</dd>
+  <dt>Scanlines</dt><dd>Darken every third row of pixels, as on an old screen.</dd>
+  <dt>Grain</dt><dd>Add a small random amount to every pixel, different each frame. It hides banding in smooth gradients (Lesson 11) and takes the plastic cleanness off a render.</dd>
+  <dt>Tone curve</dt><dd>Pass each channel through an S-shaped curve to raise the contrast (Maths 1).</dd>
+</dl>
+
+<div class="example" data-mode="shader" data-title="SH4.5 The picture as made, left of the pointer; processed, right">
+<script type="text/plain">
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// The picture to be processed: any function from a position to a colour.
+vec3 scene(vec2 p) {
+  float r = length(p), a = atan(p.y, p.x);
+  float edge = 0.5 + 0.15 * cos(a * 5.0 + u_time);
+  vec3 col = mix(vec3(0.10, 0.20, 0.45), vec3(0.20, 0.50, 0.70), step(0.25, abs(fract(a / 6.2832 * 12.0) - 0.5)));
+  col = mix(col, vec3(1.00, 0.78, 0.30), 1.0 - smoothstep(0.0, 0.01, r - edge));
+  col = mix(col, vec3(0.92, 0.30, 0.30), 1.0 - smoothstep(0.0, 0.01, r - edge * 0.5));
+  return col;
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
+  vec3 col = scene(p);
+
+  if (gl_FragCoord.x > u_mouse.x) {
+    float spread = 0.02 * dot(p, p);                     // 1. aberration, growing toward the edges
+    col.r = scene(p * (1.0 + spread)).r;
+    col.b = scene(p * (1.0 - spread)).b;
+
+    col = col * col * (3.0 - 2.0 * col);                 // 2. a tone curve: more contrast
+
+    col *= 1.0 - 0.3 * dot(p, p);                        // 3. vignette
+
+    col *= mod(gl_FragCoord.y, 3.0) < 1.0 ? 0.82 : 1.0;  // 4. scanlines
+
+    col += (hash(gl_FragCoord.xy + fract(u_time) * 97.0) - 0.5) * 0.09;   // 5. grain, new every frame
+  }
+
+  col = mix(col, vec3(1.0), 1.0 - smoothstep(0.0, 1.5, abs(gl_FragCoord.x - u_mouse.x)));
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+</div>
+
+<p>The order matters. Grain goes last, because grain that is then given more contrast becomes far too strong. Aberration goes first, because it needs the untouched picture. Comment the five effects out one at a time and see how much each contributes.</p>
+
+<h2>Fewer pixels, fewer colours</h2>
+<p>The other family of post-processes throws information away on purpose. Two reductions give the look of early computer graphics: large square pixels, and a palette of a few colours with ordered dithering (Lesson 13) to suggest the tones in between.</p>
+<ul>
+  <li><strong>Large pixels.</strong> Find which block the pixel is in with <code>floor</code>, and evaluate the picture once, at the middle of the block. Every pixel in the block gets the same answer.</li>
+  <li><strong>Ordered dithering.</strong> Before rounding a brightness down to the nearest of four levels, add a threshold that depends on the block's position in a repeating four-by-four pattern. Lesson 13 stored that pattern in a table. A shader can compute it from the bits of the position.</li>
+</ul>
+
+<div class="example" data-mode="shader" data-h="400" data-title="SH4.6 A sunset in four colours">
+<script type="text/plain">
+const float BLOCK = 4.0;                                 // pixels across one large pixel
+
+vec3 scene(vec2 uv) {                                    // the landscape of Shaders 1, simplified
+  vec2 p = vec2(uv.x * u_res.x / u_res.y, uv.y);
+  vec3 col = mix(vec3(0.98, 0.62, 0.42), vec3(0.16, 0.20, 0.42), smoothstep(0.2, 1.0, uv.y));
+  float d = length(p - vec2(0.5 * u_res.x / u_res.y, 0.46 + 0.05 * sin(u_time * 0.3)));
+  col += vec3(1.0, 0.6, 0.3) * 0.5 * exp(-5.0 * d);
+  col = mix(col, vec3(1.0, 0.95, 0.8), 1.0 - smoothstep(0.10, 0.105, d));
+  for (int i = 0; i < 3; i++) {
+    float k = float(i);
+    float top = 0.36 - k * 0.1 + 0.05 * sin(p.x * (3.0 + k * 2.0) + k * 2.1 + u_time * 0.1 * (k + 1.0));
+    col = mix(col, mix(vec3(0.45, 0.30, 0.45), vec3(0.06, 0.05, 0.12), k / 2.0), 1.0 - smoothstep(0.0, 0.004, uv.y - top));
+  }
+  return col;
+}
+
+// The 4 x 4 ordered-dither pattern, worked out from the position instead of looked up. Returns 0 to 1.
+float threshold(vec2 cell) {
+  vec2 c = mod(cell, 4.0);
+  float v = 0.0;
+  for (int i = 0; i < 2; i++) {
+    vec2 bit = mod(c, 2.0);                              // the lowest bit of x and of y
+    c = floor(c / 2.0);
+    v = v * 4.0 + mix(2.0 * bit.x, 3.0 - 2.0 * bit.x, bit.y);     // the 2 x 2 pattern [0 2 / 3 1], nested inside itself
+  }
+  return (v + 0.5) / 16.0;
+}
+
+void main() {
+  vec2 cell = floor(gl_FragCoord.xy / BLOCK);            // which large pixel
+  vec3 col = scene((cell + 0.5) * BLOCK / u_res);        // the picture, sampled once per large pixel
+
+  float grey = dot(col, vec3(0.299, 0.587, 0.114));      // perceived brightness
+  float level = floor(grey * 3.0 + threshold(cell));     // 0, 1, 2 or 3: the dither decides which way to round
+
+  vec3 ink = vec3(0.06, 0.05, 0.16);                     // a palette of four
+  if (level > 0.5) ink = vec3(0.45, 0.20, 0.42);
+  if (level > 1.5) ink = vec3(0.95, 0.52, 0.35);
+  if (level > 2.5) ink = vec3(1.00, 0.93, 0.72);
+  gl_FragColor = vec4(ink, 1.0);
+}
+</script>
+</div>
+
+<h2>Taking shaders elsewhere</h2>
+<p>The GLSL in this section is standard. What differs between environments is the names of the inputs and how the previous frame reaches you.</p>
+<table>
+  <thead><tr><th>This course</th><th>Shadertoy</th><th>three.js <code>ShaderMaterial</code></th></tr></thead>
+  <tbody>
+    <tr><td><code>void main()</code></td><td><code>void mainImage(out vec4 fragColor, in vec2 fragCoord)</code></td><td><code>void main()</code></td></tr>
+    <tr><td><code>gl_FragCoord.xy</code></td><td><code>fragCoord</code></td><td><code>gl_FragCoord.xy</code>, or a <code>varying</code> passed from the vertex shader</td></tr>
+    <tr><td><code>gl_FragColor</code></td><td><code>fragColor</code></td><td><code>gl_FragColor</code></td></tr>
+    <tr><td><code>u_res</code></td><td><code>iResolution.xy</code></td><td>A uniform you declare and set yourself</td></tr>
+    <tr><td><code>u_time</code></td><td><code>iTime</code></td><td>A uniform you declare and update each frame</td></tr>
+    <tr><td><code>u_mouse</code></td><td><code>iMouse.xy</code></td><td>A uniform you declare and set from a pointer event</td></tr>
+    <tr><td><code>u_frame</code></td><td><code>iFrame</code></td><td>A uniform you count yourself</td></tr>
+    <tr><td><code>u_prev</code></td><td>A buffer tab that lists itself as one of its own <code>iChannel</code> inputs</td><td>Two render targets that you swap each frame</td></tr>
+  </tbody>
+</table>
+<p>The starter file for this lesson's challenge contains the plumbing written out in plain WebGL: two textures, two framebuffers, and the swap. It is about forty lines, and reading it once will remove any mystery about what <code>u_prev</code> is.</p>
+
+<div class="keys">
+<h3>Key ideas</h3>
+<ul>
+  <li>Handing a shader its own previous frame as a texture gives it memory and neighbours.</li>
+  <li>Two images take turns: one is read while the other is written.</li>
+  <li>Fading the old frame leaves trails. Reading it from a shifted position makes feedback.</li>
+  <li>A simulation stores state, not colours. One function updates the state, another displays it.</li>
+  <li>Small changes need decimal textures. Eight bits per channel is too coarse for most simulations.</li>
+  <li>A post-process takes a finished picture as input: aberration, tone curve, vignette, scanlines, grain, in that order.</li>
+  <li>Large pixels are <code>floor</code> of the position. Ordered dithering is a threshold that depends on position.</li>
+</ul>
+</div>
+
+<h3>Common mistakes</h3>
+<ul>
+  <li>A fade by multiplication alone. In 8-bit memory it stops a little above black and leaves a permanent ghost. Subtract a small amount as well.</li>
+  <li>Display colours leaking into the state. If the picture changes the simulation, you have written lighting into <code>update</code>.</li>
+  <li>Reading neighbours at the wrong spacing. One pixel is <code>1.0 / u_res</code> in texture coordinates, not <code>1.0</code>.</li>
+  <li>Forgetting the first frame. The memory starts empty, so a simulation needs a line that fills it when <code>u_frame</code> is zero.</li>
+</ul>
+
+<section class="challenge">
+  <p class="kicker">Shaders challenge 4</p>
+  <h2>A Shader with a Memory</h2>
+  <p>Write a simulation that lives entirely on the graphics card, responds to the pointer, and is displayed with care.</p>
+  <h3>Requirements</h3>
+  <ul>
+    <li>A <strong>state</strong> held in the previous-frame texture, with a comment saying what each channel means.</li>
+    <li>An <strong>update</strong> that reads the pixel and its neighbours. Choose one: a cellular automaton with your own rule, a reaction–diffusion system with parameters that vary across the canvas, falling sand, or a field of your own design.</li>
+    <li>A separate <strong>display</strong> that adds colour and lighting without changing the state.</li>
+    <li>A defined <strong>first frame</strong>, and a way to <strong>restart</strong>.</li>
+    <li>The <strong>pointer</strong> adds, removes or disturbs something.</li>
+    <li>At least two <strong>post-processes</strong> applied in <code>display</code>, chosen to suit the subject.</li>
+  </ul>
+  <h3>Hints</h3>
+  <ul>
+    <li>Get the rule working with the plainest possible display first: state shown directly as red and green.</li>
+    <li>If the simulation freezes or blows up, show the state with <code>inspect</code> from Shaders 1.</li>
+    <li>For falling sand, a cell needs to know what is below it and what is above it, and both must agree about who moves. Work it out on paper for two cells first.</li>
+  </ul>
+  <h3>Stretch goals</h3>
+  <ul>
+    <li>Use the blue and alpha channels for a second, slower quantity that influences the first, such as heat or age.</li>
+    <li>Run the state at a quarter of the canvas resolution and display it smoothly at full size.</li>
+  </ul>
+  <h3>You are done when</h3>
+  <ul>
+    <li>It runs for five minutes without settling into a dead or frozen state, or it settles into something worth keeping.</li>
+    <li>Someone who plays with it for a minute can tell you what the pointer does.</li>
+  </ul>
+  <a class="start" href="../challenges/sh4-shader-with-a-memory.html">Open the starter file</a>
+</section>
+
+<!-- references -->
+<section class="refs">
+  <h2>References and further reading</h2>
+  <p>The sources for this page, and other places that cover the same ground.</p>
+  <ul>
+    <li>Mark Harris, “<a href="https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu">Fast Fluid Dynamics Simulation on the GPU</a>”, GPU Gems, chapter 38, 2004. <span class="why">Simulation by ping-pong textures, explained in full.</span></li>
+    <li>Jos Stam, “Stable Fluids”, SIGGRAPH 1999. <span class="why">The fluid method most often run this way.</span></li>
+    <li>Karl Sims, <a href="https://www.karlsims.com/rd.html"><cite>Reaction-Diffusion Tutorial</cite></a>. <span class="why">The Gray–Scott system and its parameter map.</span></li>
+    <li>John E. Pearson, “Complex Patterns in a Simple System”, Science, 1993. <span class="why">The catalogue of Gray–Scott patterns.</span></li>
+    <li>three.js, <a href="https://threejs.org/manual/#en/post-processing"><cite>three.js Manual: Post Processing</cite></a>. <span class="why">Chains of post-processes in three.js.</span></li>
+    <li>Bryce Bayer, “An Optimum Method for Two-Level Rendition of Continuous-Tone Pictures”, IEEE International Conference on Communications, 1973. <span class="why">The ordered-dither pattern of example SH4.6.</span></li>
+    <li>Inigo Quilez and Pol Jeremias, <a href="https://www.shadertoy.com/"><cite>Shadertoy</cite></a>. <span class="why">Multi-buffer shaders to study.</span></li>
+  </ul>
+</section>
+<!-- /references -->
+
+<footer class="next"><a href="03-raymarching-and-light.html">← Shaders 3</a><a href="../index.html">Back to the course →</a></footer>
+</main>
+<script src="../assets/pa.js"></script>
+<script src="../assets/lesson.js"></script>
+</body>
+</html>
